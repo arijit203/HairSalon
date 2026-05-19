@@ -174,11 +174,11 @@ export default function ServicesPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="section-title flex items-center gap-2">
-            <Scissors className="w-6 h-6 text-rose-400" />
+          <h1 className="page-title flex items-center gap-2">
+            <Scissors className="w-5 h-5 text-rose-400" />
             Services
           </h1>
-          <p className="section-subtitle">{services.length} services · {services.filter(s => s.popular).length} featured</p>
+          <p className="page-subtitle">{services.length} services · {services.filter(s => s.popular).length} featured</p>
         </div>
         <button className="btn-primary">
           <Plus className="w-4 h-4" />
@@ -221,12 +221,7 @@ export default function ServicesPage() {
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all"
-              style={{
-                background: selectedCategory === cat ? "rgba(244,63,94,0.2)" : "rgba(255,255,255,0.04)",
-                color: selectedCategory === cat ? "#fb7185" : "var(--text-muted)",
-                border: selectedCategory === cat ? "1px solid rgba(244,63,94,0.3)" : "1px solid rgba(255,255,255,0.06)",
-              }}
+              className={`filter-pill ${selectedCategory === cat ? "active" : ""}`}
             >
               {cat}
             </button>
@@ -255,22 +250,18 @@ export default function ServicesPage() {
 
             {/* Menu Button */}
             <button
-              className="absolute top-4 right-4 w-8 h-8 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-              style={{ background: "rgba(255,255,255,0.08)" }}
+              className="btn-icon absolute top-4 right-4 w-8 h-8 opacity-0 group-hover:opacity-100"
               onClick={() => setOpenMenu(openMenu === service.id ? null : service.id)}
             >
-              <MoreVertical className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+              <MoreVertical className="w-4 h-4" />
             </button>
 
             {openMenu === service.id && (
-              <div
-                className="absolute top-12 right-4 z-20 rounded-xl py-1.5 min-w-[140px]"
-                style={{ background: "rgba(21,10,14,0.95)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}
-              >
+              <div className="dropdown-menu absolute top-12 right-4 z-20">
                 {[{ label: "View", icon: Eye }, { label: "Edit", icon: Edit2 }, { label: "Delete", icon: Trash2, danger: true }].map((a) => {
                   const Icon = a.icon;
                   return (
-                    <button key={a.label} onClick={() => setOpenMenu(null)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm transition-all hover:bg-white/[0.06]" style={{ color: (a as any).danger ? "#f87171" : "var(--text-secondary)" }}>
+                    <button key={a.label} onClick={() => setOpenMenu(null)} className={`dropdown-item ${(a as any).danger ? "danger" : ""}`}>
                       <Icon className="w-3.5 h-3.5" />{a.label}
                     </button>
                   );
@@ -343,7 +334,7 @@ export default function ServicesPage() {
             </div>
 
             {/* Price */}
-            <div className="flex items-center justify-between pt-3 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <div className="flex items-center justify-between pt-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
               <div>
                 <span className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
                   ₹{(service.discountPrice || service.price).toLocaleString()}

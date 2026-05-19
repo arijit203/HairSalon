@@ -3,6 +3,7 @@ import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
+import { ThemeProvider } from "@/context/ThemeContext";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -26,25 +27,25 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
       <body>
-        {/* Ambient background glows */}
-        <div className="ambient-glow ambient-glow-1" />
-        <div className="ambient-glow ambient-glow-2" />
+        <ThemeProvider>
+          {/* Ambient background glows */}
+          <div className="ambient-glow ambient-glow-1" />
+          <div className="ambient-glow ambient-glow-2" />
 
-        <div className="flex h-screen overflow-hidden">
-          <Sidebar />
-          <div className="flex flex-col flex-1 overflow-hidden">
-            <Topbar />
-            <main className="flex-1 overflow-y-auto p-6 relative z-10">
-              {children}
-            </main>
+          <div className="flex h-screen overflow-hidden relative z-10">
+            <Sidebar />
+            <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+              <Topbar />
+              <main className="flex-1 overflow-y-auto p-6">
+                {children}
+              </main>
+            </div>
           </div>
-        </div>
+        </ThemeProvider>
       </body>
     </html>
   );

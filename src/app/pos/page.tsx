@@ -84,11 +84,11 @@ export default function POSPage() {
     <div className="max-w-[1400px] mx-auto animate-fade-in">
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="section-title flex items-center gap-2">
-            <ShoppingCart className="w-6 h-6 text-rose-400" />
+          <h1 className="page-title flex items-center gap-2">
+            <ShoppingCart className="w-5 h-5 text-rose-400" />
             Point of Sale
           </h1>
-          <p className="section-subtitle">Process sales for products & services</p>
+          <p className="page-subtitle">Process sales for products & services</p>
         </div>
         <button className="btn-secondary">
           <Receipt className="w-4 h-4" />
@@ -105,16 +105,12 @@ export default function POSPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-muted)" }} />
               <input type="text" placeholder="Search products & services..." className="input-field pl-10" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
-            <div className="flex items-center rounded-xl overflow-hidden flex-shrink-0" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div className="flex items-center rounded-xl overflow-hidden flex-shrink-0" style={{ border: "1px solid var(--border-default)" }}>
               {["All", "Products", "Services"].map(f => (
                 <button
                   key={f}
                   onClick={() => setActiveFilter(f)}
-                  className="px-4 py-2.5 text-sm font-medium transition-all"
-                  style={{
-                    background: activeFilter === f ? "rgba(244,63,94,0.2)" : "transparent",
-                    color: activeFilter === f ? "#fb7185" : "var(--text-muted)",
-                  }}
+                  className={`period-pill rounded-none border-none ${activeFilter === f ? "active" : ""}`}
                 >
                   {f}
                 </button>

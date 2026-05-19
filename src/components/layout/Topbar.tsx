@@ -1,36 +1,43 @@
 "use client";
 
-import { Bell, Search, Plus, Sun } from "lucide-react";
+import { Bell, Search, Plus, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/context/ThemeContext";
+
+const notifications = [
+  { id: 1, text: "3 new bookings confirmed", time: "2m ago", dot: "glow-dot-green" },
+  { id: 2, text: "Low stock: OPI Nail Polish", time: "18m ago", dot: "glow-dot-rose" },
+  { id: 3, text: "Emma Davis left a review ⭐⭐⭐⭐⭐", time: "1h ago", dot: "glow-dot-gold" },
+];
 
 export default function Topbar() {
+  const { theme, toggleTheme } = useTheme();
+
   return (
     <header
-      className="flex items-center justify-between px-6 py-4 flex-shrink-0 relative z-10"
+      className="flex items-center gap-4 px-6 py-3.5 flex-shrink-0"
       style={{
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
-        background: "rgba(13,6,8,0.8)",
-        backdropFilter: "blur(12px)",
+        background: "var(--bg-topbar)",
+        borderBottom: "1px solid var(--border-sidebar)",
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
       }}
     >
       {/* Search */}
-      <div className="flex items-center gap-3 flex-1 max-w-md">
-        <div className="relative flex-1">
-          <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-            style={{ color: "var(--text-muted)" }}
-          />
-          <input
-            type="text"
-            placeholder="Search clients, products, services..."
-            className="input-field pl-10 pr-4 py-2.5 text-sm"
-            style={{ paddingTop: "10px", paddingBottom: "10px" }}
-          />
-        </div>
+      <div className="relative flex-1 max-w-md">
+        <Search
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+          style={{ color: "var(--text-muted)" }}
+        />
+        <input
+          type="text"
+          placeholder="Search clients, products, services…"
+          className="input-field pl-10 pr-4 py-2.5 text-sm"
+        />
         <kbd
-          className="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium"
+          className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium pointer-events-none"
           style={{
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,255,255,0.1)",
+            background: "var(--bg-card)",
+            border: "1px solid var(--border-default)",
             color: "var(--text-muted)",
           }}
         >
@@ -38,50 +45,81 @@ export default function Topbar() {
         </kbd>
       </div>
 
-      {/* Right Side */}
-      <div className="flex items-center gap-3">
-        {/* Date */}
-        <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl"
-          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
+      {/* Right Actions */}
+      <div className="flex items-center gap-2 ml-auto">
+        {/* Date chip */}
+        <div
+          className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border-default)",
+            color: "var(--text-secondary)",
+          }}
         >
-          <Sun className="w-4 h-4 text-amber-400" />
-          <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-            {new Date().toLocaleDateString("en-US", {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-            })}
-          </span>
+          <Sun className="w-3.5 h-3.5 text-amber-400" />
+          {new Date().toLocaleDateString("en-IN", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+          })}
         </div>
 
-        {/* New Booking CTA */}
-        <button className="btn-primary hidden sm:flex">
+        {/* New Booking */}
+        <button className="btn-primary hidden sm:inline-flex">
           <Plus className="w-4 h-4" />
           New Booking
         </button>
 
-        {/* Notifications */}
+        {/* Theme Toggle */}
         <button
-          className="relative w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-white/[0.06]"
-          style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+          onClick={toggleTheme}
+          className="btn-icon"
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         >
-          <Bell className="w-4.5 h-4.5" style={{ width: "18px", height: "18px", color: "var(--text-secondary)" }} />
-          <span
-            className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
-            style={{ background: "#f43f5e", boxShadow: "0 0 6px rgba(244,63,94,0.8)" }}
-          />
+          {theme === "dark" ? (
+            <Sun className="w-4 h-4 text-amber-400" />
+          ) : (
+            <Moon className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+          )}
         </button>
 
-        {/* Avatar */}
-        <div
-          className="avatar cursor-pointer"
-          style={{
-            background: "linear-gradient(135deg, #f43f5e 0%, #a855f7 100%)",
-            boxShadow: "0 0 12px rgba(244,63,94,0.3)",
-          }}
-        >
-          SA
+        {/* Notifications */}
+        <div className="relative">
+          <button className="btn-icon relative">
+            <Bell className="w-4 h-4" style={{ color: "var(--text-secondary)" }} />
+            <span
+              className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full"
+              style={{ background: "#f43f5e", boxShadow: "0 0 5px rgba(244,63,94,0.9)" }}
+            />
+          </button>
         </div>
+
+        {/* Divider */}
+        <div className="w-px h-6" style={{ background: "var(--border-default)" }} />
+
+        {/* User Avatar */}
+        <button
+          className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl transition-all hover:bg-[var(--bg-card)]"
+          style={{ border: "1px solid transparent" }}
+        >
+          <div
+            className="avatar text-xs"
+            style={{
+              background: "linear-gradient(135deg, #f43f5e 0%, #a855f7 100%)",
+              boxShadow: "0 0 10px rgba(244,63,94,0.3)",
+              width: "32px",
+              height: "32px",
+            }}
+          >
+            SA
+          </div>
+          <div className="hidden md:block text-left">
+            <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+              Salon Admin
+            </p>
+            <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Administrator</p>
+          </div>
+        </button>
       </div>
     </header>
   );

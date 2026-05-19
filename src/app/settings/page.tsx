@@ -71,11 +71,11 @@ export default function SettingsPage() {
   return (
     <div className="max-w-[1200px] mx-auto animate-fade-in">
       <div className="mb-6">
-        <h1 className="section-title flex items-center gap-2">
-          <Settings className="w-6 h-6 text-rose-400" />
+        <h1 className="page-title flex items-center gap-2">
+          <Settings className="w-5 h-5 text-rose-400" />
           Settings
         </h1>
-        <p className="section-subtitle">Manage your salon preferences and configuration</p>
+        <p className="page-subtitle">Manage your salon preferences and configuration</p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
@@ -85,19 +85,14 @@ export default function SettingsPage() {
             const Icon = section.icon;
             return (
               <button
-                key={section.id}
-                onClick={() => setActiveSection(section.id)}
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all"
-                style={{
-                  background: activeSection === section.id ? "rgba(244,63,94,0.15)" : "transparent",
-                  color: activeSection === section.id ? "#fb7185" : "var(--text-muted)",
-                  border: activeSection === section.id ? "1px solid rgba(244,63,94,0.2)" : "1px solid transparent",
-                }}
-              >
-                <Icon style={{ width: "16px", height: "16px" }} />
-                <span className="flex-1 text-left">{section.label}</span>
-                <ChevronRight className="w-3.5 h-3.5 opacity-50" />
-              </button>
+              key={section.id}
+              onClick={() => setActiveSection(section.id)}
+              className={`nav-link w-full ${activeSection === section.id ? "active" : ""}`}
+            >
+              <Icon style={{ width: "16px", height: "16px" }} />
+              <span className="flex-1 text-left">{section.label}</span>
+              <ChevronRight className="w-3.5 h-3.5 opacity-50" />
+            </button>
             );
           })}
         </div>

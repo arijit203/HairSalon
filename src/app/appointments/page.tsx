@@ -86,23 +86,19 @@ export default function AppointmentsPage() {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="section-title flex items-center gap-2">
-            <CalendarDays className="w-6 h-6 text-rose-400" />
+          <h1 className="page-title flex items-center gap-2">
+            <CalendarDays className="w-5 h-5 text-rose-400" />
             Appointments
           </h1>
-          <p className="section-subtitle">{appointments.length} total · {appointments.filter(a => a.status === "confirmed").length} confirmed</p>
+          <p className="page-subtitle">{appointments.length} total · {appointments.filter(a => a.status === "confirmed").length} confirmed</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="flex items-center rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-default)" }}>
             {["calendar", "list"].map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v as any)}
-                className="px-4 py-2.5 text-sm font-medium capitalize transition-all"
-                style={{
-                  background: view === v ? "rgba(244,63,94,0.2)" : "transparent",
-                  color: view === v ? "#fb7185" : "var(--text-muted)",
-                }}
+                className={`period-pill rounded-none border-none capitalize ${view === v ? "active" : ""}`}
               >
                 {v}
               </button>
@@ -170,7 +166,7 @@ export default function AppointmentsPage() {
                 <button
                   key={day}
                   onClick={() => setSelectedDate(day)}
-                  className="relative flex flex-col items-center justify-center h-10 rounded-xl text-sm font-medium transition-all hover:bg-white/[0.06]"
+                  className="relative flex flex-col items-center justify-center h-10 rounded-xl text-sm font-medium transition-all hover:bg-[var(--bg-card)]"
                   style={{
                     background: isSelected ? "linear-gradient(135deg, #f43f5e, #e11d48)" : isToday ? "rgba(244,63,94,0.1)" : "transparent",
                     color: isSelected ? "white" : isToday ? "#fb7185" : "var(--text-secondary)",
@@ -191,19 +187,14 @@ export default function AppointmentsPage() {
           </div>
 
           {/* Staff Filter */}
-          <div className="mt-5 pt-4 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <div className="mt-5 pt-4 border-t" style={{ borderColor: "var(--border-subtle)" }}>
             <p className="text-xs font-semibold mb-3 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Filter by Staff</p>
             <div className="flex flex-wrap gap-2">
               {staffMembers.map((staff) => (
                 <button
                   key={staff}
                   onClick={() => setSelectedStaff(staff)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                  style={{
-                    background: selectedStaff === staff ? "rgba(244,63,94,0.2)" : "rgba(255,255,255,0.04)",
-                    color: selectedStaff === staff ? "#fb7185" : "var(--text-muted)",
-                    border: selectedStaff === staff ? "1px solid rgba(244,63,94,0.3)" : "1px solid rgba(255,255,255,0.06)",
-                  }}
+                  className={`filter-pill text-xs px-3 py-1.5 ${selectedStaff === staff ? "active" : ""}`}
                 >
                   {staff}
                 </button>
@@ -244,7 +235,7 @@ export default function AppointmentsPage() {
                 return (
                   <div
                     key={appt.id}
-                    className="flex items-start gap-4 p-4 rounded-xl cursor-pointer hover:bg-white/[0.04] transition-all group"
+                    className="flex items-start gap-4 p-4 rounded-xl cursor-pointer hover:bg-[var(--bg-card)] transition-all group"
                     style={{
                       border: `1px solid ${appt.color}20`,
                       background: `${appt.color}06`,
