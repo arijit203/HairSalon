@@ -1,0 +1,46 @@
+# ========================
+# Dependencies
+# ========================
+node_modules/
+
+# ========================
+# Next.js Build Output
+# ========================
+.next/
+out/
+
+# ========================
+# Environment Variables
+# ========================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ========================
+# TypeScript
+# ========================
+*.tsbuildinfo
+next-env.d.ts
+
+# ========================
+# Package Manager Locks
+# (keep only one — npm here)
+# ========================
+yarn.lock
+pnpm-lock.yaml
+
+# ========================
+# OS & Editor Noise
+# ========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ========================
+# Misc
+# ========================
+npm-debug.log*
+.eslintcache
