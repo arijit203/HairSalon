@@ -12,16 +12,18 @@ export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl;
     const { page, limit, skip } = getPaginationParams(searchParams);
 
-    const date    = searchParams.get("date")    ?? undefined; // YYYY-MM-DD
-    const staffId = searchParams.get("staffId") ?? undefined;
-    const status  = searchParams.get("status")  ?? undefined;
-    const from    = searchParams.get("from")    ?? undefined;
-    const to      = searchParams.get("to")      ?? undefined;
+        const date     = searchParams.get("date")     ?? undefined; // YYYY-MM-DD
+    const staffId  = searchParams.get("staffId")  ?? undefined;
+    const clientId = searchParams.get("clientId") ?? undefined;
+    const status   = searchParams.get("status")   ?? undefined;
+    const from     = searchParams.get("from")     ?? undefined;
+    const to       = searchParams.get("to")       ?? undefined;
 
     const where = {
-      ...(status  && { status: status as any }),
-      ...(staffId && { staffId }),
-      ...(date    && { date: new Date(date) }),
+      ...(status   && { status: status as any }),
+      ...(staffId  && { staffId }),
+      ...(clientId && { clientId }),
+      ...(date     && { date: new Date(date) }),
       ...(from && to && {
         date: {
           gte: new Date(from),

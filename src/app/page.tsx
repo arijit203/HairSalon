@@ -68,9 +68,12 @@ export default function DashboardPage() {
   fromDate.setMonth(fromDate.getMonth() - periodMonths + 1);
   fromDate.setDate(1);
 
+  const fromStr = fromDate.toISOString().split("T")[0];
+  const toStr = new Date().toISOString().split("T")[0];
+
   const { data: stats, loading: statsLoading } = useApi<DashboardStats>("/api/dashboard/stats");
   const { data: analytics, loading: analyticsLoading } = useApi<AnalyticsData>(
-    `/api/analytics?from=${fromDate.toISOString()}&to=${new Date().toISOString()}`
+    `/api/analytics?from=${fromStr}&to=${toStr}`
   );
 
   const greeting = new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 17 ? "Good afternoon" : "Good evening";

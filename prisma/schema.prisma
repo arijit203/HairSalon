@@ -128,6 +128,7 @@ model Client {
   totalVisits    Int        @default(0)
   notes          String?
   isActive       Boolean    @default(true)
+  passwordHash   String?
 
   // Relations
   appointments Appointment[]

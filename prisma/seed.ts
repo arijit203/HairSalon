@@ -17,6 +17,7 @@ async function main() {
   // ── Staff ─────────────────────────────────────────────────────────────────
   const staffInputs = [
     { name: "Salon Admin", email: "admin@wyapar.com", role: StaffRole.ADMIN,           password: "Admin@123" },
+    { name: "Madoe Salon Admin", email: "madoesalon@gmail.com", role: StaffRole.ADMIN,  password: "Abcd@1234" },
     { name: "Maria K.",    email: "maria@wyapar.com",  role: StaffRole.SENIOR_STYLIST,  password: "Staff@123" },
     { name: "Jana L.",     email: "jana@wyapar.com",   role: StaffRole.ESTHETICIAN,     password: "Staff@123" },
     { name: "Priya S.",    email: "priya@wyapar.com",  role: StaffRole.NAIL_TECHNICIAN, password: "Staff@123" },
@@ -71,8 +72,13 @@ async function main() {
     { name: "Zara Ahmed",    email: "zara@example.com",     phone: "+91 9876543214", tier: ClientTier.SILVER,   loyaltyPoints: 420,  totalSpent: 12800, totalVisits: 10 },
     { name: "Priya Patel",   email: "priyap@example.com",   phone: "+91 9876543215", tier: ClientTier.BRONZE,   loyaltyPoints: 180,  totalSpent: 4200,  totalVisits: 6  },
   ];
+  const clientPasswordHash = await bcrypt.hash("Client@123", 10);
   for (const c of clientInputs) {
-    await prisma.client.upsert({ where: { email: c.email }, update: {}, create: c });
+    await prisma.client.upsert({
+      where: { email: c.email },
+      update: { passwordHash: clientPasswordHash },
+      create: { ...c, passwordHash: clientPasswordHash },
+    });
   }
   console.log("✅ Clients seeded");
 

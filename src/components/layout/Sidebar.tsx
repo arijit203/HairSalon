@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Package,
@@ -13,39 +14,102 @@ import {
   Settings,
   Sparkles,
   ChevronRight,
+  LogOut,
+  User,
 } from "lucide-react";
 import { clsx } from "clsx";
 
-const navGroups = [
-  {
-    label: "Overview",
-    items: [
-      { label: "Dashboard",  href: "/",            icon: LayoutDashboard, badge: null },
-      { label: "Analytics",  href: "/analytics",   icon: BarChart3,       badge: null },
-    ],
-  },
-  {
-    label: "Salon",
-    items: [
-      { label: "Products",     href: "/products",     icon: Package,      badge: null },
-      { label: "Services",     href: "/services",     icon: Scissors,     badge: null },
-      { label: "Appointments", href: "/appointments", icon: CalendarDays, badge: "3" },
-    ],
-  },
-  {
-    label: "Business",
-    items: [
-      { label: "Clients",      href: "/clients",  icon: Users,        badge: null },
-      { label: "Point of Sale",href: "/pos",      icon: ShoppingCart, badge: null },
-    ],
-  },
-];
+interface UserSession {
+  userId: string;
+  email: string;
+  name: string;
+  roleType: "staff" | "client";
+  staffRole?: string;
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [user, setUser] = useState<UserSession | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setUser(data.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      router.refresh();
+      router.push("/login");
+    } catch (e) {
+      console.error("Logout failed", e);
+    }
+  };
+
+  // Define nav links depending on role
+  const isClient = user?.roleType === "client";
+  const isAdmin = user?.roleType === "staff" && user?.staffRole === "ADMIN";
+
+  const getNavGroups = () => {
+    if (isClient) {
+      return [
+        {
+          label: "Customer Portal",
+          items: [
+            { label: "Dashboard", href: "/portal", icon: LayoutDashboard, badge: null },
+            { label: "Book Services", href: "/portal/services", icon: Scissors, badge: null },
+            { label: "My Bookings", href: "/portal/bookings", icon: CalendarDays, badge: null },
+          ],
+        },
+      ];
+    }
+
+    // Staff navigation
+    return [
+      {
+        label: "Overview",
+        items: [
+          { label: "Dashboard", href: "/", icon: LayoutDashboard, badge: null },
+          ...(isAdmin ? [{ label: "Analytics", href: "/analytics", icon: BarChart3, badge: null }] : []),
+        ],
+      },
+      {
+        label: "Salon",
+        items: [
+          { label: "Products", href: "/products", icon: Package, badge: null },
+          { label: "Services", href: "/services", icon: Scissors, badge: null },
+          { label: "Appointments", href: "/appointments", icon: CalendarDays, badge: null },
+        ],
+      },
+      {
+        label: "Business",
+        items: [
+          { label: "Clients", href: "/clients", icon: Users, badge: null },
+          { label: "Point of Sale", href: "/pos", icon: ShoppingCart, badge: null },
+        ],
+      },
+    ];
+  };
+
+  const navGroups = getNavGroups();
+  const initials = user?.name
+    ? user.name
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : "??";
 
   return (
     <aside
@@ -59,7 +123,7 @@ export default function Sidebar() {
     >
       {/* ── Logo ─────────────────────── */}
       <div className="px-5 py-5">
-        <Link href="/" className="flex items-center gap-3">
+        <Link href={isClient ? "/portal" : "/"} className="flex items-center gap-3">
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
             style={{
@@ -87,23 +151,25 @@ export default function Sidebar() {
       </div>
 
       {/* ── Status chip ──────────────── */}
-      <div className="mx-3 mb-4">
-        <div
-          className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
-          style={{
-            background: "rgba(16,185,129,0.07)",
-            border: "1px solid rgba(16,185,129,0.15)",
-          }}
-        >
-          <div className="glow-dot-green" />
-          <div>
-            <p className="text-xs font-semibold text-emerald-500">Open Now</p>
-            <p className="text-[10px] mt-0" style={{ color: "var(--text-muted)" }}>
-              Closes at 8:00 PM
-            </p>
+      {!isClient && (
+        <div className="mx-3 mb-4">
+          <div
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+            style={{
+              background: "rgba(16,185,129,0.07)",
+              border: "1px solid rgba(16,185,129,0.15)",
+            }}
+          >
+            <div className="glow-dot-green" />
+            <div>
+              <p className="text-xs font-semibold text-emerald-500">Open Now</p>
+              <p className="text-[10px] mt-0" style={{ color: "var(--text-muted)" }}>
+                Closes at 8:00 PM
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── Nav ──────────────────────── */}
       <nav className="flex-1 px-3 overflow-y-auto space-y-5">
@@ -162,18 +228,38 @@ export default function Sidebar() {
 
       {/* ── Bottom ───────────────────── */}
       <div className="p-3 space-y-0.5" style={{ borderTop: "1px solid var(--border-sidebar)" }}>
-        <Link
-          href="/settings"
-          className={clsx("nav-link", { active: pathname === "/settings" })}
+        {isAdmin && (
+          <Link
+            href="/settings"
+            className={clsx("nav-link", { active: pathname === "/settings" })}
+          >
+            <Settings
+              style={{
+                width: "16px",
+                height: "16px",
+                flexShrink: 0,
+                color: pathname === "/settings" ? "var(--accent-rose-light)" : "var(--text-muted)",
+              }}
+            />
+            <span className="flex-1 text-sm">Settings</span>
+          </Link>
+        )}
+
+        <button
+          onClick={handleLogout}
+          className="nav-link w-full text-left"
+          style={{ background: "transparent", border: "none" }}
         >
-          <Settings
+          <LogOut
             style={{
-              width: "16px", height: "16px", flexShrink: 0,
-              color: pathname === "/settings" ? "var(--accent-rose-light)" : "var(--text-muted)",
+              width: "16px",
+              height: "16px",
+              flexShrink: 0,
+              color: "var(--text-muted)",
             }}
           />
-          <span className="flex-1 text-sm">Settings</span>
-        </Link>
+          <span className="flex-1 text-sm">Sign Out</span>
+        </button>
 
         {/* Profile */}
         <div
@@ -184,18 +270,19 @@ export default function Sidebar() {
             className="avatar text-xs flex-shrink-0"
             style={{
               background: "linear-gradient(135deg, #f43f5e 0%, #a855f7 100%)",
-              width: "34px", height: "34px",
+              width: "34px",
+              height: "34px",
               boxShadow: "0 0 10px rgba(244,63,94,0.25)",
             }}
           >
-            SA
+            {initials}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>
-              Salon Admin
+              {user?.name || "Loading..."}
             </p>
-            <p className="text-[10px] truncate" style={{ color: "var(--text-muted)" }}>
-              admin@wyapar.com
+            <p className="text-[10px] truncate uppercase tracking-wider font-semibold" style={{ color: "var(--text-muted)" }}>
+              {isClient ? "Customer" : user?.staffRole || "Staff"}
             </p>
           </div>
         </div>

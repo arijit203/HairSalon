@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/layout/Sidebar";
-import Topbar from "@/components/layout/Topbar";
+import AppLayout from "@/components/layout/AppLayout";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { ToastProvider } from "@/context/ToastContext";
 import ToastContainer from "@/components/ui/Toast";
@@ -41,15 +40,7 @@ export default function RootLayout({
               <div className="ambient-glow ambient-glow-1" />
               <div className="ambient-glow ambient-glow-2" />
 
-              <div className="flex h-screen overflow-hidden relative z-10">
-                <Sidebar />
-                <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-                  <Topbar />
-                  <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-                    {children}
-                  </main>
-                </div>
-              </div>
+              <AppLayout>{children}</AppLayout>
 
               <ToastContainer />
             </SidebarProvider>

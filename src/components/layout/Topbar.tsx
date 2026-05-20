@@ -2,6 +2,7 @@
 
 import { Bell, Search, Plus, Sun, Moon } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
+import { useState, useEffect } from "react";
 
 const notifications = [
   { id: 1, text: "3 new bookings confirmed", time: "2m ago", dot: "glow-dot-green" },
@@ -9,8 +10,38 @@ const notifications = [
   { id: 3, text: "Emma Davis left a review ⭐⭐⭐⭐⭐", time: "1h ago", dot: "glow-dot-gold" },
 ];
 
+interface UserSession {
+  userId: string;
+  email: string;
+  name: string;
+  roleType: "staff" | "client";
+  staffRole?: string;
+}
+
 export default function Topbar() {
   const { theme, toggleTheme } = useTheme();
+  const [user, setUser] = useState<UserSession | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setUser(data.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const isClient = user?.roleType === "client";
+  const initials = user?.name
+    ? user.name
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : "??";
 
   return (
     <header
@@ -64,11 +95,13 @@ export default function Topbar() {
           })}
         </div>
 
-        {/* New Booking */}
-        <button className="btn-primary hidden sm:inline-flex">
-          <Plus className="w-4 h-4" />
-          New Booking
-        </button>
+        {/* New Booking - Hide for customers */}
+        {!isClient && (
+          <button className="btn-primary hidden sm:inline-flex">
+            <Plus className="w-4 h-4" />
+            New Booking
+          </button>
+        )}
 
         {/* Theme Toggle */}
         <button
@@ -83,23 +116,25 @@ export default function Topbar() {
           )}
         </button>
 
-        {/* Notifications */}
-        <div className="relative">
-          <button className="btn-icon relative">
-            <Bell className="w-4 h-4" style={{ color: "var(--text-secondary)" }} />
-            <span
-              className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full"
-              style={{ background: "#f43f5e", boxShadow: "0 0 5px rgba(244,63,94,0.9)" }}
-            />
-          </button>
-        </div>
+        {/* Notifications - Hide for customers for simplicity */}
+        {!isClient && (
+          <div className="relative">
+            <button className="btn-icon relative">
+              <Bell className="w-4 h-4" style={{ color: "var(--text-secondary)" }} />
+              <span
+                className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full"
+                style={{ background: "#f43f5e", boxShadow: "0 0 5px rgba(244,63,94,0.9)" }}
+              />
+            </button>
+          </div>
+        )}
 
         {/* Divider */}
         <div className="w-px h-6" style={{ background: "var(--border-default)" }} />
 
         {/* User Avatar */}
-        <button
-          className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl transition-all hover:bg-[var(--bg-card)]"
+        <div
+          className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl"
           style={{ border: "1px solid transparent" }}
         >
           <div
@@ -111,15 +146,17 @@ export default function Topbar() {
               height: "32px",
             }}
           >
-            SA
+            {initials}
           </div>
           <div className="hidden md:block text-left">
             <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
-              Salon Admin
+              {user?.name || "Loading..."}
             </p>
-            <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Administrator</p>
+            <p className="text-[10px] capitalize" style={{ color: "var(--text-muted)" }}>
+              {isClient ? "Customer" : user?.staffRole?.toLowerCase() || "Staff"}
+            </p>
           </div>
-        </button>
+        </div>
       </div>
     </header>
   );
