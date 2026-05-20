@@ -1,0 +1,262 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")  // Transaction pooler — used by app at runtime
+  directUrl = env("DIRECT_URL")    // Session pooler — used by Prisma CLI for migrations
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
+
+enum ProductStatus {
+  IN_STOCK
+  LOW_STOCK
+  OUT_OF_STOCK
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  UPI
+  BANK_TRANSFER
+}
+
+enum TransactionStatus {
+  COMPLETED
+  REFUNDED
+  PENDING
+}
+
+enum ClientTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+enum StaffStatus {
+  ACTIVE
+  ON_LEAVE
+  INACTIVE
+}
+
+enum StaffRole {
+  ADMIN
+  SENIOR_STYLIST
+  STYLIST
+  ESTHETICIAN
+  NAIL_TECHNICIAN
+  RECEPTIONIST
+}
+
+// ─── MODELS ──────────────────────────────────────────────────────────────────
+
+model Product {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  category    String
+  brand       String
+  sku         String        @unique
+  price       Decimal       @db.Decimal(10, 2)
+  costPrice   Decimal?      @db.Decimal(10, 2)
+  stock       Int           @default(0)
+  lowStockAt  Int           @default(10)  // Alert threshold
+  status      ProductStatus @default(IN_STOCK)
+  imageUrl    String?
+  isActive    Boolean       @default(true)
+
+  // Relations
+  transactionItems TransactionItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([isActive])
+}
+
+model Service {
+  id           String  @id @default(cuid())
+  name         String
+  description  String?
+  category     String
+  price        Decimal @db.Decimal(10, 2)
+  discountPrice Decimal? @db.Decimal(10, 2)
+  duration     Int     // in minutes
+  isPopular    Boolean @default(false)
+  isActive     Boolean @default(true)
+  imageUrl     String?
+
+  // Relations
+  appointments     Appointment[]
+  transactionItems TransactionItem[]
+  staffServices    StaffService[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([isActive])
+}
+
+model Client {
+  id             String     @id @default(cuid())
+  name           String
+  email          String     @unique
+  phone          String?
+  dateOfBirth    DateTime?
+  address        String?
+  tier           ClientTier @default(BRONZE)
+  loyaltyPoints  Int        @default(0)
+  totalSpent     Decimal    @default(0) @db.Decimal(10, 2)
+  totalVisits    Int        @default(0)
+  notes          String?
+  isActive       Boolean    @default(true)
+
+  // Relations
+  appointments Appointment[]
+  transactions Transaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([tier])
+  @@index([isActive])
+}
+
+model Staff {
+  id        String      @id @default(cuid())
+  name      String
+  email     String      @unique
+  phone     String?
+  role      StaffRole   @default(STYLIST)
+  status    StaffStatus @default(ACTIVE)
+  bio       String?
+  imageUrl  String?
+  joinDate  DateTime    @default(now())
+  isActive  Boolean     @default(true)
+
+  // Auth
+  passwordHash String?
+
+  // Relations
+  appointments  Appointment[]
+  staffServices StaffService[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([isActive])
+}
+
+// Staff ↔ Service many-to-many (which staff can perform which service)
+model StaffService {
+  staff     Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  staffId   String
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  serviceId String
+
+  @@id([staffId, serviceId])
+}
+
+model Appointment {
+  id        String            @id @default(cuid())
+  clientId  String
+  serviceId String
+  staffId   String
+  date      DateTime          @db.Date
+  startTime String            // "09:00" format
+  endTime   String            // "10:30" format
+  status    AppointmentStatus @default(PENDING)
+  notes     String?
+  price     Decimal           @db.Decimal(10, 2)
+
+  // Relations
+  client  Client  @relation(fields: [clientId], references: [id])
+  service Service @relation(fields: [serviceId], references: [id])
+  staff   Staff   @relation(fields: [staffId], references: [id])
+
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  transactionId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+  @@index([status])
+  @@index([clientId])
+  @@index([staffId])
+  @@index([serviceId])
+}
+
+model Transaction {
+  id            String            @id @default(cuid())
+  invoiceNumber String            @unique
+  clientId      String?
+  subtotal      Decimal           @db.Decimal(10, 2)
+  discountPct   Decimal           @default(0) @db.Decimal(5, 2)
+  discountAmt   Decimal           @default(0) @db.Decimal(10, 2)
+  taxPct        Decimal           @default(18) @db.Decimal(5, 2)
+  taxAmt        Decimal           @db.Decimal(10, 2)
+  total         Decimal           @db.Decimal(10, 2)
+  paymentMethod PaymentMethod     @default(CASH)
+  status        TransactionStatus @default(COMPLETED)
+  notes         String?
+
+  // Relations
+  client       Client?          @relation(fields: [clientId], references: [id])
+  items        TransactionItem[]
+  appointments Appointment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model TransactionItem {
+  id            String  @id @default(cuid())
+  transactionId String
+  productId     String?
+  serviceId     String?
+  name          String  // Snapshot of name at time of sale
+  unitPrice     Decimal @db.Decimal(10, 2)
+  quantity      Int     @default(1)
+  lineTotal     Decimal @db.Decimal(10, 2)
+
+  // Relations
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  product     Product?    @relation(fields: [productId], references: [id])
+  service     Service?    @relation(fields: [serviceId], references: [id])
+
+  @@index([transactionId])
+}
+
+// ─── SETTINGS ────────────────────────────────────────────────────────────────
+
+model SalonSettings {
+  id        String   @id @default(cuid())
+  key       String   @unique  // e.g. "salon_name", "gst_number"
+  value     String
+  updatedAt DateTime @updatedAt
+}

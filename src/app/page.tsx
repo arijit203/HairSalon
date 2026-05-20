@@ -2,298 +2,308 @@
 
 import {
   TrendingUp, TrendingDown, Users, ShoppingBag,
-  CalendarCheck, DollarSign, Star, ArrowRight,
-  Clock, Scissors, Package, ChevronRight, Sparkles, Plus,
+  CalendarCheck, Plus, ArrowRight, Clock,
+  Scissors, AlertTriangle,
 } from "lucide-react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
+import { useState } from "react";
+import { useApi } from "@/hooks/useApi";
 
-const revenueData = [
-  { month: "Jan", revenue: 42000 },
-  { month: "Feb", revenue: 38500 },
-  { month: "Mar", revenue: 51000 },
-  { month: "Apr", revenue: 47800 },
-  { month: "May", revenue: 63200 },
-  { month: "Jun", revenue: 58900 },
-  { month: "Jul", revenue: 72400 },
-];
+// ── Types ──────────────────────────────────────────────────────────────────
+interface DashboardStats {
+  revenue:      { thisMonth: number; lastMonth: number; changePercent: number };
+  bookings:     { today: number; newToday: number };
+  clients:      { total: number; newThisMonth: number };
+  productsSold: { thisMonth: number; lastMonth: number; changePercent: number };
+  alerts:       { lowStockCount: number };
+  todayAppointments: any[];
+}
+interface AnalyticsData {
+  monthlyRevenue:   { month: string; revenue: number }[];
+  serviceBreakdown: { name: string; category: string; revenue: number }[];
+}
 
-const serviceBreakdown = [
-  { name: "Hair Services",  value: 38, color: "#f43f5e" },
-  { name: "Facial & Skin",  value: 24, color: "#a855f7" },
-  { name: "Nail Care",      value: 18, color: "#fbbf24" },
-  { name: "Waxing",         value: 12, color: "#06b6d4" },
-  { name: "Others",         value: 8,  color: "#6b7280" },
-];
-
-const todayAppointments = [
-  { id: 1, client: "Sophia Chen",    service: "Hair Coloring",      time: "9:00 AM",  duration: "90 min", status: "confirmed",   avatar: "SC", color: "#f43f5e", staff: "Maria K." },
-  { id: 2, client: "Isabella Rose",  service: "Deep Facial",        time: "10:30 AM", duration: "60 min", status: "in-progress", avatar: "IR", color: "#a855f7", staff: "Jana L."  },
-  { id: 3, client: "Emma Davis",     service: "Gel Mani + Pedi",    time: "12:00 PM", duration: "75 min", status: "confirmed",   avatar: "ED", color: "#06b6d4", staff: "Priya S." },
-  { id: 4, client: "Olivia Martin",  service: "Brazilian Wax",      time: "1:30 PM",  duration: "45 min", status: "pending",     avatar: "OM", color: "#fbbf24", staff: "Maria K." },
-  { id: 5, client: "Zara Ahmed",     service: "Hair Cut & Blowout", time: "3:00 PM",  duration: "50 min", status: "confirmed",   avatar: "ZA", color: "#10b981", staff: "Jana L."  },
-];
-
-const topProducts = [
-  { name: "Kérastase Serum",     sold: 42, revenue: 2940, trend: "up"   },
-  { name: "L'Oreal Masque",      sold: 38, revenue: 1900, trend: "up"   },
-  { name: "OPI Nail Polish Set", sold: 34, revenue: 1360, trend: "down" },
-  { name: "Moroccanoil Shampoo", sold: 29, revenue: 1740, trend: "up"   },
-];
-
-const statCards = [
-  { label: "Total Revenue",    value: "₹3,72,400", change: "+18.2%", up: true,  icon: DollarSign,    accent: "#f43f5e", sub: "vs last month"    },
-  { label: "Bookings Today",   value: "24",         change: "+3 new", up: true,  icon: CalendarCheck, accent: "#a855f7", sub: "6 remaining today" },
-  { label: "Active Clients",   value: "1,284",      change: "+42",    up: true,  icon: Users,         accent: "#fbbf24", sub: "new this month"    },
-  { label: "Products Sold",    value: "348",         change: "-4.1%",  up: false, icon: ShoppingBag,   accent: "#06b6d4", sub: "vs last month"    },
-];
-
-const statusBadge: Record<string, string> = {
-  "confirmed":   "badge-success",
-  "in-progress": "badge-purple",
-  "pending":     "badge-warning",
+const PERIOD_LABELS: Record<string, string> = {
+  "1M": "1 Month", "3M": "3 Months", "6M": "6 Months", "1Y": "1 Year",
 };
-const statusLabel: Record<string, string> = {
-  "confirmed":   "Confirmed",
-  "in-progress": "In Progress",
-  "pending":     "Pending",
+const MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+const PIE_COLORS = ["#f43f5e","#a855f7","#06b6d4","#f59e0b","#10b981","#6366f1"];
+
+const statusColors: Record<string, string> = {
+  CONFIRMED:   "#10b981",
+  IN_PROGRESS: "#a855f7",
+  PENDING:     "#f59e0b",
+  COMPLETED:   "#06b6d4",
+  CANCELLED:   "#6b7280",
 };
 
-function ChartTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
+function fmt(n: number) {
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000)   return `₹${(n / 1000).toFixed(1)}k`;
+  return `₹${n.toLocaleString("en-IN")}`;
+}
+
+function StatCardSkeleton() {
   return (
-    <div className="px-4 py-3 rounded-xl text-sm" style={{
-      background: "var(--bg-tooltip)", border: "1px solid rgba(244,63,94,0.2)",
-      backdropFilter: "blur(12px)", boxShadow: "var(--shadow-dropdown)",
-    }}>
-      <p className="font-semibold mb-1" style={{ color: "var(--text-primary)" }}>{label}</p>
-      {payload.map((p: any, i: number) => (
-        <p key={i} style={{ color: p.color }}>
-          Revenue: <span className="font-semibold">₹{p.value?.toLocaleString()}</span>
-        </p>
-      ))}
+    <div className="glass-card p-5 animate-pulse">
+      <div className="flex items-start justify-between mb-4">
+        <div className="w-10 h-10 rounded-xl bg-white/[0.06]" />
+        <div className="w-16 h-5 rounded-full bg-white/[0.06]" />
+      </div>
+      <div className="w-24 h-7 rounded bg-white/[0.06] mb-2" />
+      <div className="w-32 h-4 rounded bg-white/[0.04]" />
     </div>
   );
 }
 
 export default function DashboardPage() {
+  const [period, setPeriod] = useState("6M");
+
+  const periodMonths = period === "1M" ? 1 : period === "3M" ? 3 : period === "1Y" ? 12 : 6;
+  const fromDate = new Date();
+  fromDate.setMonth(fromDate.getMonth() - periodMonths + 1);
+  fromDate.setDate(1);
+
+  const { data: stats, loading: statsLoading } = useApi<DashboardStats>("/api/dashboard/stats");
+  const { data: analytics, loading: analyticsLoading } = useApi<AnalyticsData>(
+    `/api/analytics?from=${fromDate.toISOString()}&to=${new Date().toISOString()}`
+  );
+
+  const greeting = new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 17 ? "Good afternoon" : "Good evening";
+
+  const chartData = (analytics?.monthlyRevenue ?? []).map(m => ({
+    name: MONTH_ABBR[parseInt(m.month.split("-")[1]) - 1],
+    revenue: Math.round(m.revenue),
+  }));
+
+  const pieData = (analytics?.serviceBreakdown ?? []).slice(0, 6).map(s => ({
+    name: s.category,
+    value: Math.round(s.revenue),
+  }));
+
+  const statCards = [
+    {
+      label: "Total Revenue",
+      value: stats ? fmt(stats.revenue.thisMonth) : "—",
+      change: stats?.revenue.changePercent ?? 0,
+      sub: "vs last month",
+      icon: ShoppingBag,
+      color: "#f43f5e",
+    },
+    {
+      label: "Bookings Today",
+      value: stats ? String(stats.bookings.today) : "—",
+      change: stats?.bookings.newToday ?? 0,
+      sub: `${stats?.bookings.newToday ?? 0} new today`,
+      icon: CalendarCheck,
+      color: "#a855f7",
+      isCount: true,
+    },
+    {
+      label: "Active Clients",
+      value: stats ? stats.clients.total.toLocaleString() : "—",
+      change: stats?.clients.newThisMonth ?? 0,
+      sub: `+${stats?.clients.newThisMonth ?? 0} new this month`,
+      icon: Users,
+      color: "#f59e0b",
+      isCount: true,
+    },
+    {
+      label: "Products Sold",
+      value: stats ? String(stats.productsSold.thisMonth) : "—",
+      change: stats?.productsSold.changePercent ?? 0,
+      sub: "vs last month",
+      icon: ShoppingBag,
+      color: "#06b6d4",
+    },
+  ];
+
   return (
     <div className="max-w-[1400px] mx-auto space-y-6 animate-fade-in">
-
-      {/* ── Page Header ─────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+      {/* Header */}
+      <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="page-title flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-rose-400" />
-            Good morning, Admin ✨
-          </h1>
+          <h1 className="page-title">✨ {greeting}, Admin ✨</h1>
           <p className="page-subtitle">Here&apos;s what&apos;s happening at your salon today.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button className="btn-secondary">
-            <Clock className="w-4 h-4" />
-            Schedule
-          </button>
-          <button className="btn-primary">
-            <CalendarCheck className="w-4 h-4" />
-            New Booking
-          </button>
+        <div className="flex items-center gap-3">
+          <button className="btn-secondary"><Clock className="w-4 h-4" /> Schedule</button>
+          <button className="btn-primary"><Plus className="w-4 h-4" /> New Booking</button>
         </div>
       </div>
 
-      {/* ── KPI Cards ───────────────────────────────── */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        {statCards.map((card, i) => {
-          const Icon = card.icon;
-          return (
-            <div
-              key={i}
-              className="stat-card animate-slide-up"
-              style={{ animationDelay: `${i * 0.07}s` }}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center"
-                  style={{ background: `${card.accent}18` }}
-                >
-                  <Icon className="w-5 h-5" style={{ color: card.accent }} />
+      {/* Low stock alert */}
+      {stats && stats.alerts.lowStockCount > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium"
+          style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.25)", color: "#fbbf24" }}>
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          {stats.alerts.lowStockCount} product{stats.alerts.lowStockCount > 1 ? "s" : ""} running low on stock.
+          <a href="/products" className="ml-auto underline underline-offset-2 text-xs">View Products →</a>
+        </div>
+      )}
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+        {statsLoading
+          ? Array(4).fill(0).map((_, i) => <StatCardSkeleton key={i} />)
+          : statCards.map((card) => {
+              const Icon = card.icon;
+              const isPositive = card.isCount ? (card.change as number) >= 0 : (card.change as number) >= 0;
+              return (
+                <div key={card.label} className="glass-card p-5 hover:scale-[1.01] transition-all duration-200">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                      style={{ background: `${card.color}18` }}>
+                      <Icon className="w-5 h-5" style={{ color: card.color }} />
+                    </div>
+                    {!card.isCount && (
+                      <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${isPositive ? "text-emerald-400 bg-emerald-400/10" : "text-red-400 bg-red-400/10"}`}>
+                        {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        {Math.abs(card.change as number)}%
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>{card.value}</p>
+                  <p className="text-xs font-medium mb-0.5" style={{ color: "var(--text-muted)" }}>{card.label}</p>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{card.sub}</p>
                 </div>
-                <span className={`flex items-center gap-1 text-xs font-semibold ${card.up ? "text-emerald-500" : "text-rose-400"}`}>
-                  {card.up ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                  {card.change}
-                </span>
-              </div>
-              <p className="text-2xl font-bold leading-none mb-1" style={{ color: "var(--text-primary)" }}>
-                {card.value}
-              </p>
-              <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>{card.label}</p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{card.sub}</p>
-            </div>
-          );
-        })}
+              );
+            })}
       </div>
 
-      {/* ── Charts Row ──────────────────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Revenue Chart */}
-        <div className="glass-card p-6 xl:col-span-2">
-          <div className="flex items-start justify-between mb-5">
+        <div className="glass-card p-5 xl:col-span-2">
+          <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="card-title">Revenue Overview</h2>
               <p className="card-subtitle">Monthly performance</p>
             </div>
-            <div className="flex items-center gap-1.5">
-              {["1M","3M","6M","1Y"].map((p, i) => (
-                <button key={p} className={`period-pill ${i === 2 ? "active" : ""}`}>{p}</button>
+            <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: "var(--bg-card)" }}>
+              {Object.keys(PERIOD_LABELS).map(p => (
+                <button key={p} onClick={() => setPeriod(p)}
+                  className={`period-pill ${period === p ? "active" : ""}`}>{p}</button>
               ))}
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={revenueData} margin={{ top: 4, right: 4, left: -14, bottom: 0 }}>
-              <defs>
-                <linearGradient id="revG" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#f43f5e" stopOpacity={0.28} />
-                  <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}    />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-              <XAxis dataKey="month" tick={{ fill: "var(--chart-axis)", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "var(--chart-axis)", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `₹${(v/1000).toFixed(0)}k`} />
-              <Tooltip content={<ChartTooltip />} />
-              <Area type="monotone" dataKey="revenue" stroke="#f43f5e" strokeWidth={2.5}
-                fill="url(#revG)"
-                dot={{ fill: "#f43f5e", strokeWidth: 0, r: 3.5 }}
-                activeDot={{ r: 5.5, fill: "#fb7185", strokeWidth: 0 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {analyticsLoading ? (
+            <div className="h-52 flex items-center justify-center">
+              <div className="w-8 h-8 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#f43f5e" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                <XAxis dataKey="name" tick={{ fill: "var(--text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={v => `₹${(v/1000).toFixed(0)}k`} tick={{ fill: "var(--text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ background: "var(--bg-card)", border: "1px solid var(--border-default)", borderRadius: "12px" }}
+                  labelStyle={{ color: "var(--text-primary)" }}
+                  formatter={(v: number) => [`₹${v.toLocaleString("en-IN")}`, "Revenue"]}
+                />
+                <Area type="monotone" dataKey="revenue" stroke="#f43f5e" strokeWidth={2.5} fill="url(#revGrad)" dot={{ fill: "#f43f5e", r: 3 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
-        {/* Service Pie */}
-        <div className="glass-card p-6">
-          <h2 className="card-title mb-0.5">Service Mix</h2>
-          <p className="card-subtitle mb-3">By revenue share</p>
-          <div className="flex justify-center">
-            <ResponsiveContainer width={150} height={150}>
+        {/* Service Mix Pie */}
+        <div className="glass-card p-5">
+          <h2 className="card-title mb-1">Service Mix</h2>
+          <p className="card-subtitle mb-4">By revenue share</p>
+          {analyticsLoading ? (
+            <div className="h-52 flex items-center justify-center">
+              <div className="w-8 h-8 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : pieData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie data={serviceBreakdown} cx="50%" cy="50%" innerRadius={44} outerRadius={70} paddingAngle={3} dataKey="value">
-                  {serviceBreakdown.map((e, i) => <Cell key={i} fill={e.color} stroke="transparent" />)}
+                <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
+                  {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Pie>
+                <Tooltip formatter={(v: number) => [`₹${v.toLocaleString("en-IN")}`, "Revenue"]}
+                  contentStyle={{ background: "var(--bg-card)", border: "1px solid var(--border-default)", borderRadius: "12px" }} />
+                <Legend iconType="circle" iconSize={8}
+                  formatter={(v: string) => <span style={{ color: "var(--text-secondary)", fontSize: "11px" }}>{v}</span>} />
               </PieChart>
             </ResponsiveContainer>
-          </div>
-          <div className="space-y-2.5 mt-3">
-            {serviceBreakdown.map((item, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
-                <span className="text-xs flex-1" style={{ color: "var(--text-secondary)" }}>{item.name}</span>
-                <span className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>{item.value}%</span>
-              </div>
-            ))}
-          </div>
+          ) : (
+            <p className="text-center text-sm mt-16" style={{ color: "var(--text-muted)" }}>No data yet</p>
+          )}
         </div>
       </div>
 
-      {/* ── Bottom Row ──────────────────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-
-        {/* Today's Appointments */}
-        <div className="glass-card xl:col-span-3 overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-            <div>
-              <h2 className="card-title">Today&apos;s Appointments</h2>
-              <p className="card-subtitle">{todayAppointments.length} scheduled</p>
-            </div>
-            <button className="btn-ghost text-xs">
-              View all <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+      {/* Today's Appointments */}
+      <div className="glass-card p-5">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="card-title">Today&apos;s Schedule</h2>
+            <p className="card-subtitle">
+              {statsLoading ? "Loading..." : `${stats?.todayAppointments.length ?? 0} appointments`}
+            </p>
           </div>
-          <div className="divide-y" style={{ borderColor: "var(--border-subtle)" }}>
-            {todayAppointments.map((appt) => (
-              <div key={appt.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-[var(--bg-card)] transition-colors cursor-pointer group">
-                <div
-                  className="avatar text-xs"
-                  style={{ background: `${appt.color}20`, color: appt.color, border: `1px solid ${appt.color}35`, width:"36px", height:"36px" }}
-                >
-                  {appt.avatar}
+          <a href="/appointments" className="btn-ghost text-sm flex items-center gap-1.5">
+            View All <ArrowRight className="w-3.5 h-3.5" />
+          </a>
+        </div>
+
+        {statsLoading ? (
+          <div className="space-y-3">
+            {Array(3).fill(0).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 p-4 rounded-xl animate-pulse" style={{ background: "var(--bg-card)" }}>
+                <div className="w-10 h-10 rounded-full bg-white/[0.06]" />
+                <div className="flex-1 space-y-2">
+                  <div className="w-32 h-4 rounded bg-white/[0.06]" />
+                  <div className="w-48 h-3 rounded bg-white/[0.04]" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{appt.client}</span>
-                    <span className={statusBadge[appt.status]}>{statusLabel[appt.status]}</span>
-                  </div>
-                  <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
-                    <Scissors className="w-3 h-3 inline mr-1" />{appt.service} · {appt.staff}
-                  </p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{appt.time}</p>
-                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{appt.duration}</p>
-                </div>
-                <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-40 transition-opacity" style={{ color: "var(--text-muted)" }} />
+                <div className="w-20 h-6 rounded-full bg-white/[0.06]" />
               </div>
             ))}
           </div>
-        </div>
-
-        {/* Right Column */}
-        <div className="xl:col-span-2 flex flex-col gap-4">
-
-          {/* Top Products */}
-          <div className="glass-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="card-title">Top Products</h2>
-              <button className="btn-ghost text-xs px-2 py-1">
-                All <ChevronRight className="w-3 h-3" />
-              </button>
-            </div>
-            <div className="space-y-3.5">
-              {topProducts.map((p, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
-                    style={{ background: "rgba(244,63,94,0.1)", color: "#f43f5e" }}
-                  >
-                    #{i+1}
-                  </div>
+        ) : stats?.todayAppointments.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12" style={{ color: "var(--text-muted)" }}>
+            <CalendarCheck className="w-10 h-10 mb-3 opacity-30" />
+            <p className="text-sm">No appointments scheduled for today</p>
+            <button className="btn-primary mt-4 text-xs px-4 py-2"><Plus className="w-3.5 h-3.5" /> Book Now</button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {(stats?.todayAppointments ?? []).map((appt: any) => {
+              const initials = appt.client?.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2) ?? "??";
+              return (
+                <div key={appt.id} className="flex items-center gap-4 p-3.5 rounded-xl cursor-pointer hover:bg-[var(--bg-card)] transition-all"
+                  style={{ border: "1px solid var(--border-subtle)" }}>
+                  <div className="avatar w-9 h-9 text-xs flex-shrink-0">{initials}</div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold truncate" style={{ color: "var(--text-primary)" }}>{p.name}</p>
-                    <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>{p.sold} sold · ₹{p.revenue.toLocaleString()}</p>
+                    <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{appt.client?.name}</p>
+                    <p className="text-xs truncate flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
+                      <Scissors className="w-3 h-3 flex-shrink-0" />
+                      {appt.service?.name} · {appt.staff?.name}
+                    </p>
                   </div>
-                  {p.trend === "up"
-                    ? <TrendingUp  className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                    : <TrendingDown className="w-3.5 h-3.5 text-rose-400 flex-shrink-0" />
-                  }
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Quick Stats */}
-          <div className="glass-card p-5 flex-1">
-            <h2 className="card-title mb-4">Quick Stats</h2>
-            <div className="space-y-4">
-              {[
-                { label: "Avg. Rating",    value: "4.9 ⭐", pct: 92, color: "#fbbf24" },
-                { label: "Low Stock Items",value: "8",      pct: 25, color: "#f43f5e" },
-                { label: "Staff On-duty",  value: "6 / 8", pct: 75, color: "#a855f7" },
-              ].map((s, i) => (
-                <div key={i}>
-                  <div className="flex justify-between mb-1.5">
-                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{s.label}</span>
-                    <span className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>{s.value}</span>
-                  </div>
-                  <div className="progress-bar">
-                    <div className="progress-fill" style={{ width:`${s.pct}%`, background:`linear-gradient(90deg,${s.color},${s.color}70)` }} />
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--text-secondary)" }}>{appt.startTime}</span>
+                    <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+                      style={{ background: `${statusColors[appt.status] ?? "#6b7280"}15`, color: statusColors[appt.status] ?? "#6b7280" }}>
+                      {appt.status.replace("_", " ")}
+                    </span>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

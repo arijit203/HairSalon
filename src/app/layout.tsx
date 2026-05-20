@@ -4,6 +4,9 @@ import "./globals.css";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { ToastProvider } from "@/context/ToastContext";
+import ToastContainer from "@/components/ui/Toast";
+import { SidebarProvider } from "@/context/SidebarContext";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -32,19 +35,25 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
       <body>
         <ThemeProvider>
-          {/* Ambient background glows */}
-          <div className="ambient-glow ambient-glow-1" />
-          <div className="ambient-glow ambient-glow-2" />
+          <ToastProvider>
+            <SidebarProvider>
+              {/* Ambient background glows */}
+              <div className="ambient-glow ambient-glow-1" />
+              <div className="ambient-glow ambient-glow-2" />
 
-          <div className="flex h-screen overflow-hidden relative z-10">
-            <Sidebar />
-            <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-              <Topbar />
-              <main className="flex-1 overflow-y-auto p-6">
-                {children}
-              </main>
-            </div>
-          </div>
+              <div className="flex h-screen overflow-hidden relative z-10">
+                <Sidebar />
+                <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+                  <Topbar />
+                  <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+                    {children}
+                  </main>
+                </div>
+              </div>
+
+              <ToastContainer />
+            </SidebarProvider>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>
