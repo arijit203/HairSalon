@@ -79,12 +79,20 @@ export async function GET(_req: NextRequest) {
       prisma.product.count({
         where: { status: { in: ["LOW_STOCK", "OUT_OF_STOCK"] }, isActive: true },
       }),
-      // Today's appointments with details
+      // Today's appointments OR any future pending/scheduled appointments
       prisma.appointment.findMany({
-        where: { date: { gte: todayStart, lt: todayEnd } },
-        orderBy: { startTime: "asc" },
+        where: {
+          OR: [
+            { date: { gte: todayStart, lt: todayEnd } },
+            {
+              date: { gte: todayEnd },
+              status: { in: ["PENDING", "CONFIRMED", "IN_PROGRESS"] },
+            }
+          ]
+        },
+        orderBy: { createdAt: "desc" },
         include: {
-          client:  { select: { id: true, name: true } },
+          client:  { select: { id: true, name: true, phone: true } },
           service: { select: { id: true, name: true, duration: true } },
           staff:   { select: { id: true, name: true } },
         },

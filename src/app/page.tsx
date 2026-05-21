@@ -3,7 +3,7 @@
 import {
   TrendingUp, TrendingDown, Users, ShoppingBag,
   CalendarCheck, Plus, ArrowRight, Clock,
-  Scissors, AlertTriangle,
+  Scissors, AlertTriangle, Printer,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -12,6 +12,7 @@ import {
 import { useState } from "react";
 import { useApi } from "@/hooks/useApi";
 import { useBooking } from "@/context/BookingContext";
+import { useToast } from "@/context/ToastContext";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface DashboardStats {
@@ -63,6 +64,7 @@ function StatCardSkeleton() {
 
 export default function DashboardPage() {
   const { openBooking } = useBooking();
+  const { error } = useToast();
   const [period, setPeriod] = useState("6M");
 
   const periodMonths = period === "1M" ? 1 : period === "3M" ? 3 : period === "1Y" ? 12 : 6;
@@ -89,6 +91,169 @@ export default function DashboardPage() {
     name: s.category,
     value: Math.round(s.revenue),
   }));
+
+  // Helper to group appointments by client, date, startTime, and endTime
+  const groupAppointments = (appts: any[]) => {
+    const groups: Record<string, any> = {};
+    appts.forEach((appt) => {
+      const datePart = typeof appt.date === "string" ? appt.date.split("T")[0] : new Date(appt.date).toISOString().split("T")[0];
+      const key = `${appt.clientId}_${datePart}_${appt.startTime}_${appt.endTime}`;
+      if (!groups[key]) {
+        groups[key] = {
+          id: appt.id,
+          clientId: appt.clientId,
+          client: appt.client,
+          staff: appt.staff,
+          date: datePart,
+          startTime: appt.startTime,
+          endTime: appt.endTime,
+          status: appt.status,
+          notes: appt.notes,
+          appointments: [],
+        };
+      }
+      groups[key].appointments.push(appt);
+    });
+    return Object.values(groups);
+  };
+
+  const handlePrintReceipt = (group: any) => {
+    const printWindow = window.open("", "_blank", "width=300,height=600");
+    if (!printWindow) {
+      error("Popup blocker prevented printing. Please allow popups.");
+      return;
+    }
+
+    const servicesHtml = group.appointments.map((a: any) => `
+      <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+        <span>${a.service?.name ?? "Service"}</span>
+        <span>₹${Number(a.price).toFixed(2)}</span>
+      </div>
+    `).join("");
+
+    const totalPrice = group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0);
+
+    const timeStr = group.startTime 
+      ? `${group.startTime} - ${group.endTime}`
+      : `Ends at ${group.endTime}`;
+
+    const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Receipt</title>
+          <style>
+            @page {
+              size: 58mm auto;
+              margin: 0;
+            }
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              font-size: 11px;
+              width: 48mm;
+              margin: 0 auto;
+              padding: 10px 5px;
+              color: #000;
+              background: #fff;
+              line-height: 1.2;
+            }
+            .center {
+              text-align: center;
+            }
+            .bold {
+              font-weight: bold;
+            }
+            .divider {
+              border-top: 1px dashed #000;
+              margin: 8px 0;
+            }
+            .totals {
+              font-size: 12px;
+              margin-top: 5px;
+            }
+            .footer {
+              margin-top: 15px;
+              font-size: 9px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="center bold" style="font-size: 14px; margin-bottom: 2px;">MADOE SALON</div>
+          <div class="center" style="font-size: 9px; margin-bottom: 5px;">Wyapar Salon Management</div>
+          <div class="divider"></div>
+          
+          <div><strong>Date:</strong> ${group.date}</div>
+          <div><strong>Time:</strong> ${timeStr}</div>
+          <div><strong>Passenger:</strong> ${group.client?.name ?? "Walk-in"}</div>
+          ${group.client?.phone ? `<div><strong>Phone:</strong> ${group.client.phone}</div>` : ""}
+          <div><strong>Staff:</strong> ${staffNames}</div>
+          
+          <div class="divider"></div>
+          <div class="bold" style="margin-bottom: 5px;">SERVICES</div>
+          ${servicesHtml}
+          
+          <div class="divider"></div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>Subtotal</span>
+            <span>₹${totalPrice.toFixed(2)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 12px; margin-top: 3px;">
+            <span>TOTAL</span>
+            <span>₹${totalPrice.toFixed(2)}</span>
+          </div>
+          
+          <div class="divider"></div>
+          <div class="center footer">
+            Thank you for visiting!<br>
+            Powered by Wyapar
+          </div>
+          
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  // Partition today's appointments:
+  // 1. Scheduled / Pending: future slots or pending status
+  // 2. Ongoing & Past schedule
+  const getLocalDateStr = () => {
+    const local = new Date();
+    const y = local.getFullYear();
+    const m = String(local.getMonth() + 1).padStart(2, "0");
+    const d = String(local.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+  const getLocalTimeStr = () => {
+    const local = new Date();
+    const hrs = String(local.getHours()).padStart(2, "0");
+    const mins = String(local.getMinutes()).padStart(2, "0");
+    return `${hrs}:${mins}`;
+  };
+
+  const todayDateStr = getLocalDateStr();
+  const nowTime = getLocalTimeStr();
+  const todayAppts = stats?.todayAppointments ?? [];
+  const groupedAppts = groupAppointments(todayAppts);
+
+  const scheduledPending = groupedAppts.filter((group: any) => {
+    const isFutureDate = group.date > todayDateStr;
+    const isTodayFutureTime = group.date === todayDateStr && group.startTime > nowTime;
+    const isFuture = isFutureDate || isTodayFutureTime;
+    const isActiveOrPending = ["PENDING", "CONFIRMED", "IN_PROGRESS"].includes(group.status);
+    return isFuture && isActiveOrPending;
+  });
+
+  const otherAppointments = groupedAppts.filter((group: any) => {
+    return !scheduledPending.some((s: any) => s.id === group.id);
+  });
 
   const statCards = [
     {
@@ -283,30 +448,119 @@ export default function DashboardPage() {
             <button className="btn-primary mt-4 text-xs px-4 py-2"><Plus className="w-3.5 h-3.5" /> Book Now</button>
           </div>
         ) : (
-          <div className="space-y-2">
-            {(stats?.todayAppointments ?? []).map((appt: any) => {
-              const initials = appt.client?.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2) ?? "??";
-              return (
-                <div key={appt.id} className="flex items-center gap-4 p-3.5 rounded-xl cursor-pointer hover:bg-[var(--bg-card)] transition-all"
-                  style={{ border: "1px solid var(--border-subtle)" }}>
-                  <div className="avatar w-9 h-9 text-xs flex-shrink-0">{initials}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{appt.client?.name}</p>
-                    <p className="text-xs truncate flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
-                      <Scissors className="w-3 h-3 flex-shrink-0" />
-                      {appt.service?.name} · {appt.staff?.name}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--text-secondary)" }}>{appt.startTime}</span>
-                    <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-                      style={{ background: `${statusColors[appt.status] ?? "#6b7280"}15`, color: statusColors[appt.status] ?? "#6b7280" }}>
-                      {appt.status.replace("_", " ")}
-                    </span>
-                  </div>
+          <div className="space-y-6">
+            {/* Scheduled / Pending Section */}
+            {scheduledPending.length > 0 && (
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2 px-1">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500">
+                    Scheduled / Pending ({scheduledPending.length})
+                  </h3>
                 </div>
-              );
-            })}
+                <div className="space-y-2">
+                  {scheduledPending.map((group: any) => {
+                    const initials = group.client?.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2) ?? "??";
+                    const servicesStr = group.appointments.map((a: any) => a.service?.name).join(", ");
+                    const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
+                    return (
+                      <div key={group.id} className="flex items-center justify-between gap-4 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all bg-amber-500/[0.01]"
+                        style={{ border: "1px solid rgba(245, 158, 11, 0.15)" }}>
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <div className="avatar w-9 h-9 text-xs flex-shrink-0">{initials}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{group.client?.name}</p>
+                            <p className="text-xs truncate flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
+                              <Scissors className="w-3 h-3 flex-shrink-0" />
+                              {servicesStr} · {staffNames}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <div className="text-right">
+                            <span className="text-xs font-bold tabular-nums block" style={{ color: "var(--text-secondary)" }}>
+                              {group.date !== todayDateStr ? `${new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · ` : ''}{group.startTime} - {group.endTime}
+                            </span>
+                          </div>
+                          <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+                            style={{ background: `${statusColors[group.status] ?? "#6b7280"}15`, color: statusColors[group.status] ?? "#6b7280" }}>
+                            {group.status.replace("_", " ")}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePrintReceipt(group);
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
+                            title="Print Receipt"
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Other / Past / Completed Section */}
+            {otherAppointments.length > 0 && (
+              <div className="space-y-2.5">
+                {scheduledPending.length > 0 && <div className="border-t border-[var(--border-subtle)] my-4" />}
+                <div className="flex items-center gap-2 px-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-500">
+                    Ongoing & Past Schedule ({otherAppointments.length})
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  {otherAppointments.map((group: any) => {
+                    const initials = group.client?.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2) ?? "??";
+                    const servicesStr = group.appointments.map((a: any) => a.service?.name).join(", ");
+                    const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
+                    return (
+                      <div key={group.id} className="flex items-center justify-between gap-4 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all"
+                        style={{ border: "1px solid var(--border-subtle)" }}>
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <div className="avatar w-9 h-9 text-xs flex-shrink-0">{initials}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{group.client?.name}</p>
+                            <p className="text-xs truncate flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
+                              <Scissors className="w-3 h-3 flex-shrink-0" />
+                              {servicesStr} · {staffNames}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <div className="text-right">
+                            <span className="text-xs font-semibold tabular-nums block" style={{ color: "var(--text-secondary)" }}>
+                              {group.date !== todayDateStr ? `${new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · ` : ''}{group.startTime} - {group.endTime}
+                            </span>
+                          </div>
+                          <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+                            style={{ background: `${statusColors[group.status] ?? "#6b7280"}15`, color: statusColors[group.status] ?? "#6b7280" }}>
+                            {group.status.replace("_", " ")}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePrintReceipt(group);
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
+                            title="Print Receipt"
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

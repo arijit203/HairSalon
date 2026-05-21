@@ -83,16 +83,18 @@ export async function POST(req: NextRequest) {
     // Sum of list prices
     const totalListPrice = orderedServices.reduce((sum, s) => sum + Number(s.price), 0);
 
-    let currentStartTime = data.startTime;
-    if (!currentStartTime) {
-      const totalDuration = orderedServices.reduce((sum, s) => sum + s.duration, 0);
-      currentStartTime = calculateStartTime(data.endTime, totalDuration);
-    }
+    const totalDuration = orderedServices.reduce((sum, s) => sum + s.duration, 0);
+    const overallStartTime = calculateStartTime(data.endTime, totalDuration);
+
+    // Check if the appointment start time is in the future (using local IST offset)
+    const appointmentDateTime = new Date(`${data.date}T${overallStartTime}:00+05:30`);
+    const isFuture = appointmentDateTime.getTime() > Date.now();
+    const status = isFuture ? ("PENDING" as const) : ("CONFIRMED" as const);
+
     const appointmentsData = [];
 
     for (let i = 0; i < orderedServices.length; i++) {
       const service = orderedServices[i];
-      const endTime = calculateEndTime(currentStartTime, service.duration);
       
       // Proportional price calculation
       let allocatedPrice = 0;
@@ -107,15 +109,12 @@ export async function POST(req: NextRequest) {
         serviceId: service.id,
         staffId:   data.staffId,
         date:      new Date(data.date),
-        startTime: currentStartTime,
-        endTime,
-        status:    "CONFIRMED" as const,
+        startTime: overallStartTime,
+        endTime:   data.endTime,
+        status,
         price:     allocatedPrice,
         notes:     data.notes,
       });
-
-      // Next service starts when the current service ends
-      currentStartTime = endTime;
     }
 
     // Run in a prisma transaction to ensure atomic creation
