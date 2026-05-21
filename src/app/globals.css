@@ -43,6 +43,11 @@
   --chart-grid:        rgba(255, 255, 255, 0.04);
   --chart-axis:        #7a6070;
   --noise-opacity:     0.28;
+
+  --toast-bg:             #180a13;
+  --toast-border:         rgba(255, 255, 255, 0.08);
+  --toast-text-primary:   #ffffff;
+  --toast-text-secondary: #b89da8;
 }
 
 /* ─── LIGHT THEME ───────────────────────────────────────── */
@@ -83,6 +88,11 @@
   --chart-grid:        rgba(0, 0, 0, 0.05);
   --chart-axis:        #8a6878;
   --noise-opacity:     0.08;
+
+  --toast-bg:             #ffffff;
+  --toast-border:         rgba(0, 0, 0, 0.08);
+  --toast-text-primary:   #150810;
+  --toast-text-secondary: #7a6070;
 }
 
 /* ─── ACCENT PALETTE (shared) ───────────────────────────── */
@@ -485,3 +495,55 @@ body::before {
 
 .animate-fade-in  { animation: fadeIn  0.4s ease both; }
 .animate-slide-up { animation: slideUp 0.4s ease both; }
+
+/* ─── TOAST NOTIFICATIONS ───────────────────────────────── */
+.toast-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.toast-enter {
+  animation: toastSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.toast-exit {
+  animation: toastSlideOut 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes toastSlideIn {
+  from {
+    transform: translateX(110%) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes toastSlideOut {
+  from {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(110%) scale(0.9);
+    opacity: 0;
+  }
+}
+
+@keyframes toastProgress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}

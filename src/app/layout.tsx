@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { ToastProvider } from "@/context/ToastContext";
 import ToastContainer from "@/components/ui/Toast";
 import { SidebarProvider } from "@/context/SidebarContext";
+import { BookingProvider } from "@/context/BookingContext";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -36,13 +37,15 @@ export default function RootLayout({
         <ThemeProvider>
           <ToastProvider>
             <SidebarProvider>
-              {/* Ambient background glows */}
-              <div className="ambient-glow ambient-glow-1" />
-              <div className="ambient-glow ambient-glow-2" />
+              <BookingProvider>
+                {/* Ambient background glows */}
+                <div className="ambient-glow ambient-glow-1" />
+                <div className="ambient-glow ambient-glow-2" />
 
-              <AppLayout>{children}</AppLayout>
+                <AppLayout>{children}</AppLayout>
 
-              <ToastContainer />
+                <ToastContainer />
+              </BookingProvider>
             </SidebarProvider>
           </ToastProvider>
         </ThemeProvider>

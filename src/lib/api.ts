@@ -127,3 +127,14 @@ export function calculateEndTime(startTime: string, durationMinutes: number): st
   const endMins          = totalMinutes % 60;
   return `${String(endHours).padStart(2, "0")}:${String(endMins).padStart(2, "0")}`;
 }
+
+export function calculateStartTime(endTime: string, durationMinutes: number): string {
+  const [hours, minutes] = endTime.split(":").map(Number);
+  let totalMinutes       = hours * 60 + minutes - durationMinutes;
+  if (totalMinutes < 0) {
+    totalMinutes = (totalMinutes % 1440) + 1440;
+  }
+  const startHours       = Math.floor(totalMinutes / 60) % 24;
+  const startMins        = totalMinutes % 60;
+  return `${String(startHours).padStart(2, "0")}:${String(startMins).padStart(2, "0")}`;
+}

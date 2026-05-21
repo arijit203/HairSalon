@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { useState } from "react";
 import { useApi } from "@/hooks/useApi";
+import { useBooking } from "@/context/BookingContext";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface DashboardStats {
@@ -61,6 +62,7 @@ function StatCardSkeleton() {
 }
 
 export default function DashboardPage() {
+  const { openBooking } = useBooking();
   const [period, setPeriod] = useState("6M");
 
   const periodMonths = period === "1M" ? 1 : period === "3M" ? 3 : period === "1Y" ? 12 : 6;
@@ -135,7 +137,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           <button className="btn-secondary"><Clock className="w-4 h-4" /> Schedule</button>
-          <button className="btn-primary"><Plus className="w-4 h-4" /> New Booking</button>
+          <button className="btn-primary" onClick={() => openBooking()}><Plus className="w-4 h-4" /> New Booking</button>
         </div>
       </div>
 

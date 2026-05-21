@@ -7,6 +7,9 @@ import {
 import { CreateStaffSchema } from "@/lib/validations";
 import bcrypt from "bcryptjs";
 
+export const dynamic = "force-dynamic";
+
+
 // GET /api/staff
 export async function GET(req: NextRequest) {
   try {

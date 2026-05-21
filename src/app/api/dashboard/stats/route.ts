@@ -2,12 +2,16 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { successResponse, handleApiError } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
+
 // GET /api/dashboard/stats
 export async function GET(_req: NextRequest) {
   try {
     const now        = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayEnd   = new Date(todayStart.getTime() + 86400000);
+    // Use UTC dates to query @db.Date fields without timezone shifts
+    const todayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const todayEnd   = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
 
     // This month boundaries
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);

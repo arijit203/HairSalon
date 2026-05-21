@@ -8,6 +8,9 @@ import {
 import { CreateTransactionSchema } from "@/lib/validations";
 import { Decimal } from "@prisma/client/runtime/library";
 
+export const dynamic = "force-dynamic";
+
+
 // GET /api/transactions
 export async function GET(req: NextRequest) {
   try {

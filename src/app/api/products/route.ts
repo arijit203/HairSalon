@@ -6,6 +6,9 @@ import {
 } from "@/lib/api";
 import { CreateProductSchema } from "@/lib/validations";
 
+export const dynamic = "force-dynamic";
+
+
 // GET /api/products
 export async function GET(req: NextRequest) {
   try {

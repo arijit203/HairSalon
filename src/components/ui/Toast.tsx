@@ -40,28 +40,33 @@ function ToastItem({ toast, onDismiss }: { toast: ToastType; onDismiss: () => vo
     <div
       className={`toast-item ${exiting ? "toast-exit" : "toast-enter"}`}
       style={{
-        background: color.bg,
-        border: `1px solid ${color.border}`,
-        backdropFilter: "blur(16px)",
-        WebkitBackdropFilter: "blur(16px)",
+        background: "var(--toast-bg)",
+        border: "1px solid var(--toast-border)",
+        borderLeft: `4px solid ${color.icon}`,
+        boxShadow: `0 8px 30px rgba(0, 0, 0, 0.28), 0 0 15px ${
+          toast.type === "success" ? "rgba(16,185,129,0.16)" :
+          toast.type === "error" ? "rgba(244,63,94,0.16)" :
+          toast.type === "warning" ? "rgba(245,158,11,0.16)" :
+          "rgba(6,182,212,0.16)"
+        }`,
       }}
     >
       <Icon className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: color.icon }} />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+        <p className="text-sm font-bold" style={{ color: "var(--toast-text-primary)" }}>
           {toast.title}
         </p>
         {toast.message && (
-          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs mt-0.5" style={{ color: "var(--toast-text-secondary)" }}>
             {toast.message}
           </p>
         )}
       </div>
       <button
         onClick={handleDismiss}
-        className="flex-shrink-0 p-1 rounded-lg hover:bg-white/[0.08] transition-colors"
+        className="flex-shrink-0 p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
       >
-        <X className="w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
+        <X className="w-3.5 h-3.5" style={{ color: "var(--toast-text-secondary)" }} />
       </button>
       {/* Progress bar */}
       {duration > 0 && (
@@ -85,7 +90,7 @@ export default function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-[9998] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
+    <div className="fixed top-5 right-5 z-[9999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
       {toasts.map((toast) => (
         <div key={toast.id} className="pointer-events-auto">
           <ToastItem toast={toast} onDismiss={() => removeToast(toast.id)} />

@@ -2,6 +2,7 @@
 
 import { Bell, Search, Plus, Sun, Moon } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
+import { useBooking } from "@/context/BookingContext";
 import { useState, useEffect } from "react";
 
 const notifications = [
@@ -20,6 +21,7 @@ interface UserSession {
 
 export default function Topbar() {
   const { theme, toggleTheme } = useTheme();
+  const { openBooking } = useBooking();
   const [user, setUser] = useState<UserSession | null>(null);
 
   useEffect(() => {
@@ -97,7 +99,7 @@ export default function Topbar() {
 
         {/* New Booking - Hide for customers */}
         {!isClient && (
-          <button className="btn-primary hidden sm:inline-flex">
+          <button className="btn-primary hidden sm:inline-flex" onClick={() => openBooking()}>
             <Plus className="w-4 h-4" />
             New Booking
           </button>

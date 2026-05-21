@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { successResponse, handleApiError } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
+
 // GET /api/analytics?from=2026-01-01&to=2026-07-31
 export async function GET(req: NextRequest) {
   try {

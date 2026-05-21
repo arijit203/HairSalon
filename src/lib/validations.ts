@@ -73,17 +73,27 @@ export const AppointmentStatusEnum = z.enum([
   "PENDING", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "NO_SHOW",
 ]);
 
-export const CreateAppointmentSchema = z.object({
-  clientId:  z.string().min(1),
-  serviceId: z.string().min(1),
-  staffId:   z.string().min(1),
-  date:      z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
-  startTime: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM"),
-  notes:     z.string().optional(),
-  price:     z.number().positive(),
+const CreateAppointmentBaseSchema = z.object({
+  clientId:   z.string().min(1),
+  serviceId:  z.string().min(1).optional(),
+  serviceIds: z.array(z.string()).optional(),
+  staffId:    z.string().min(1),
+  date:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+  startTime:  z.union([z.string().regex(/^\d{2}:\d{2}$/), z.literal("")]).optional(),
+  endTime:    z.string().regex(/^\d{2}:\d{2}$/, "End time must be HH:MM"),
+  notes:      z.string().optional(),
+  price:      z.number().positive(),
 });
 
-export const UpdateAppointmentSchema = CreateAppointmentSchema.partial().merge(
+export const CreateAppointmentSchema = CreateAppointmentBaseSchema.refine(
+  data => data.serviceId || (data.serviceIds && data.serviceIds.length > 0),
+  {
+    message: "Either serviceId or serviceIds must be provided",
+    path: ["serviceId"],
+  }
+);
+
+export const UpdateAppointmentSchema = CreateAppointmentBaseSchema.partial().merge(
   z.object({ status: AppointmentStatusEnum.optional() })
 );
 

@@ -17,10 +17,26 @@ export function useApi<T>(url: string | null): ApiState<T> {
   const refetch = useCallback(() => setTick(t => t + 1), []);
 
   useEffect(() => {
+    const handleBookingCreated = () => refetch();
+    window.addEventListener("booking-created", handleBookingCreated);
+    return () => window.removeEventListener("booking-created", handleBookingCreated);
+  }, [refetch]);
+
+  useEffect(() => {
     if (!url) return;
     setLoading(true);
     setError(null);
-    fetch(url)
+
+    const separator = url.includes("?") ? "&" : "?";
+    const cacheBusterUrl = `${url}${separator}_t=${Date.now()}`;
+
+    fetch(cacheBusterUrl, {
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+      },
+    })
       .then(r => r.json())
       .then(r => {
         if (r.success !== false) setData(r.data ?? r);
@@ -44,9 +60,25 @@ export function usePaginatedApi<T>(url: string | null) {
   const refetch = useCallback(() => setTick(t => t + 1), []);
 
   useEffect(() => {
+    const handleBookingCreated = () => refetch();
+    window.addEventListener("booking-created", handleBookingCreated);
+    return () => window.removeEventListener("booking-created", handleBookingCreated);
+  }, [refetch]);
+
+  useEffect(() => {
     if (!url) return;
     setLoading(true);
-    fetch(url)
+
+    const separator = url.includes("?") ? "&" : "?";
+    const cacheBusterUrl = `${url}${separator}_t=${Date.now()}`;
+
+    fetch(cacheBusterUrl, {
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+      },
+    })
       .then(r => r.json())
       .then(r => {
         if (r.data) {

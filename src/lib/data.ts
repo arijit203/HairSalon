@@ -7,8 +7,8 @@ import { prisma } from "@/lib/prisma";
 // ── Dashboard stats ──────────────────────────────────────────────────────────
 export async function getDashboardStats() {
   const now         = new Date();
-  const todayStart  = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayEnd    = new Date(todayStart.getTime() + 86400000);
+  const todayStart  = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const todayEnd    = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
   const monthStart  = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthEnd    = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -161,8 +161,8 @@ export async function getClients({ search = "", tier = "", page = 1, limit = 12 
 // ── Appointments for a date ───────────────────────────────────────────────────
 export async function getAppointmentsByDate(dateStr: string) {
   const date     = new Date(dateStr);
-  const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const dayEnd   = new Date(dayStart.getTime() + 86400000);
+  const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const dayEnd   = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1));
 
   return prisma.appointment.findMany({
     where:   { date: { gte: dayStart, lt: dayEnd } },
