@@ -84,6 +84,7 @@ const CreateAppointmentBaseSchema = z.object({
   notes:      z.string().optional(),
   price:      z.number().positive(),
   deleteAppointmentIds: z.array(z.string()).optional(),
+  status:     AppointmentStatusEnum.optional(),
 });
 
 export const CreateAppointmentSchema = CreateAppointmentBaseSchema.refine(

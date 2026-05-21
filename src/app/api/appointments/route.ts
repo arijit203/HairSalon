@@ -99,7 +99,8 @@ export async function POST(req: NextRequest) {
     // Check if the appointment start time is in the future (using local IST offset)
     const appointmentDateTime = new Date(`${data.date}T${overallStartTime}:00+05:30`);
     const isFuture = appointmentDateTime.getTime() > Date.now();
-    const status = isFuture ? ("PENDING" as const) : ("CONFIRMED" as const);
+    const defaultStatus = isFuture ? ("PENDING" as const) : ("CONFIRMED" as const);
+    const status = data.status || defaultStatus;
 
     const appointmentsData = [];
 

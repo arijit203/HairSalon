@@ -139,6 +139,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
   const [endTime, setEndTime] = useState(() => getCurrentTimeHHMM());
   const [currentTime, setCurrentTime] = useState("");
   const [notes, setNotes] = useState("");
+  const [status, setStatus] = useState<string>("");
 
   // Pricing
   const [salePrice, setSalePrice]     = useState("");
@@ -197,6 +198,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
       setTime(editingGroup.startTime || "");
       setEndTime(editingGroup.endTime || "");
       setNotes(editingGroup.notes || "");
+      setStatus(editingGroup.status || "");
     } else {
       setClientName(""); setClientPhone(""); setClientEmail("");
       setSelectedServices([]);
@@ -206,6 +208,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
       setEndTime(currentTime || getCurrentTimeHHMM());
       setNotes("");
       setSalePrice(""); setDiscountPct("0");
+      setStatus("");
     }
   }, [open, editingGroup, defaultDate, currentTime]);
 
@@ -511,6 +514,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
           endTime:   isFutureDate ? undefined : endTime,
           price:     finalPrice,
           notes:     notes.trim() || undefined,
+          status:    status || undefined,
           ...(editingGroup && { deleteAppointmentIds: editingGroup.appointments.map((a: any) => a.id) }),
         }),
       });
@@ -552,6 +556,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
     setEndTime(getCurrentTimeHHMM());
     setNotes("");
     setSalePrice(""); setDiscountPct("0");
+    setStatus("");
     setActiveTab("client");
     setCreatedBooking(null);
     onClose();
@@ -1122,6 +1127,30 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                           </select>
                           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Booking Status */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                        Booking Status
+                      </label>
+                      <div className="relative">
+                        <Check className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+                        <select
+                          className="input-field pl-9 appearance-none"
+                          value={status}
+                          onChange={e => setStatus(e.target.value)}
+                        >
+                          <option value="">Auto-detect (Pending/Confirmed)</option>
+                          <option value="PENDING">Pending</option>
+                          <option value="CONFIRMED">Confirmed</option>
+                          <option value="IN_PROGRESS">In Progress</option>
+                          <option value="COMPLETED">Completed</option>
+                          <option value="CANCELLED">Cancelled</option>
+                          <option value="NO_SHOW">No Show</option>
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
                       </div>
                     </div>
 

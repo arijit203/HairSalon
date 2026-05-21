@@ -248,7 +248,7 @@ export default function DashboardPage() {
     const isTodayFutureTime = group.date === todayDateStr && group.startTime > nowTime;
     const isFuture = isFutureDate || isTodayFutureTime;
     const isActiveOrPending = ["PENDING", "CONFIRMED", "IN_PROGRESS"].includes(group.status);
-    return isFuture && isActiveOrPending;
+    return (isFuture && isActiveOrPending) || group.status === "PENDING";
   });
 
   const otherAppointments = groupedAppts.filter((group: any) => {
