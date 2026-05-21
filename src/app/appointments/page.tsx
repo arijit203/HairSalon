@@ -1,7 +1,8 @@
 "use client";
 
-import { CalendarDays, Plus, ChevronLeft, ChevronRight, Scissors, CheckCircle2, XCircle, AlertCircle, Loader2, Printer } from "lucide-react";
-import { useState } from "react";
+import { CalendarDays, Plus, ChevronLeft, ChevronRight, Scissors, CheckCircle2, XCircle, AlertCircle, Loader2, Printer, Pencil, Trash2, X, Clock } from "lucide-react";
+import { useState, useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { usePaginatedApi } from "@/hooks/useApi";
 import { useBooking } from "@/context/BookingContext";
 import { useToast } from "@/context/ToastContext";
@@ -31,6 +32,12 @@ function toDateStr(y: number, m: number, d: number) {
 function getDays(y: number, m: number) { return new Date(y, m + 1, 0).getDate(); }
 function getFirst(y: number, m: number) { return new Date(y, m, 1).getDay(); }
 
+const TIME_SLOTS = Array.from({ length: 22 }, (_, i) => {
+  const h = Math.floor(i / 2) + 9;
+  const m = i % 2 === 0 ? "00" : "30";
+  return `${String(h).padStart(2, "0")}:${m}`;
+});
+
 export default function AppointmentsPage() {
   const today = new Date();
   const [year,  setYear]  = useState(today.getFullYear());
@@ -38,8 +45,61 @@ export default function AppointmentsPage() {
   const [day,   setDay]   = useState(today.getDate());
   const [statusFilter, setStatusFilter] = useState("All");
   const { openBooking } = useBooking();
-  const { error } = useToast();
+  const { error, success } = useToast();
   const [tick, setTick] = useState(0);
+
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [staffList, setStaffList] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.data) {
+          setIsAdmin(d.data.roleType === "staff" && d.data.staffRole === "ADMIN");
+        }
+      })
+      .catch(() => {});
+
+    fetch("/api/staff?limit=100")
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.data) {
+          setStaffList(d.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Delete states
+  const [deletingGroup, setDeletingGroup] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleOpenDelete = (group: any) => {
+    setDeletingGroup(group);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingGroup) return;
+    setDeleting(true);
+    try {
+      await Promise.all(
+        deletingGroup.appointments.map((appt: any) =>
+          fetch(`/api/appointments/${appt.id}`, {
+            method: "DELETE",
+          })
+        )
+      );
+
+      success("Booking deleted successfully!");
+      setDeletingGroup(null);
+      setTick(t => t + 1);
+    } catch (e: any) {
+      error(e.message ?? "Something went wrong.");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // Helper to group appointments by client, date, startTime, and endTime
   const groupAppointments = (appts: Appointment[]) => {
@@ -302,10 +362,8 @@ export default function AppointmentsPage() {
                 const Icon = cfg.icon;
                 const colors = ["#f43f5e","#a855f7","#06b6d4","#f59e0b","#10b981","#f97316"];
                 const clr = colors[group.client.name.charCodeAt(0) % colors.length];
-                const servicesStr = group.appointments.map((a: any) => a.service?.name).join(", ");
                 const totalDuration = group.appointments.reduce((sum: number, a: any) => sum + a.service.duration, 0);
                 const totalPrice = group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0);
-                const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
 
                 return (
                   <div key={group.id} className="flex items-start gap-4 p-4 rounded-xl hover:bg-[var(--bg-card)] transition-all"
@@ -317,22 +375,60 @@ export default function AppointmentsPage() {
                     <div className="w-px self-stretch" style={{ background: `${clr}40` }} />
                     <div className="flex-1 min-w-0">
                       <div>
-                        <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{group.client.name}</p>
-                        <p className="text-xs mt-0.5 flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
-                          <Scissors className="w-3 h-3 flex-shrink-0" />
-                          {servicesStr} · {staffNames}
-                        </p>
+                        <p className="text-sm font-semibold text-[var(--text-primary)]">{group.client.name}</p>
+                        <div className="mt-2 space-y-1.5">
+                          {group.appointments.map((appt: any) => (
+                            <div key={appt.id} className="flex items-center justify-between text-xs p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Scissors className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                <div className="truncate">
+                                  <span className="font-medium text-[var(--text-primary)]">{appt.service?.name}</span>
+                                  <span className="text-[var(--text-muted)]"> · {appt.staff?.name}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2.5 shrink-0 ml-2">
+                                <span className="font-semibold text-[var(--text-primary)]">₹{Number(appt.price).toLocaleString("en-IN")}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <p className="text-xs font-semibold mt-1" style={{ color: clr }}>₹{totalPrice.toLocaleString("en-IN")}</p>
+                      <p className="text-xs font-semibold mt-2.5" style={{ color: clr }}>Total: ₹{totalPrice.toLocaleString("en-IN")}</p>
                     </div>
                     
-                    {/* Side-by-side Status & Print Button */}
-                    <div className="flex items-center gap-3 flex-shrink-0 self-center">
-                      <span className="text-[11px] font-medium px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0"
+                    {/* Side-by-side Status & Action Buttons */}
+                    <div className="flex items-center gap-2 flex-shrink-0 self-center">
+                      <span className="text-[11px] font-medium px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0 mr-1"
                         style={{ background: cfg.bg, color: cfg.color }}>
                         <Icon className="w-3 h-3 shrink-0" />
                         {cfg.label}
                       </span>
+                      {isAdmin && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openBooking({ editingGroup: group, onCreated: () => setTick(t => t + 1) });
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 transition-colors flex items-center justify-center"
+                            title="Edit Booking"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenDelete(group);
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-red-500/10 text-red-400 transition-colors flex items-center justify-center"
+                            title="Delete Booking"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
                       <button
                         type="button"
                         onClick={(e) => {
@@ -352,6 +448,67 @@ export default function AppointmentsPage() {
           )}
         </div>
       </div>
+
+      {/* Delete Booking Modal */}
+      <AnimatePresence>
+        {deletingGroup && (
+          <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4">
+            <motion.div
+              className="absolute inset-0"
+              style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)" }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => !deleting && setDeletingGroup(null)}
+            />
+
+            <motion.div
+              className="relative w-full max-w-md flex flex-col rounded-2xl overflow-hidden p-6 text-center"
+              style={{
+                background: "var(--bg-secondary)",
+                border: "1px solid var(--border-default)",
+                boxShadow: "0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)",
+              }}
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+            >
+              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4 border border-red-500/25">
+                <Trash2 className="w-6 h-6 text-red-400" />
+              </div>
+
+              <h3 className="text-lg font-bold mb-1" style={{ color: "var(--text-primary)" }}>
+                Delete Booking?
+              </h3>
+              <p className="text-xs mb-6" style={{ color: "var(--text-muted)" }}>
+                Are you sure you want to permanently delete the booking for <strong className="text-rose-400">{deletingGroup.client?.name}</strong> with <strong className="text-rose-400">{deletingGroup.appointments.length}</strong> service{deletingGroup.appointments.length > 1 ? "s" : ""}? This action cannot be undone.
+              </p>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeletingGroup(null)}
+                  disabled={deleting}
+                  className="btn-secondary py-2.5 px-4 text-xs font-semibold flex-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteConfirm}
+                  disabled={deleting}
+                  className="btn-primary py-2.5 px-4 text-xs font-semibold flex-1 bg-red-600 hover:bg-red-700 border-red-500/50 flex items-center justify-center gap-1.5"
+                >
+                  {deleting ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Deleting…</>
+                  ) : (
+                    "Delete Booking"
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

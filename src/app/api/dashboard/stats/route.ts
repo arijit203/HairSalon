@@ -92,7 +92,7 @@ export async function GET(_req: NextRequest) {
         },
         orderBy: { createdAt: "desc" },
         include: {
-          client:  { select: { id: true, name: true, phone: true } },
+          client:  { select: { id: true, name: true, phone: true, email: true } },
           service: { select: { id: true, name: true, duration: true } },
           staff:   { select: { id: true, name: true } },
         },

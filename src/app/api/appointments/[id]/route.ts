@@ -48,14 +48,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 }
 
-// DELETE /api/appointments/:id  (cancel)
+// DELETE /api/appointments/:id
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    await prisma.appointment.update({
+    await prisma.appointment.delete({
       where: { id: params.id },
-      data:  { status: "CANCELLED" },
     });
-    return successResponse({ message: "Appointment cancelled" });
+    return successResponse({ message: "Appointment deleted" });
   } catch (error) {
     return handleApiError(error);
   }

@@ -6,6 +6,7 @@ import BookingModal from "@/components/bookings/BookingModal";
 interface BookingOptions {
   defaultDate?: string;
   onCreated?: () => void;
+  editingGroup?: any;
 }
 
 interface BookingContextType {
@@ -41,6 +42,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         onClose={closeBooking}
         defaultDate={options?.defaultDate}
         onCreated={options?.onCreated}
+        editingGroup={options?.editingGroup}
       />
     </BookingContext.Provider>
   );

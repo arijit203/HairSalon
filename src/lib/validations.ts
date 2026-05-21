@@ -80,9 +80,10 @@ const CreateAppointmentBaseSchema = z.object({
   staffId:    z.string().min(1),
   date:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
   startTime:  z.union([z.string().regex(/^\d{2}:\d{2}$/), z.literal("")]).optional(),
-  endTime:    z.string().regex(/^\d{2}:\d{2}$/, "End time must be HH:MM"),
+  endTime:    z.string().regex(/^\d{2}:\d{2}$/, "End time must be HH:MM").optional().or(z.literal("")),
   notes:      z.string().optional(),
   price:      z.number().positive(),
+  deleteAppointmentIds: z.array(z.string()).optional(),
 });
 
 export const CreateAppointmentSchema = CreateAppointmentBaseSchema.refine(
@@ -90,6 +91,12 @@ export const CreateAppointmentSchema = CreateAppointmentBaseSchema.refine(
   {
     message: "Either serviceId or serviceIds must be provided",
     path: ["serviceId"],
+  }
+).refine(
+  data => !!(data.startTime || data.endTime),
+  {
+    message: "Either startTime or endTime must be provided",
+    path: ["startTime"],
   }
 );
 

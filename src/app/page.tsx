@@ -479,7 +479,7 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-3 flex-shrink-0">
                           <div className="text-right">
                             <span className="text-xs font-bold tabular-nums block" style={{ color: "var(--text-secondary)" }}>
-                              {group.date !== todayDateStr ? `${new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · ` : ''}{group.startTime} - {group.endTime}
+                              {new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · {group.startTime} - {group.endTime}
                             </span>
                           </div>
                           <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
@@ -536,7 +536,7 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-3 flex-shrink-0">
                           <div className="text-right">
                             <span className="text-xs font-semibold tabular-nums block" style={{ color: "var(--text-secondary)" }}>
-                              {group.date !== todayDateStr ? `${new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · ` : ''}{group.startTime} - {group.endTime}
+                              {new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · {group.startTime} - {group.endTime}
                             </span>
                           </div>
                           <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"

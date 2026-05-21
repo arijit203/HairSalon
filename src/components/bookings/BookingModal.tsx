@@ -32,6 +32,7 @@ interface BookingModalProps {
   onClose: () => void;
   defaultDate?: string; // YYYY-MM-DD
   onCreated?: () => void;
+  editingGroup?: any;
 }
 
 // ─── Time Slots ───────────────────────────────────────────────────────────────
@@ -59,9 +60,18 @@ const getCurrentTimeHHMM = () => {
   return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 };
 
+// Helper to get current local date in YYYY-MM-DD format
+const getLocalDateStr = () => {
+  const local = new Date();
+  const y = local.getFullYear();
+  const m = String(local.getMonth() + 1).padStart(2, "0");
+  const d = String(local.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function BookingModal({ open, onClose, defaultDate, onCreated }: BookingModalProps) {
+export default function BookingModal({ open, onClose, defaultDate, onCreated, editingGroup }: BookingModalProps) {
   const { success, error } = useToast();
 
   // Tab state
@@ -71,6 +81,40 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
   const [clientName, setClientName]   = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
+
+  // Client suggestions for autofill
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeSearchField, setActiveSearchField] = useState<"name" | "phone" | null>(null);
+
+  const fetchSuggestions = async (searchStr: string, field: "name" | "phone") => {
+    if (searchStr.trim().length >= 2) {
+      try {
+        const res = await fetch(`/api/clients?search=${encodeURIComponent(searchStr)}&limit=5`);
+        const data = await res.json();
+        if (data.data) {
+          setSuggestions(data.data);
+          setActiveSearchField(field);
+          setShowSuggestions(true);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setActiveSearchField(null);
+    }
+  };
+
+  const handleSelectSuggestion = (client: any) => {
+    setClientName(client.name || "");
+    setClientPhone(client.phone || "");
+    setClientEmail(client.email || "");
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setActiveSearchField(null);
+  };
 
   // Service selection
   const [services, setServices]           = useState<Service[]>([]);
@@ -90,9 +134,10 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
   const [staffList, setStaffList]       = useState<StaffMember[]>([]);
   const [staffLoading, setStaffLoading] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
-  const [date, setDate]   = useState(defaultDate ?? new Date().toISOString().split("T")[0]);
+  const [date, setDate]   = useState(defaultDate ?? getLocalDateStr());
   const [time, setTime]   = useState(""); // Default to empty string for "Auto-calculate"
   const [endTime, setEndTime] = useState(() => getCurrentTimeHHMM());
+  const [currentTime, setCurrentTime] = useState("");
   const [notes, setNotes] = useState("");
 
   // Pricing
@@ -120,6 +165,8 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
 
   useEffect(() => {
     if (!open) return;
+    const cur = getCurrentTimeHHMM();
+    setCurrentTime(cur);
     // Reset tab
     setActiveTab("client");
 
@@ -140,11 +187,67 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
       .finally(() => setStaffLoading(false));
   }, [open]);
 
-  // When service selection changes, pre-fill sale price with the sum
   useEffect(() => {
-    const sumPrice = selectedServices.reduce((sum, s) => sum + Number(s.price), 0);
-    setSalePrice(String(sumPrice));
-  }, [selectedServices]);
+    if (!open) return;
+    if (editingGroup) {
+      setClientName(editingGroup.client?.name || "");
+      setClientPhone(editingGroup.client?.phone || "");
+      setClientEmail(editingGroup.client?.email || "");
+      setDate(editingGroup.date);
+      setTime(editingGroup.startTime || "");
+      setEndTime(editingGroup.endTime || "");
+      setNotes(editingGroup.notes || "");
+    } else {
+      setClientName(""); setClientPhone(""); setClientEmail("");
+      setSelectedServices([]);
+      setSelectedStaff(null);
+      setDate(defaultDate ?? getLocalDateStr());
+      setTime(""); 
+      setEndTime(currentTime || getCurrentTimeHHMM());
+      setNotes("");
+      setSalePrice(""); setDiscountPct("0");
+    }
+  }, [open, editingGroup, defaultDate, currentTime]);
+
+  useEffect(() => {
+    if (!open) return;
+    const isFuture = date > getLocalDateStr();
+    if (isFuture) {
+      if (endTime === currentTime) {
+        setEndTime("");
+      }
+    } else {
+      if (endTime === "") {
+        setEndTime(currentTime || getCurrentTimeHHMM());
+      }
+    }
+  }, [date, open, currentTime]);
+
+  useEffect(() => {
+    if (open && editingGroup && staffList.length > 0 && editingGroup.staff) {
+      const match = staffList.find(s => s.id === editingGroup.staff.id);
+      if (match) setSelectedStaff(match);
+    }
+  }, [open, editingGroup, staffList]);
+
+  useEffect(() => {
+    if (open && editingGroup && services.length > 0 && editingGroup.appointments) {
+      const apptServiceIds = editingGroup.appointments.map((a: any) => a.service.id);
+      const matches = services.filter(s => apptServiceIds.includes(s.id));
+      setSelectedServices(matches);
+      
+      const actualTotalPrice = editingGroup.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0);
+      const listPriceSum = matches.reduce((sum, s) => sum + Number(s.price), 0);
+      if (actualTotalPrice < listPriceSum && listPriceSum > 0) {
+        const calculatedDiscountPct = Math.round(((listPriceSum - actualTotalPrice) / listPriceSum) * 100);
+        setSalePrice(String(listPriceSum));
+        setDiscountPct(String(calculatedDiscountPct));
+      } else {
+        setSalePrice(String(actualTotalPrice));
+        setDiscountPct("0");
+      }
+    }
+  }, [open, editingGroup, services]);
 
   // ── Derived values ─────────────────────────────────────────────────────────
 
@@ -189,7 +292,13 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
 
       const newSvc: Service = data.data;
       setServices(prev => [newSvc, ...prev]);
-      setSelectedServices(prev => [...prev, newSvc]);
+      setSelectedServices(prev => {
+        const next = [...prev, newSvc];
+        const sumPrice = next.reduce((sum, s) => sum + Number(s.price), 0);
+        setSalePrice(String(sumPrice));
+        setDiscountPct("0");
+        return next;
+      });
       setShowNewService(false);
       setNewSvcName(""); setNewSvcCategory(""); setNewSvcPrice(""); setNewSvcDuration("60");
       success(`"${newSvc.name}" created & selected!`);
@@ -312,33 +421,68 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
   };
 
   const handleSubmit = async () => {
+    const isFutureDate = date > getLocalDateStr();
     if (!clientName.trim()) { error("Client name is required."); setActiveTab("client"); return; }
     if (selectedServices.length === 0) { error("Please select at least one service.");  setActiveTab("service"); return; }
     if (!selectedStaff)     { error("Please select a staff member."); setActiveTab("schedule"); return; }
-    if (!date || !endTime)  { error("Please choose a date and end time."); setActiveTab("schedule"); return; }
+    if (!date)              { error("Please choose a date."); setActiveTab("schedule"); return; }
+    if (!time && !endTime) {
+      error("Either Start Time or End Time must be specified.");
+      setActiveTab("schedule");
+      return;
+    }
     if (finalPrice <= 0)    { error("Sale price must be greater than 0."); setActiveTab("pricing"); return; }
 
     setSubmitting(true);
     try {
-      // 1. Find existing client by phone/email, or create new
+      // 1. Resolve client ID and update, or create a new client
       let clientId: string | null = null;
-      const searchVal = clientPhone.trim() || clientEmail.trim();
 
-      if (searchVal) {
-        const searchRes = await fetch(`/api/clients?search=${encodeURIComponent(searchVal)}&limit=1`);
-        const searchData = await searchRes.json();
-        if (searchData.data?.length > 0) {
-          const foundClient = searchData.data[0];
-          // Ensure it's a true phone or email match (not just a name partial match)
-          const phoneMatch = clientPhone.trim() && foundClient.phone?.includes(clientPhone.trim());
-          const emailMatch = clientEmail.trim() && foundClient.email?.toLowerCase() === clientEmail.trim().toLowerCase();
-          if (phoneMatch || emailMatch) {
-            clientId = foundClient.id;
+      if (editingGroup?.client?.id) {
+        clientId = editingGroup.client.id;
+      } else {
+        const searchVal = clientPhone.trim() || clientEmail.trim();
+        if (searchVal) {
+          const searchRes = await fetch(`/api/clients?search=${encodeURIComponent(searchVal)}&limit=10`);
+          const searchData = await searchRes.json();
+          if (searchData.data?.length > 0) {
+            const foundClient = searchData.data.find((c: any) => {
+              const cleanInputPhone = clientPhone.trim().replace(/[\s+-]/g, "");
+              const cleanDbPhone = c.phone?.trim().replace(/[\s+-]/g, "") || "";
+              
+              const phoneMatch = cleanInputPhone && (cleanDbPhone === cleanInputPhone || cleanDbPhone.endsWith(cleanInputPhone) || cleanInputPhone.endsWith(cleanDbPhone));
+              const emailMatch = clientEmail.trim() && c.email?.toLowerCase() === clientEmail.trim().toLowerCase();
+              return phoneMatch || emailMatch;
+            });
+            if (foundClient) {
+              clientId = foundClient.id;
+            }
           }
         }
       }
 
-      if (!clientId) {
+      if (clientId) {
+        // Update existing client details
+        const updateBody: any = {
+          name: clientName.trim(),
+        };
+        
+        // Update phone (allows clearing phone as well)
+        updateBody.phone = clientPhone.trim() || "";
+        
+        // Only update email if specified to avoid validation/unique constraints on empty emails
+        if (clientEmail.trim()) {
+          updateBody.email = clientEmail.trim();
+        }
+
+        const clientRes = await fetch(`/api/clients/${clientId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updateBody),
+        });
+        const clientData = await clientRes.json();
+        if (!clientRes.ok) throw new Error(clientData.error ?? "Could not update client details");
+      } else {
         // Create new client
         const clientRes = await fetch("/api/clients", {
           method: "POST",
@@ -364,15 +508,16 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
           staffId:   selectedStaff.id,
           date,
           startTime: time || undefined,
-          endTime,
+          endTime:   isFutureDate ? undefined : endTime,
           price:     finalPrice,
           notes:     notes.trim() || undefined,
+          ...(editingGroup && { deleteAppointmentIds: editingGroup.appointments.map((a: any) => a.id) }),
         }),
       });
       const apptData = await apptRes.json();
-      if (!apptRes.ok) throw new Error(apptData.error ?? "Could not create booking");
+      if (!apptRes.ok) throw new Error(apptData.error ?? (editingGroup ? "Could not update booking" : "Could not create booking"));
 
-      success("Booking created successfully!");
+      success(editingGroup ? "Booking updated successfully!" : "Booking created successfully!");
       window.dispatchEvent(new CustomEvent("booking-created"));
       onCreated?.();
       
@@ -382,8 +527,8 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
         services: selectedServices,
         staffName: selectedStaff.name,
         date,
-        time,
-        endTime,
+        time: time || apptData.data.startTime,
+        endTime: isFutureDate ? apptData.data.endTime : endTime,
         salePrice: salePriceNum,
         discountPct: discountNum,
         finalPrice,
@@ -402,7 +547,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
     setSelectedServices([]); setServiceSearch("");
     setShowNewService(false);
     setSelectedStaff(null);
-    setDate(defaultDate ?? new Date().toISOString().split("T")[0]);
+    setDate(defaultDate ?? getLocalDateStr());
     setTime(""); 
     setEndTime(getCurrentTimeHHMM());
     setNotes("");
@@ -414,10 +559,11 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
 
   // ── Progress indicator ─────────────────────────────────────────────────────
 
+  const isFutureDate = date > getLocalDateStr();
   const tabComplete: Record<Tab, boolean> = {
     client:   !!clientName.trim(),
     service:  selectedServices.length > 0,
-    schedule: !!selectedStaff && !!date && !!endTime,
+    schedule: !!selectedStaff && !!date && (isFutureDate ? !!time : !!endTime),
     pricing:  finalPrice > 0,
   };
 
@@ -455,10 +601,10 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
               </div>
 
               <h3 className="text-xl font-bold mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-playfair)" }}>
-                Booking Confirmed!
+                {editingGroup ? "Booking Updated!" : "Booking Confirmed!"}
               </h3>
               <p className="text-xs mb-6" style={{ color: "var(--text-muted)" }}>
-                The appointment has been scheduled successfully.
+                {editingGroup ? "The appointment has been updated successfully." : "The appointment has been scheduled successfully."}
               </p>
 
               <div className="rounded-xl p-4 mb-6 text-left space-y-3" style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}>
@@ -523,10 +669,10 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
               >
                 <div>
                   <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-playfair)" }}>
-                    New Booking
+                    {editingGroup ? "Edit Booking" : "New Booking"}
                   </h2>
                   <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                    Schedule a walk-in or client appointment
+                    {editingGroup ? "Update details for this scheduled booking" : "Schedule a walk-in or client appointment"}
                   </p>
                 </div>
                 <button onClick={handleClose} className="btn-icon w-8 h-8">
@@ -582,9 +728,42 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
                             placeholder="e.g. Priya Sharma"
                             className="input-field pl-9"
                             value={clientName}
-                            onChange={e => setClientName(e.target.value)}
+                            onChange={e => {
+                              setClientName(e.target.value);
+                              fetchSuggestions(e.target.value, "name");
+                            }}
+                            onBlur={() => {
+                              setTimeout(() => {
+                                setShowSuggestions(false);
+                                setActiveSearchField(null);
+                              }, 200);
+                            }}
                             autoFocus
                           />
+                          {showSuggestions && activeSearchField === "name" && suggestions.length > 0 && (
+                            <div
+                              className="absolute z-[9995] left-0 right-0 mt-1 rounded-xl overflow-hidden max-h-48 overflow-y-auto shadow-2xl"
+                              style={{
+                                background: "var(--bg-secondary)",
+                                border: "1px solid var(--border-default)",
+                              }}
+                            >
+                              {suggestions.map(client => (
+                                <button
+                                  key={client.id}
+                                  type="button"
+                                  onClick={() => handleSelectSuggestion(client)}
+                                  className="w-full text-left px-4 py-2 hover:bg-white/[0.04] transition-colors flex flex-col py-2"
+                                  style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                                >
+                                  <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>{client.name}</span>
+                                  <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                                    {client.phone ? client.phone : "No phone"} {client.email ? `· ${client.email}` : ""}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -599,8 +778,41 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
                             placeholder="+91 9876543210"
                             className="input-field pl-9"
                             value={clientPhone}
-                            onChange={e => setClientPhone(e.target.value)}
+                            onChange={e => {
+                              setClientPhone(e.target.value);
+                              fetchSuggestions(e.target.value, "phone");
+                            }}
+                            onBlur={() => {
+                              setTimeout(() => {
+                                setShowSuggestions(false);
+                                setActiveSearchField(null);
+                              }, 200);
+                            }}
                           />
+                          {showSuggestions && activeSearchField === "phone" && suggestions.length > 0 && (
+                            <div
+                              className="absolute z-[9995] left-0 right-0 mt-1 rounded-xl overflow-hidden max-h-48 overflow-y-auto shadow-2xl"
+                              style={{
+                                background: "var(--bg-secondary)",
+                                border: "1px solid var(--border-default)",
+                              }}
+                            >
+                              {suggestions.map(client => (
+                                <button
+                                  key={client.id}
+                                  type="button"
+                                  onClick={() => handleSelectSuggestion(client)}
+                                  className="w-full text-left px-4 py-2 hover:bg-white/[0.04] transition-colors flex flex-col py-2"
+                                  style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                                >
+                                  <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>{client.name}</span>
+                                  <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                                    {client.phone ? client.phone : "No phone"} {client.email ? `· ${client.email}` : ""}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -664,11 +876,16 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
                               {svcs.map(svc => {
                                 const isSelected = selectedServices.some(s => s.id === svc.id);
                                 const handleToggleService = () => {
+                                  let nextServices;
                                   if (isSelected) {
-                                    setSelectedServices(prev => prev.filter(s => s.id !== svc.id));
+                                    nextServices = selectedServices.filter(s => s.id !== svc.id);
                                   } else {
-                                    setSelectedServices(prev => [...prev, svc]);
+                                    nextServices = [...selectedServices, svc];
                                   }
+                                  setSelectedServices(nextServices);
+                                  const sumPrice = nextServices.reduce((sum, s) => sum + Number(s.price), 0);
+                                  setSalePrice(String(sumPrice));
+                                  setDiscountPct("0");
                                 };
                                 return (
                                   <button
@@ -840,7 +1057,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
                           <input
                             type="date"
                             className="input-field pl-9"
-                            min={new Date().toISOString().split("T")[0]}
+                            min={getLocalDateStr()}
                             value={date}
                             onChange={e => setDate(e.target.value)}
                           />
@@ -849,22 +1066,37 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
 
                       <div className="space-y-1.5">
                         <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                          End Time <span className="text-rose-500">*</span>
+                          End Time {!time && <span className="text-rose-500">*</span>}
                         </label>
                         <div className="relative">
                           <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
-                          <input
-                            type="time"
-                            className="input-field pl-9"
+                          <select
+                            className="input-field pl-9 appearance-none"
                             value={endTime}
                             onChange={e => setEndTime(e.target.value)}
-                          />
+                          >
+                            {time ? (
+                              <option value="">Auto-calculate (from Start Time)</option>
+                            ) : (
+                              <option value="">None / Not Applicable</option>
+                            )}
+                            {currentTime && (
+                              <option value={currentTime}>Current Time ({currentTime})</option>
+                            )}
+                            {TIME_SLOTS.map(t => (
+                              <option key={t} value={t}>{t}</option>
+                            ))}
+                            {endTime && endTime !== currentTime && !TIME_SLOTS.includes(endTime) && (
+                              <option value={endTime}>{endTime}</option>
+                            )}
+                          </select>
+                          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
                         </div>
                       </div>
 
                       <div className="space-y-1.5">
                         <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                          Start Time <span className="text-[10px] font-normal" style={{ color: "var(--text-muted)" }}>(optional)</span>
+                          Start Time {!endTime && <span className="text-rose-500">*</span>}
                         </label>
                         <div className="relative">
                           <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
@@ -873,10 +1105,20 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
                             value={time}
                             onChange={e => setTime(e.target.value)}
                           >
-                            <option value="">Auto-calculate</option>
+                            {(!isFutureDate || endTime) ? (
+                              <option value="">Auto-calculate (from End Time)</option>
+                            ) : (
+                              <option value="">Select start time...</option>
+                            )}
+                            {currentTime && (
+                              <option value={currentTime}>Current Time ({currentTime})</option>
+                            )}
                             {TIME_SLOTS.map(t => (
                               <option key={t} value={t}>{t}</option>
                             ))}
+                            {time && time !== currentTime && !TIME_SLOTS.includes(time) && (
+                              <option value={time}>{time}</option>
+                            )}
                           </select>
                           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
                         </div>
@@ -1103,8 +1345,8 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated }: 
                       className="btn-primary py-2 px-4 text-xs font-semibold flex items-center gap-1.5"
                     >
                       {submitting
-                        ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Creating…</>
-                        : <><Check className="w-3.5 h-3.5" /> Confirm Booking</>
+                        ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {editingGroup ? "Saving…" : "Creating…"}</>
+                        : <><Check className="w-3.5 h-3.5" /> {editingGroup ? "Save Changes" : "Confirm Booking"}</>
                       }
                     </button>
                   )}

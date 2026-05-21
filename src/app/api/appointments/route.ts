@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
         take: limit,
         orderBy: [{ date: "asc" }, { startTime: "asc" }],
         include: {
-          client:  { select: { id: true, name: true, phone: true } },
+          client:  { select: { id: true, name: true, phone: true, email: true } },
           service: { select: { id: true, name: true, duration: true, category: true } },
           staff:   { select: { id: true, name: true, role: true } },
         },
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const data = CreateAppointmentSchema.parse(body);
+    const { deleteAppointmentIds, ...data } = CreateAppointmentSchema.parse(body);
 
     const serviceIds = data.serviceIds && data.serviceIds.length > 0
       ? data.serviceIds
@@ -84,7 +84,17 @@ export async function POST(req: NextRequest) {
     const totalListPrice = orderedServices.reduce((sum, s) => sum + Number(s.price), 0);
 
     const totalDuration = orderedServices.reduce((sum, s) => sum + s.duration, 0);
-    const overallStartTime = calculateStartTime(data.endTime, totalDuration);
+    
+    let overallStartTime = data.startTime || "";
+    let overallEndTime = data.endTime || "";
+
+    if (overallStartTime && !overallEndTime) {
+      overallEndTime = calculateEndTime(overallStartTime, totalDuration);
+    } else if (overallEndTime && !overallStartTime) {
+      overallStartTime = calculateStartTime(overallEndTime, totalDuration);
+    } else if (!overallStartTime && !overallEndTime) {
+      return handleApiError(new Error("Either startTime or endTime must be provided"));
+    }
 
     // Check if the appointment start time is in the future (using local IST offset)
     const appointmentDateTime = new Date(`${data.date}T${overallStartTime}:00+05:30`);
@@ -110,16 +120,24 @@ export async function POST(req: NextRequest) {
         staffId:   data.staffId,
         date:      new Date(data.date),
         startTime: overallStartTime,
-        endTime:   data.endTime,
+        endTime:   overallEndTime,
         status,
         price:     allocatedPrice,
         notes:     data.notes,
       });
     }
 
-    // Run in a prisma transaction to ensure atomic creation
-    const createdAppointments = await prisma.$transaction(
-      appointmentsData.map(appt => 
+    const queries: any[] = [];
+    if (deleteAppointmentIds && deleteAppointmentIds.length > 0) {
+      queries.push(
+        prisma.appointment.deleteMany({
+          where: { id: { in: deleteAppointmentIds } },
+        })
+      );
+    }
+
+    appointmentsData.forEach(appt => {
+      queries.push(
         prisma.appointment.create({
           data: appt,
           include: {
@@ -128,8 +146,14 @@ export async function POST(req: NextRequest) {
             staff:   { select: { id: true, name: true } },
           }
         })
-      )
-    );
+      );
+    });
+
+    // Run in a prisma transaction to ensure atomic creation/deletion
+    const transactionResult = await prisma.$transaction(queries);
+    const createdAppointments = deleteAppointmentIds && deleteAppointmentIds.length > 0
+      ? transactionResult.slice(1)
+      : transactionResult;
 
     // Return the first created appointment
     return createdResponse(createdAppointments[0]);
