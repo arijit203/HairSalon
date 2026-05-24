@@ -4,8 +4,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── DARK THEME (default) ─────────────────────────────── */
-:root,
+/* ─── DARK THEME ────────────────────────────────────────── */
 [data-theme="dark"] {
   --bg-primary:        #0d0608;
   --bg-secondary:      #130810;
@@ -50,7 +49,8 @@
   --toast-text-secondary: #b89da8;
 }
 
-/* ─── LIGHT THEME ───────────────────────────────────────── */
+/* ─── LIGHT THEME (default) ─────────────────────────────── */
+:root,
 [data-theme="light"] {
   --bg-primary:        #faf7f8;
   --bg-secondary:      #f3eef0;
