@@ -20,7 +20,7 @@ interface DashboardStats {
   bookings:     { today: number; newToday: number };
   clients:      { total: number; newThisMonth: number };
   productsSold: { thisMonth: number; lastMonth: number; changePercent: number };
-  alerts:       { lowStockCount: number };
+  alerts:       { lowStockCount: number; outOfStockCount: number };
   todayAppointments: any[];
 }
 interface AnalyticsData {
@@ -300,20 +300,29 @@ export default function DashboardPage() {
           <p className="page-subtitle">Here&apos;s what&apos;s happening at your salon today.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button className="btn-secondary"><Clock className="w-4 h-4" /> Schedule</button>
           <button className="btn-primary" onClick={() => openBooking()}><Plus className="w-4 h-4" /> New Booking</button>
         </div>
       </div>
 
-      {/* Low stock alert */}
-      {stats && stats.alerts.lowStockCount > 0 && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium"
-          style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.25)", color: "#fbbf24" }}>
-          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-          {stats.alerts.lowStockCount} product{stats.alerts.lowStockCount > 1 ? "s" : ""} running low on stock.
-          <a href="/products" className="ml-auto underline underline-offset-2 text-xs">View Products →</a>
-        </div>
-      )}
+      {/* Alerts */}
+      <div className="space-y-3">
+        {stats && stats.alerts.outOfStockCount > 0 && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium"
+            style={{ background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.25)", color: "#ef4444" }}>
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            {stats.alerts.outOfStockCount} product{stats.alerts.outOfStockCount > 1 ? "s" : ""} out of stock.
+            <a href="/products?status=OUT_OF_STOCK" className="ml-auto underline underline-offset-2 text-xs">View Products →</a>
+          </div>
+        )}
+        {stats && stats.alerts.lowStockCount > 0 && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium"
+            style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.25)", color: "#fbbf24" }}>
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            {stats.alerts.lowStockCount} product{stats.alerts.lowStockCount > 1 ? "s" : ""} running low on stock.
+            <a href="/products?status=LOW_STOCK" className="ml-auto underline underline-offset-2 text-xs">View Products →</a>
+          </div>
+        )}
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">

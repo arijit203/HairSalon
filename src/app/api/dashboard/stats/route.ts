@@ -32,6 +32,8 @@ export async function GET(_req: NextRequest) {
       thisMonthProductsSold, lastMonthProductsSold,
       // Low stock
       lowStockCount,
+      // Out of stock
+      outOfStockCount,
       // Today's appointments
       todayAppointments,
     ] = await Promise.all([
@@ -75,9 +77,13 @@ export async function GET(_req: NextRequest) {
         },
         _sum: { quantity: true },
       }),
-      // Low-stock products
+      // LOW_STOCK products
       prisma.product.count({
-        where: { status: { in: ["LOW_STOCK", "OUT_OF_STOCK"] }, isActive: true },
+        where: { status: "LOW_STOCK", isActive: true },
+      }),
+      // OUT_OF_STOCK products
+      prisma.product.count({
+        where: { status: "OUT_OF_STOCK", isActive: true },
       }),
       // Today's appointments OR any future pending/scheduled appointments
       prisma.appointment.findMany({
@@ -134,6 +140,7 @@ export async function GET(_req: NextRequest) {
       },
       alerts: {
         lowStockCount,
+        outOfStockCount,
       },
       todayAppointments,
     });

@@ -1,7 +1,8 @@
 "use client";
 
 import { Package, Plus, Search, Edit2, Trash2, AlertTriangle, TrendingDown, ChevronLeft, ChevronRight, X, Loader2 } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { usePaginatedApi } from "@/hooks/useApi";
 import { useToast } from "@/context/ToastContext";
 import ProductModal from "@/components/products/ProductModal";
@@ -19,11 +20,12 @@ const STATUS_STYLES: Record<string, { color: string; bg: string; label: string }
   OUT_OF_STOCK: { color: "#ef4444", bg: "rgba(239,68,68,0.1)",   label: "Out of Stock" },
 };
 
-export default function ProductsPage() {
+function ProductsPageContent() {
   const { success, error: toastError } = useToast();
+  const searchParams = useSearchParams();
   const [search,   setSearch]   = useState("");
   const [category, setCategory] = useState("All");
-  const [status,   setStatus]   = useState("All");
+  const [status,   setStatus]   = useState(searchParams.get("status") || "All");
   const [page,     setPage]     = useState(1);
 
   // Modal and editing states
@@ -492,5 +494,13 @@ export default function ProductsPage() {
         </div>
       </Modal>
     </div>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-[var(--accent-rose)]" /></div>}>
+      <ProductsPageContent />
+    </Suspense>
   );
 }
