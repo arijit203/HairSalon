@@ -37,8 +37,8 @@ export default function ProductsPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState("");
-  const [servicesToDeleteCount, setServicesToDeleteCount] = useState(0);
-  const [productsToDeleteCount, setProductsToDeleteCount] = useState(0);
+  const [servicesToDelete, setServicesToDelete] = useState<string[]>([]);
+  const [productsToDelete, setProductsToDelete] = useState<string[]>([]);
   const [deletingCategory, setDeletingCategory] = useState(false);
 
   const params = new URLSearchParams({ page: String(page), limit: "12" });
@@ -102,33 +102,33 @@ export default function ProductsPage() {
   const handleTriggerDeleteCategory = async (cat: string) => {
     setCategoryToDelete(cat);
     
-    // Count associated services from DB
+    // Fetch services under this category
     try {
       const res = await fetch(`/api/services?limit=100`);
       const d = await res.json();
       if (d.data) {
-        const sCount = d.data.filter((s: any) => s.category === cat).length;
-        setServicesToDeleteCount(sCount);
+        const servicesInCat = d.data.filter((s: any) => s.category === cat);
+        setServicesToDelete(servicesInCat.map((s: any) => s.name));
       } else {
-        setServicesToDeleteCount(0);
+        setServicesToDelete([]);
       }
     } catch (err) {
-      console.error("Error fetching services count:", err);
-      setServicesToDeleteCount(0);
+      console.error("Error fetching services:", err);
+      setServicesToDelete([]);
     }
 
-    // Count associated products from DB
+    // Fetch products under this category
     try {
-      const res = await fetch(`/api/products?category=${encodeURIComponent(cat)}&limit=1`);
+      const res = await fetch(`/api/products?category=${encodeURIComponent(cat)}&limit=100`);
       const data = await res.json();
-      if (res.ok && data.pagination) {
-        setProductsToDeleteCount(data.pagination.total || 0);
+      if (res.ok && data.data) {
+        setProductsToDelete(data.data.map((p: any) => p.name));
       } else {
-        setProductsToDeleteCount(0);
+        setProductsToDelete([]);
       }
     } catch (err) {
-      console.error("Error fetching product count:", err);
-      setProductsToDeleteCount(0);
+      console.error("Error fetching products:", err);
+      setProductsToDelete([]);
     }
     
     setIsDeleteModalOpen(true);
@@ -154,7 +154,32 @@ export default function ProductsPage() {
       success(`Category "${categoryToDelete}" deleted successfully.`);
       setCategory("All");
       setIsDeleteModalOpen(false);
+      
+      // Refetch products and categories
       refetch();
+      
+      // Refetch dynamic and service categories
+      fetch("/api/products?limit=100")
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.data) {
+            const cats = d.data.flatMap((p: any) => p.category);
+            const uniqueCats = Array.from(new Set(cats)).filter(Boolean) as string[];
+            setDynamicCategories(uniqueCats.sort());
+          }
+        })
+        .catch((err) => console.error("Error loading categories:", err));
+
+      fetch("/api/services?limit=100")
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.data) {
+            const cats = d.data.map((s: any) => s.category);
+            const uniqueCats = Array.from(new Set(cats)).filter(Boolean) as string[];
+            setServiceCategories(uniqueCats.sort());
+          }
+        })
+        .catch((err) => console.error("Error loading service categories:", err));
     } catch (err: any) {
       toastError(err.message ?? "An error occurred while deleting the category.");
     } finally {
@@ -164,7 +189,12 @@ export default function ProductsPage() {
 
   const allCategories = useMemo(() => {
     const defaultCats = ["Hair Care", "Skin Care", "Nail Care", "Body Care", "Packages", "Tools", "Spa"];
-    const merged = Array.from(new Set([...defaultCats, ...dynamicCategories, ...serviceCategories, ...customCategories]));
+    const activeCats = dynamicCategories.concat(serviceCategories).filter(Boolean);
+    // Only include default categories if they have active services or products
+    const defaultCatsWithContent = defaultCats.filter(cat => 
+      activeCats.includes(cat) || dynamicCategories.includes(cat)
+    );
+    const merged = Array.from(new Set([...defaultCatsWithContent, ...dynamicCategories, ...serviceCategories, ...customCategories]));
     return ["All", ...merged];
   }, [dynamicCategories, serviceCategories, customCategories]);
 
@@ -233,13 +263,14 @@ export default function ProductsPage() {
 
       {/* Filters */}
       <div className="glass-card p-4 space-y-4">
-        <div className="flex flex-wrap gap-4 items-center justify-between">
-          <div className="relative flex-1 min-w-[200px] max-w-[280px]">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1 max-w-[280px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-muted)" }} />
             <input type="text" placeholder="Search by name, brand, SKU..." className="input-field pl-10 w-full"
               value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-2 pb-1 flex-1">
+            <div className="flex items-center gap-2 pb-1 pt-2 pr-2 overflow-x-auto">
             {allCategories.map((c) => {
               const isAll = c === "All";
               const isActive = category === c;
@@ -247,9 +278,9 @@ export default function ProductsPage() {
                 <div
                   key={c}
                   onClick={() => { setCategory(c); setPage(1); }}
-                  className={`filter-pill flex items-center gap-1.5 cursor-pointer ${
+                  className={`filter-pill flex items-center gap-1.5 cursor-pointer group relative inline-flex ${
                     isActive ? "active" : ""
-                  } ${!isAll ? "pl-4 pr-2.5" : ""}`}
+                  } ${!isAll ? "px-4" : ""}`}
                 >
                   <span>{c}</span>
                   {!isAll && isAdmin && (
@@ -259,7 +290,8 @@ export default function ProductsPage() {
                         e.stopPropagation();
                         handleTriggerDeleteCategory(c);
                       }}
-                      className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-red-500/20 text-[var(--text-muted)] hover:text-red-500 transition-colors"
+                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-zinc-900 flex items-center justify-center opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-gray-500 transition-all duration-200 shadow-[0_2px_4px_rgba(0,0,0,0.05)]"
+                      title="Delete category"
                     >
                       <X className="w-2.5 h-2.5" />
                     </button>
@@ -267,6 +299,7 @@ export default function ProductsPage() {
                 </div>
               );
             })}
+            </div>
           </div>
         </div>
         <div className="flex justify-start">
@@ -336,7 +369,7 @@ export default function ProductsPage() {
                             style={{ background: st.bg, color: st.color }}>{st.label}</span>
                         </td>
                         <td>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1">
                             <button 
                               onClick={() => { setEditingProduct(p); setIsModalOpen(true); }}
                               className="btn-icon w-7 h-7"
@@ -426,17 +459,36 @@ export default function ProductsPage() {
           <p>
             Deleting this category will have the following effects:
           </p>
-          <ul className="list-disc pl-5 space-y-1.5 text-xs text-[var(--text-muted)]">
+          <ul className="list-disc pl-5 space-y-2 text-xs text-[var(--text-muted)]">
             <li>
-              <strong>Services:</strong> {servicesToDeleteCount} service(s) under this category will be permanently removed.
+              <strong>Services ({servicesToDelete.length}):</strong>
+              {servicesToDelete.length > 0 ? (
+                <div className="mt-1 pl-3 text-[11px] text-[var(--text-muted)] max-h-[80px] overflow-y-auto space-y-0.5 border-l border-zinc-200 dark:border-white/10">
+                  {servicesToDelete.map((name) => (
+                    <div key={name}>• {name}</div>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-[11px] text-[var(--text-muted)] ml-1.5">None</span>
+              )}
             </li>
             <li>
-              <strong>Products:</strong> {productsToDeleteCount} product(s) associated with this category will be removed from inventory.
+              <strong>Products ({productsToDelete.length}):</strong>
+              {productsToDelete.length > 0 ? (
+                <div className="mt-1 pl-3 text-[11px] text-[var(--text-muted)] max-h-[80px] overflow-y-auto space-y-0.5 border-l border-zinc-200 dark:border-white/10">
+                  {productsToDelete.map((name) => (
+                    <div key={name}>• {name}</div>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-[11px] text-[var(--text-muted)] ml-1.5">None</span>
+              )}
             </li>
           </ul>
-          <p className="text-xs text-red-500 font-medium">
-            ⚠️ Warning: This action is permanent and cannot be undone.
-          </p>
+          <div className="text-xs text-red-500 font-medium flex items-start gap-1.5 mt-2">
+            <span>⚠️</span>
+            <span>Warning: Services will be deleted, but products will only have this category removed.</span>
+          </div>
         </div>
       </Modal>
     </div>

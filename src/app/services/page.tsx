@@ -140,9 +140,13 @@ export default function ServicesPage() {
 
   // Dynamic categories list including defaults, database entries, and custom ones
   const categoriesList = useMemo(() => {
-    const defaultCats = ["All", "Hair Care", "Skin Care", "Nail Care", "Body Care", "Packages", "Tools", "Spa"];
-    const dbCats = dbServices.map((s: any) => s.category);
-    const merged = Array.from(new Set([...defaultCats, ...dbCats, ...productCategories, ...customCategories]));
+    const defaultCats = ["Hair Care", "Skin Care", "Nail Care", "Body Care", "Packages", "Tools", "Spa"];
+    const activeCats = dbServices.map((s: any) => s.category).filter(Boolean);
+    // Only include default categories if they have active services or products
+    const defaultCatsWithContent = defaultCats.filter(cat => 
+      activeCats.includes(cat) || productCategories.includes(cat)
+    );
+    const merged = Array.from(new Set([...defaultCatsWithContent, ...activeCats, ...productCategories, ...customCategories]));
     return ["All", ...merged.filter(c => c !== "All")];
   }, [dbServices, productCategories, customCategories]);
 
@@ -208,7 +212,21 @@ export default function ServicesPage() {
       success(`Category "${categoryToDelete}" deleted successfully.`);
       setSelectedCategory("All");
       setIsDeleteModalOpen(false);
-      refetch();
+      
+      // Refetch services and product categories
+      setTick((t) => t + 1);
+      
+      // Refetch product categories
+      fetch("/api/products?limit=100")
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.data) {
+            const cats = d.data.flatMap((p: any) => p.category || []);
+            const uniqueCats = Array.from(new Set(cats)).filter(Boolean) as string[];
+            setProductCategories(uniqueCats.sort());
+          }
+        })
+        .catch((err) => console.error("Error loading products for categories:", err));
     } catch (err: any) {
       toastError(err.message ?? "An error occurred while deleting the category.");
     } finally {
@@ -351,48 +369,51 @@ export default function ServicesPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 flex-1">
-          {categoriesList.map((cat) => {
-            const isAll = cat === "All";
-            const isActive = selectedCategory === cat;
-            return (
-              <div
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`filter-pill relative cursor-pointer ${
-                  isActive ? "active" : ""
-                }`}
+        <div className="flex items-center gap-2 pb-1 flex-1">
+          <div className="flex items-center gap-2 pb-1 pt-2 pr-2 overflow-x-auto">
+            {categoriesList.map((cat) => {
+              const isAll = cat === "All";
+              const isActive = selectedCategory === cat;
+              return (
+                <div
+                  key={cat}
+                  className={`filter-pill flex items-center gap-1.5 cursor-pointer group relative inline-flex flex-shrink-0 ${
+                    isActive ? "active" : ""
+                  } ${!isAll ? "px-4" : ""}`}
+                  onClick={() => setSelectedCategory(cat)}
+                >
+                  <span>{cat}</span>
+                  {!isAll && isAdmin && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTriggerDeleteCategory(cat);
+                      }}
+                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-zinc-900 flex items-center justify-center opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-gray-500 transition-all duration-200 shadow-[0_2px_4px_rgba(0,0,0,0.05)]"
+                      title="Delete category"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            {/* Add Category Pill */}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setNewCategoryName("");
+                  setIsAddCategoryModalOpen(true);
+                }}
+                className="filter-pill flex items-center justify-center w-7 h-7 rounded-full p-0 flex-shrink-0 hover:bg-white/[0.08] inline-flex"
+                title="Add Category"
               >
-                <span>{cat}</span>
-                {!isAll && isAdmin && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleTriggerDeleteCategory(cat);
-                    }}
-                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 hover:bg-red-500 hover:text-white hover:border-red-600 text-[10px] text-[var(--text-muted)] transition-all shadow-sm"
-                  >
-                    <X className="w-2 h-2" />
-                  </button>
-                )}
-              </div>
-            );
-          })}
-          {/* Add Category Pill */}
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => {
-                setNewCategoryName("");
-                setIsAddCategoryModalOpen(true);
-              }}
-              className="filter-pill flex items-center justify-center w-7 h-7 rounded-full p-0 flex-shrink-0 hover:bg-white/[0.08]"
-              title="Add Category"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-          )}
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -445,7 +466,7 @@ export default function ServicesPage() {
                 {isAdmin && (
                   <>
                     <button
-                      className="btn-icon absolute top-4 right-4 w-8 h-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="btn-icon absolute top-4 right-4 w-8 h-8 transition-opacity"
                       onClick={() => setOpenMenu(openMenu === service.id ? null : service.id)}
                     >
                       <MoreVertical className="w-4 h-4" />
@@ -675,9 +696,10 @@ export default function ServicesPage() {
               )}
             </li>
           </ul>
-          <p className="text-xs text-red-500 font-medium">
-            ⚠️ Warning: This action is permanent and cannot be undone.
-          </p>
+          <div className="text-xs text-red-500 font-medium flex items-start gap-1.5 mt-2">
+            <span>⚠️</span>
+            <span>Warning: Services will be deleted, but products will only have this category removed.</span>
+          </div>
         </div>
       </Modal>
     </div>

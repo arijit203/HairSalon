@@ -27,20 +27,19 @@ export async function DELETE(req: NextRequest) {
         where: { category: { has: category }, isActive: true },
       });
 
-      // 3. For each associated product, remove the category and soft-delete it
+      // 3. For each associated product, only remove the category (keep the product)
       for (const product of products) {
         const updatedCategories = product.category.filter((c) => c !== category);
         await tx.product.update({
           where: { id: product.id },
           data: {
             category: updatedCategories,
-            isActive: false,
           },
         });
       }
     });
 
-    return successResponse({ message: `Category '${category}' deleted successfully along with its services and products.` });
+    return successResponse({ message: `Category '${category}' deleted successfully along with its services.` });
   } catch (error) {
     return handleApiError(error);
   }
