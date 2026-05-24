@@ -9,10 +9,12 @@ const TODAY = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
 async function main() {
   console.log("🌱 Seeding database...");
 
-  // Clear time-sensitive data so re-seeding is safe
+  // Clear data so re-seeding is safe
   await prisma.transactionItem.deleteMany();
   await prisma.transaction.deleteMany();
   await prisma.appointment.deleteMany();
+  await prisma.product.deleteMany();
+  await prisma.service.deleteMany();
 
   // ── Staff ─────────────────────────────────────────────────────────────────
   const staffInputs = [
@@ -31,35 +33,73 @@ async function main() {
 
   // ── Services ──────────────────────────────────────────────────────────────
   const svcInputs = [
-    { name: "Hair Cut & Style",       category: "Hair",          price: 800,   duration: 45,  isPopular: true  },
-    { name: "Hair Coloring (Full)",   category: "Hair",          price: 4500,  discountPrice: 3999, duration: 120, isPopular: true },
-    { name: "Deep Conditioning",      category: "Hair",          price: 2200,  duration: 60,  isPopular: false },
-    { name: "Classic Facial",         category: "Skin & Facial", price: 1800,  duration: 60,  isPopular: true  },
-    { name: "Anti-Aging Facial",      category: "Skin & Facial", price: 3500,  duration: 90,  isPopular: false },
-    { name: "Gel Manicure",           category: "Nails",         price: 900,   duration: 60,  isPopular: true  },
-    { name: "Mani + Pedi Combo",      category: "Nails",         price: 1600,  discountPrice: 1399, duration: 100, isPopular: true },
-    { name: "Full Body Waxing",       category: "Body & Wax",    price: 2800,  duration: 90,  isPopular: false },
-    { name: "Bridal Package",         category: "Packages",      price: 15000, discountPrice: 12999, duration: 300, isPopular: true },
+    { name: "Hair Cut & Style",       category: "Hair Care",     price: 800,   isPopular: true  },
+    { name: "Hair Coloring (Full)",   category: "Hair Care",     price: 4500,  discountPrice: 3999, isPopular: true },
+    { name: "Deep Conditioning",      category: "Hair Care",     price: 2200,  isPopular: false },
+    { name: "Classic Facial",         category: "Skin Care",     price: 1800,  isPopular: true  },
+    { name: "Anti-Aging Facial",      category: "Skin Care",     price: 3500,  isPopular: false },
+    { name: "Gel Manicure",           category: "Nail Care",     price: 900,   isPopular: true  },
+    { name: "Mani + Pedi Combo",      category: "Nail Care",     price: 1600,  discountPrice: 1399, isPopular: true },
+    { name: "Full Body Waxing",       category: "Body Care",     price: 2800,  isPopular: false },
+    { name: "Bridal Package",         category: "Packages",      price: 15000, discountPrice: 12999, isPopular: true },
   ];
+
+  // Update existing database services with old categories to use the new standardized names
+  await prisma.service.updateMany({
+    where: { category: "Hair" },
+    data: { category: "Hair Care" }
+  });
+  await prisma.service.updateMany({
+    where: { category: "Skin & Facial" },
+    data: { category: "Skin Care" }
+  });
+  await prisma.service.updateMany({
+    where: { category: "Nails" },
+    data: { category: "Nail Care" }
+  });
+  await prisma.service.updateMany({
+    where: { category: "Body & Wax" },
+    data: { category: "Body Care" }
+  });
+
   for (const s of svcInputs) {
     const id = s.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
-    await prisma.service.upsert({ where: { id }, update: {}, create: { ...s, id } });
+    await prisma.service.upsert({ 
+      where: { id }, 
+      update: {
+        category: s.category,
+        price: s.price,
+        discountPrice: s.discountPrice,
+        isPopular: s.isPopular
+      }, 
+      create: { ...s, id } 
+    });
   }
   console.log("✅ Services seeded");
 
   // ── Products ──────────────────────────────────────────────────────────────
   const prodInputs = [
-    { name: "Kérastase Nutritive Serum",    category: "Hair Care", brand: "Kérastase",   sku: "KER-001", price: 2800, stock: 18, lowStockAt: 5 },
-    { name: "L'Oreal Professionnel Masque", category: "Hair Care", brand: "L'Oreal Pro", sku: "LOR-002", price: 1950, stock: 25, lowStockAt: 8 },
-    { name: "OPI Nail Polish Collection",   category: "Nail Care", brand: "OPI",          sku: "OPI-003", price: 850,  stock: 8,  lowStockAt: 10, status: ProductStatus.LOW_STOCK },
-    { name: "Moroccanoil Treatment",        category: "Hair Care", brand: "Moroccanoil", sku: "MOR-004", price: 3200, stock: 32, lowStockAt: 8 },
-    { name: "The Ordinary Niacinamide",     category: "Skin Care", brand: "The Ordinary",sku: "ORD-005", price: 650,  stock: 0,  lowStockAt: 10, status: ProductStatus.OUT_OF_STOCK },
-    { name: "Dyson Airwrap Styler",         category: "Tools",     brand: "Dyson",        sku: "DYS-006", price: 45000,stock: 5, lowStockAt: 2 },
-    { name: "Cetaphil Moisturizing Cream",  category: "Skin Care", brand: "Cetaphil",     sku: "CET-007", price: 480,  stock: 60, lowStockAt: 15 },
-    { name: "Bath & Body Works Lotion",     category: "Body Care", brand: "Bath & Body",  sku: "BBW-008", price: 1200, stock: 3,  lowStockAt: 10, status: ProductStatus.LOW_STOCK },
+    { name: "Kérastase Nutritive Serum",    category: ["Hair Care"], brand: "Kérastase",   sku: "KER-001", price: 2800, stock: 18, lowStockAt: 5 },
+    { name: "L'Oreal Professionnel Masque", category: ["Hair Care"], brand: "L'Oreal Pro", sku: "LOR-002", price: 1950, stock: 25, lowStockAt: 8 },
+    { name: "OPI Nail Polish Collection",   category: ["Nail Care"], brand: "OPI",          sku: "OPI-003", price: 850,  stock: 8,  lowStockAt: 10, status: ProductStatus.LOW_STOCK },
+    { name: "Moroccanoil Treatment",        category: ["Hair Care"], brand: "Moroccanoil", sku: "MOR-004", price: 3200, stock: 32, lowStockAt: 8 },
+    { name: "The Ordinary Niacinamide",     category: ["Skin Care"], brand: "The Ordinary",sku: "ORD-005", price: 650,  stock: 0,  lowStockAt: 10, status: ProductStatus.OUT_OF_STOCK },
+    { name: "Dyson Airwrap Styler",         category: ["Tools"],     brand: "Dyson",        sku: "DYS-006", price: 45000,stock: 5, lowStockAt: 2 },
+    { name: "Cetaphil Moisturizing Cream",  category: ["Skin Care"], brand: "Cetaphil",     sku: "CET-007", price: 480,  stock: 60, lowStockAt: 15 },
+    { name: "Bath & Body Works Lotion",     category: ["Body Care"], brand: "Bath & Body",  sku: "BBW-008", price: 1200, stock: 3,  lowStockAt: 10, status: ProductStatus.LOW_STOCK },
   ];
   for (const { status = ProductStatus.IN_STOCK, ...p } of prodInputs) {
-    await prisma.product.upsert({ where: { sku: p.sku }, update: {}, create: { ...p, status } });
+    await prisma.product.upsert({ 
+      where: { sku: p.sku }, 
+      update: {
+        category: p.category,
+        price: p.price,
+        stock: p.stock,
+        lowStockAt: p.lowStockAt,
+        status
+      }, 
+      create: { ...p, status } 
+    });
   }
   console.log("✅ Products seeded");
 

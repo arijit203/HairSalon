@@ -25,13 +25,13 @@ const catalogProducts = [
   { id: "p3", name: "OPI Nail Polish", price: 850, type: "product", emoji: "💅", stock: 8 },
   { id: "p4", name: "Moroccanoil Treatment", price: 3200, type: "product", emoji: "✨", stock: 32 },
   { id: "p5", name: "Cetaphil Moisturizer", price: 480, type: "product", emoji: "🌿", stock: 60 },
-  { id: "s1", name: "Hair Cut & Style", price: 800, type: "service", emoji: "✂️", duration: "45 min" },
-  { id: "s2", name: "Hair Coloring", price: 3999, type: "service", emoji: "🎨", duration: "2 hr" },
-  { id: "s3", name: "Classic Facial", price: 1800, type: "service", emoji: "💆", duration: "1 hr" },
-  { id: "s4", name: "Gel Manicure", price: 900, type: "service", emoji: "💅", duration: "1 hr" },
-  { id: "s5", name: "Mani + Pedi Combo", price: 1399, type: "service", emoji: "🌸", duration: "1.5 hr" },
-  { id: "s6", name: "Full Body Wax", price: 2800, type: "service", emoji: "🌟", duration: "1.5 hr" },
-  { id: "s7", name: "Deep Conditioning", price: 2200, type: "service", emoji: "💧", duration: "1 hr" },
+  { id: "s1", name: "Hair Cut & Style", price: 800, type: "service", emoji: "✂️" },
+  { id: "s2", name: "Hair Coloring", price: 3999, type: "service", emoji: "🎨" },
+  { id: "s3", name: "Classic Facial", price: 1800, type: "service", emoji: "💆" },
+  { id: "s4", name: "Gel Manicure", price: 900, type: "service", emoji: "💅" },
+  { id: "s5", name: "Mani + Pedi Combo", price: 1399, type: "service", emoji: "🌸" },
+  { id: "s6", name: "Full Body Wax", price: 2800, type: "service", emoji: "🌟" },
+  { id: "s7", name: "Deep Conditioning", price: 2200, type: "service", emoji: "💧" },
 ];
 
 const recentTransactions = [
@@ -145,9 +145,6 @@ export default function POSPage() {
                     </div>
                     {(item as any).stock && (
                       <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>Stock: {(item as any).stock}</p>
-                    )}
-                    {(item as any).duration && (
-                      <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>{(item as any).duration}</p>
                     )}
                   </button>
                 );

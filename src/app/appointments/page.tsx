@@ -11,7 +11,7 @@ interface Appointment {
   id: string; startTime: string; endTime: string; date: string;
   status: string; price: string; notes?: string;
   client:  { id: string; name: string; phone?: string };
-  service: { id: string; name: string; duration: number; category: string };
+  service: { id: string; name: string; category: string };
   staff:   { id: string; name: string; role: string };
 }
 
@@ -19,10 +19,9 @@ const DAYS   = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 const STATUS_CFG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
-  CONFIRMED:   { label: "Confirmed",   icon: CheckCircle2, color: "#10b981", bg: "rgba(16,185,129,0.1)" },
   IN_PROGRESS: { label: "In Progress", icon: Loader2,      color: "#a855f7", bg: "rgba(168,85,247,0.1)" },
   PENDING:     { label: "Pending",     icon: AlertCircle,  color: "#f59e0b", bg: "rgba(245,158,11,0.1)" },
-  COMPLETED:   { label: "Completed",   icon: CheckCircle2, color: "#06b6d4", bg: "rgba(6,182,212,0.1)"  },
+  COMPLETED:   { label: "Completed",   icon: CheckCircle2, color: "#10b981", bg: "rgba(16,185,129,0.1)" },
   CANCELLED:   { label: "Cancelled",   icon: XCircle,      color: "#6b7280", bg: "rgba(107,114,128,0.1)"},
 };
 
@@ -268,7 +267,7 @@ export default function AppointmentsPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-card)" }}>
-            {["All", "CONFIRMED", "PENDING", "IN_PROGRESS"].map(s => (
+            {["All", "COMPLETED", "PENDING", "IN_PROGRESS"].map(s => (
               <button key={s} onClick={() => setStatusFilter(s)}
                 className={`period-pill ${statusFilter === s ? "active" : ""}`}
                 style={{ fontSize: "11px", padding: "4px 10px" }}>
@@ -362,7 +361,6 @@ export default function AppointmentsPage() {
                 const Icon = cfg.icon;
                 const colors = ["#f43f5e","#a855f7","#06b6d4","#f59e0b","#10b981","#f97316"];
                 const clr = colors[group.client.name.charCodeAt(0) % colors.length];
-                const totalDuration = group.appointments.reduce((sum: number, a: any) => sum + a.service.duration, 0);
                 const totalPrice = group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0);
 
                 return (
@@ -370,7 +368,6 @@ export default function AppointmentsPage() {
                     style={{ border: `1px solid ${clr}20`, background: `${clr}06` }}>
                     <div className="text-center flex-shrink-0 w-14">
                       <p className="text-sm font-bold" style={{ color: clr }}>{group.startTime}</p>
-                      <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>{totalDuration}m</p>
                     </div>
                     <div className="w-px self-stretch" style={{ background: `${clr}40` }} />
                     <div className="flex-1 min-w-0">

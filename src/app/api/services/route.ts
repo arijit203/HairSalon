@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
           staffServices: {
             include: { staff: { select: { id: true, name: true, role: true } } },
           },
-          _count: { select: { appointments: true } },
+          appointments: { select: { clientId: true } },
         },
       }),
       prisma.service.count({ where }),

@@ -21,12 +21,11 @@ interface Service {
   category: string;
   price: string | number;
   discountPrice: string | number | null;
-  duration: number;
   isPopular: boolean;
   imageUrl: string | null;
 }
 
-const CATEGORIES = ["ALL", "HAIR CARE", "SKIN CARE", "NAILS", "MASSAGE", "BEAUTY"];
+const CATEGORIES = ["ALL", "HAIR CARE", "SKIN CARE", "NAIL CARE", "BODY CARE", "PACKAGES", "TOOLS", "SPA"];
 
 export default function PortalServicesPage() {
   const router = useRouter();
@@ -152,12 +151,6 @@ export default function PortalServicesPage() {
                 <p className="text-xs text-zinc-400 line-clamp-3 min-h-[48px]">
                   {service.description || "Indulge in a premium professional styling treatment customized for your hair and skin type."}
                 </p>
-
-                {/* Duration */}
-                <div className="flex items-center gap-1.5 text-xs text-zinc-500">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>{service.duration} mins</span>
-                </div>
               </div>
 
               {/* Action and Pricing */}

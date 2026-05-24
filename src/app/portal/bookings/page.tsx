@@ -28,7 +28,6 @@ interface Appointment {
   service: {
     id: string;
     name: string;
-    duration: number;
   };
   staff: {
     id: string;
@@ -40,7 +39,6 @@ interface Service {
   id: string;
   name: string;
   price: string | number;
-  duration: number;
   category: string;
 }
 
@@ -331,7 +329,7 @@ export default function PortalBookingsPage() {
                     </span>
                     <span className="flex items-center gap-1 bg-white/[0.03] border border-white/[0.05] px-2.5 py-1 rounded-lg">
                       <Clock className="w-3.5 h-3.5 text-rose-400" />
-                      {booking.startTime} ({booking.service.duration} mins)
+                      {booking.startTime}
                     </span>
                   </div>
 
@@ -349,16 +347,12 @@ export default function PortalBookingsPage() {
                       className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase"
                       style={{
                         background:
-                          booking.status === "CONFIRMED"
+                          booking.status === "COMPLETED"
                             ? "rgba(16,185,129,0.12)"
-                            : booking.status === "COMPLETED"
-                            ? "rgba(99,102,241,0.12)"
                             : "rgba(239,68,68,0.12)",
                         color:
-                          booking.status === "CONFIRMED"
+                          booking.status === "COMPLETED"
                             ? "#10b981"
-                            : booking.status === "COMPLETED"
-                            ? "#6366f1"
                             : "#ef4444",
                       }}
                     >
@@ -397,7 +391,7 @@ export default function PortalBookingsPage() {
               <option value="">-- Choose Service --</option>
               {services.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} (₹{Number(s.price).toLocaleString("en-IN")} - {s.duration} min)
+                  {s.name} (₹{Number(s.price).toLocaleString("en-IN")})
                 </option>
               ))}
             </select>
@@ -476,7 +470,6 @@ export default function PortalBookingsPage() {
             <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] flex items-center justify-between">
               <div className="space-y-0.5">
                 <p className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Estimated Invoice</p>
-                <p className="text-xs text-zinc-400">Duration: {selectedService.duration} minutes</p>
               </div>
               <p className="text-xl font-extrabold text-white">
                 ₹{Number(selectedService.price).toLocaleString("en-IN")}

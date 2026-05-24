@@ -1,100 +1,88 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Scissors, Clock, Tag, Check, Loader2, ChevronDown, Sparkles } from "lucide-react";
+import { X, Scissors, Tag, Loader2, ChevronDown, Sparkles } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
-
-interface StaffMember {
-  id: string;
-  name: string;
-  role: string;
-}
 
 interface ServiceModalProps {
   open: boolean;
   onClose: () => void;
   onSaved: () => void;
   editingService?: any;
+  extraCategories?: string[];
+  defaultCategory?: string;
 }
 
-const CATEGORIES = ["Hair", "Skin & Facial", "Nails", "Body & Wax", "Packages"];
-
-const DURATION_OPTIONS = [
-  { label: "15 min", value: 15 },
-  { label: "30 min", value: 30 },
-  { label: "45 min", value: 45 },
-  { label: "1 hour", value: 60 },
-  { label: "1h 15m", value: 75 },
-  { label: "1h 30m", value: 90 },
-  { label: "2 hours", value: 120 },
-  { label: "2h 30m", value: 150 },
-  { label: "3 hours", value: 180 },
-  { label: "4 hours", value: 240 },
-  { label: "5 hours", value: 300 },
-];
-
-export default function ServiceModal({ open, onClose, onSaved, editingService }: ServiceModalProps) {
+export default function ServiceModal({ open, onClose, onSaved, editingService, extraCategories, defaultCategory }: ServiceModalProps) {
   const { success, error: toastError } = useToast();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("Hair");
+  const [dynamicCategories, setDynamicCategories] = useState<string[]>([]);
+  const [productCategories, setProductCategories] = useState<string[]>([]);
+  const [selectedCategoryOption, setSelectedCategoryOption] = useState("Hair Care");
+  const [customCategory, setCustomCategory] = useState("");
   const [price, setPrice] = useState("");
-  const [discountPrice, setDiscountPrice] = useState("");
-  const [duration, setDuration] = useState("60");
   const [isPopular, setIsPopular] = useState(false);
-  
-  const [staffList, setStaffList] = useState<StaffMember[]>([]);
-  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
-  const [staffLoading, setStaffLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  // Load staff list
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Load existing categories
   useEffect(() => {
     if (!open) return;
-    setStaffLoading(true);
-    fetch("/api/staff?limit=100")
+    fetch("/api/services?limit=100")
       .then((r) => r.json())
       .then((d) => {
-        if (d.success && d.data) {
-          setStaffList(d.data);
+        if (d.data) {
+          const cats = d.data.map((s: any) => s.category);
+          const uniqueCats = Array.from(new Set(cats)).filter(Boolean) as string[];
+          setDynamicCategories(uniqueCats.sort());
         }
       })
-      .catch((err) => console.error("Error loading staff:", err))
-      .finally(() => setStaffLoading(false));
+      .catch((err) => console.error("Error loading services for categories:", err));
+
+    fetch("/api/products?limit=100")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.data) {
+          const cats = d.data.flatMap((p: any) => p.category || []);
+          const uniqueCats = Array.from(new Set(cats)).filter(Boolean) as string[];
+          setProductCategories(uniqueCats.sort());
+        }
+      })
+      .catch((err) => console.error("Error loading products for categories:", err));
   }, [open]);
+
+  const allCategories = useMemo(() => {
+    const defaultCats = ["Hair Care", "Skin Care", "Nail Care", "Body Care", "Packages", "Tools", "Spa"];
+    const merged = Array.from(new Set([...defaultCats, ...dynamicCategories, ...productCategories, ...(extraCategories || [])]));
+    return merged;
+  }, [dynamicCategories, productCategories, extraCategories]);
 
   // Load editing service data if provided
   useEffect(() => {
     if (open && editingService) {
       setName(editingService.name || "");
       setDescription(editingService.description || "");
-      setCategory(editingService.category || "Hair");
+      setSelectedCategoryOption(editingService.category || "Hair Care");
+      setCustomCategory("");
       setPrice(editingService.price ? String(editingService.price) : "");
-      setDiscountPrice(editingService.discountPrice ? String(editingService.discountPrice) : "");
-      setDuration(editingService.duration ? String(editingService.duration) : "60");
       setIsPopular(editingService.isPopular || false);
-      
-      const assignedIds = editingService.staffServices?.map((ss: any) => ss.staffId) || [];
-      setSelectedStaffIds(assignedIds);
     } else if (open) {
       setName("");
       setDescription("");
-      setCategory("Hair");
+      setSelectedCategoryOption(defaultCategory || "Hair Care");
+      setCustomCategory("");
       setPrice("");
-      setDiscountPrice("");
-      setDuration("60");
       setIsPopular(false);
-      setSelectedStaffIds([]);
     }
-  }, [open, editingService]);
-
-  const handleToggleStaff = (staffId: string) => {
-    setSelectedStaffIds((prev) =>
-      prev.includes(staffId) ? prev.filter((id) => id !== staffId) : [...prev, staffId]
-    );
-  };
+  }, [open, editingService, defaultCategory]);
 
   const handleClose = () => {
     if (submitting) return;
@@ -104,13 +92,17 @@ export default function ServiceModal({ open, onClose, onSaved, editingService }:
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return toastError("Service name is required");
-    if (!price || parseFloat(price) <= 0) return toastError("Price must be a positive number");
-    if (discountPrice && parseFloat(discountPrice) >= parseFloat(price)) {
-      return toastError("Discount price must be less than regular price");
+    const finalCategory = selectedCategoryOption === "__new__" ? customCategory.trim() : selectedCategoryOption;
+    if (!finalCategory) return toastError("Category is required");
+    if (selectedCategoryOption === "__new__") {
+      const duplicate = allCategories.find(
+        c => c.toLowerCase() === customCategory.trim().toLowerCase()
+      );
+      if (duplicate) {
+        return toastError(`Category "${duplicate}" already exists. Please select it from the dropdown.`);
+      }
     }
-    if (discountPrice && parseFloat(discountPrice) <= 0) {
-      return toastError("Discount price must be a positive number");
-    }
+    if (price === "" || parseFloat(price) < 0) return toastError("Price cannot be negative");
 
     setSubmitting(true);
     try {
@@ -120,12 +112,9 @@ export default function ServiceModal({ open, onClose, onSaved, editingService }:
       const payload = {
         name: name.trim(),
         description: description.trim() || undefined,
-        category,
+        category: finalCategory,
         price: parseFloat(price),
-        discountPrice: discountPrice ? parseFloat(discountPrice) : undefined,
-        duration: parseInt(duration, 10),
         isPopular,
-        staffIds: selectedStaffIds,
       };
 
       const res = await fetch(url, {
@@ -149,7 +138,9 @@ export default function ServiceModal({ open, onClose, onSaved, editingService }:
     }
   };
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4">
@@ -213,88 +204,68 @@ export default function ServiceModal({ open, onClose, onSaved, editingService }:
                 />
               </div>
 
-              {/* Category & Duration */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                    Category *
-                  </label>
-                  <div className="relative">
-                    <select
-                      className="input-field appearance-none pr-10"
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      disabled={submitting}
-                    >
-                      {CATEGORIES.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                    Duration *
-                  </label>
-                  <div className="relative">
-                    <select
-                      className="input-field appearance-none pr-10"
-                      value={duration}
-                      onChange={(e) => setDuration(e.target.value)}
-                      disabled={submitting}
-                    >
-                      {DURATION_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
-                  </div>
+              {/* Category */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                  Category *
+                </label>
+                <div className="relative">
+                  <select
+                    className="input-field appearance-none pr-10"
+                    value={selectedCategoryOption}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedCategoryOption(val);
+                    }}
+                    disabled={submitting}
+                  >
+                    {allCategories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                    <option value="__new__">+ Add New Category...</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
                 </div>
               </div>
 
-              {/* Price & Discount Price */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* Conditional Custom Category Input */}
+              {selectedCategoryOption === "__new__" && (
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                    Price (₹) *
+                    New Category Name *
                   </label>
-                  <div className="relative">
-                    <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
-                    <input
-                      type="number"
-                      step="any"
-                      placeholder="800"
-                      className="input-field pl-9"
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
-                      disabled={submitting}
-                      required
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    placeholder="Enter new category name"
+                    className="input-field"
+                    value={customCategory}
+                    onChange={(e) => setCustomCategory(e.target.value)}
+                    disabled={submitting}
+                    required
+                  />
                 </div>
+              )}
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                    Discount Price (₹) <span className="text-[10px] opacity-60">(Optional)</span>
-                  </label>
-                  <div className="relative">
-                    <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
-                    <input
-                      type="number"
-                      step="any"
-                      placeholder="e.g., 699"
-                      className="input-field pl-9"
-                      value={discountPrice}
-                      onChange={(e) => setDiscountPrice(e.target.value)}
-                      disabled={submitting}
-                    />
-                  </div>
+              {/* Price */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                  Price (₹) *
+                </label>
+                <div className="relative">
+                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="800"
+                    className="input-field pl-9"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    disabled={submitting}
+                    required
+                  />
                 </div>
               </div>
 
@@ -333,44 +304,6 @@ export default function ServiceModal({ open, onClose, onSaved, editingService }:
                 </div>
               </label>
 
-              {/* Staff Assignments */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>
-                  Assigned Staff members
-                </label>
-                {staffLoading ? (
-                  <div className="flex items-center gap-2 text-xs py-4" style={{ color: "var(--text-muted)" }}>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Loading staff list...
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {staffList.map((staff) => {
-                      const isSelected = selectedStaffIds.includes(staff.id);
-                      return (
-                        <button
-                          key={staff.id}
-                          type="button"
-                          onClick={() => handleToggleStaff(staff.id)}
-                          className={`flex items-center justify-between p-2.5 rounded-xl border text-left transition-all ${
-                            isSelected
-                              ? "bg-rose-500/10 border-rose-500/30 text-rose-400"
-                              : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-[var(--text-secondary)]"
-                          }`}
-                          disabled={submitting}
-                        >
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium truncate">{staff.name}</p>
-                            <p className="text-[9px] opacity-60 truncate">{staff.role.replace(/_/g, " ")}</p>
-                          </div>
-                          {isSelected && <Check className="w-4 h-4 shrink-0 ml-2" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
               {/* Form Action Buttons */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-[var(--border-subtle)]">
                 <button
@@ -394,6 +327,7 @@ export default function ServiceModal({ open, onClose, onSaved, editingService }:
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

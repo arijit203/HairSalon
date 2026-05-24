@@ -150,7 +150,7 @@ export default function SettingsPage() {
               <h2 className="font-semibold text-base" style={{ color: "var(--text-primary)" }}>Notification Preferences</h2>
               <div className="space-y-4">
                 {[
-                  { key: "bookingConfirm", label: "Booking Confirmations", desc: "Get notified when a booking is confirmed" },
+                  { key: "bookingConfirm", label: "Booking Completions", desc: "Get notified when a booking is completed" },
                   { key: "bookingReminder", label: "Appointment Reminders", desc: "Reminders 24h before appointments" },
                   { key: "lowStock", label: "Low Stock Alerts", desc: "Alert when product stock falls below threshold" },
                   { key: "newClient", label: "New Client Registration", desc: "Notify when a new client registers" },

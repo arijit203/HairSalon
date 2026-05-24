@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         staffServices: {
           include: { staff: { select: { id: true, name: true, role: true, imageUrl: true } } },
         },
-        _count: { select: { appointments: true } },
+        appointments: { select: { clientId: true } },
       },
     });
     if (!service) return notFoundResponse("Service");

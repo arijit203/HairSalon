@@ -86,14 +86,14 @@ export async function GET(_req: NextRequest) {
             { date: { gte: todayStart, lt: todayEnd } },
             {
               date: { gte: todayEnd },
-              status: { in: ["PENDING", "CONFIRMED", "IN_PROGRESS"] },
+              status: { in: ["PENDING", "COMPLETED", "IN_PROGRESS"] },
             }
           ]
         },
         orderBy: { createdAt: "desc" },
         include: {
           client:  { select: { id: true, name: true, phone: true, email: true } },
-          service: { select: { id: true, name: true, duration: true } },
+          service: { select: { id: true, name: true } },
           staff:   { select: { id: true, name: true } },
         },
       }),

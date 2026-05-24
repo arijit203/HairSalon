@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 
     const where = {
       isActive:  true,
-      ...(category && { category }),
+      ...(category && { category: { has: category } }),
       ...(status   && { status: status as any }),
       ...(search   && {
         OR: [
@@ -53,6 +53,29 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const data = CreateProductSchema.parse(body);
+
+    // If a product with the same SKU already exists, add the new stock to the existing stock
+    // and update other fields to the newly entered values (restoring visibility if deleted)
+    const existing = await prisma.product.findUnique({
+      where: { sku: data.sku },
+    });
+
+    if (existing) {
+      const newStock = existing.stock + data.stock;
+      const status = calculateStockStatus(newStock, data.lowStockAt) as any;
+
+      const product = await prisma.product.update({
+        where: { id: existing.id },
+        data: {
+          ...data,
+          stock: newStock,
+          status,
+          isActive: true,
+        },
+      });
+
+      return successResponse({ ...product, _upserted: true });
+    }
 
     const status = calculateStockStatus(data.stock, data.lowStockAt) as any;
 

@@ -6,7 +6,7 @@ import { useBooking } from "@/context/BookingContext";
 import { useState, useEffect } from "react";
 
 const notifications = [
-  { id: 1, text: "3 new bookings confirmed", time: "2m ago", dot: "glow-dot-green" },
+  { id: 1, text: "3 new bookings completed", time: "2m ago", dot: "glow-dot-green" },
   { id: 2, text: "Low stock: OPI Nail Polish", time: "18m ago", dot: "glow-dot-rose" },
   { id: 3, text: "Emma Davis left a review ⭐⭐⭐⭐⭐", time: "1h ago", dot: "glow-dot-gold" },
 ];

@@ -36,10 +36,9 @@ const MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct",
 const PIE_COLORS = ["#f43f5e","#a855f7","#06b6d4","#f59e0b","#10b981","#6366f1"];
 
 const statusColors: Record<string, string> = {
-  CONFIRMED:   "#10b981",
   IN_PROGRESS: "#a855f7",
   PENDING:     "#f59e0b",
-  COMPLETED:   "#06b6d4",
+  COMPLETED:   "#10b981",
   CANCELLED:   "#6b7280",
 };
 
@@ -225,17 +224,17 @@ export default function DashboardPage() {
   // 1. Scheduled / Pending: future slots or pending status
   // 2. Ongoing & Past schedule
   const getLocalDateStr = () => {
-    const local = new Date();
-    const y = local.getFullYear();
-    const m = String(local.getMonth() + 1).padStart(2, "0");
-    const d = String(local.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
+    const now = new Date();
+    return now.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   };
   const getLocalTimeStr = () => {
-    const local = new Date();
-    const hrs = String(local.getHours()).padStart(2, "0");
-    const mins = String(local.getMinutes()).padStart(2, "0");
-    return `${hrs}:${mins}`;
+    const now = new Date();
+    return now.toLocaleTimeString("en-US", {
+      timeZone: "Asia/Kolkata",
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const todayDateStr = getLocalDateStr();
@@ -247,7 +246,7 @@ export default function DashboardPage() {
     const isFutureDate = group.date > todayDateStr;
     const isTodayFutureTime = group.date === todayDateStr && group.startTime > nowTime;
     const isFuture = isFutureDate || isTodayFutureTime;
-    const isActiveOrPending = ["PENDING", "CONFIRMED", "IN_PROGRESS"].includes(group.status);
+    const isActiveOrPending = ["PENDING", "COMPLETED", "IN_PROGRESS"].includes(group.status);
     return (isFuture && isActiveOrPending) || group.status === "PENDING";
   });
 

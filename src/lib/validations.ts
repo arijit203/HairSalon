@@ -5,14 +5,21 @@ import { z } from "zod";
 export const CreateProductSchema = z.object({
   name:        z.string().min(1, "Name is required").max(200),
   description: z.string().optional(),
-  category:    z.string().min(1, "Category is required"),
+  category:    z.array(z.string()).min(1, "At least one category is required"),
   brand:       z.string().min(1, "Brand is required"),
   sku:         z.string().min(1, "SKU is required"),
-  price:       z.number().positive("Price must be positive"),
-  costPrice:   z.number().positive().optional(),
+  price:       z.number().min(0, "Price cannot be negative"),
+  costPrice:   z.number().min(0, "Cost price cannot be negative").optional(),
+  salePriceTaxType:      z.string().optional().default("WITH_TAX"),
+  salePriceDiscount:     z.number().min(0).optional().default(0),
+  salePriceDiscountType: z.string().optional().default("PERCENTAGE"),
+  purchasePriceTaxType:  z.string().optional().default("WITH_TAX"),
+  wholesalePrice:        z.number().min(0).optional(),
+  wholesalePriceTaxType: z.string().optional().default("WITH_TAX"),
+  taxRate:               z.number().min(0).max(100).optional().default(5),
   stock:       z.number().int().min(0).default(0),
-  lowStockAt:  z.number().int().min(0).default(10),
-  imageUrl:    z.string().url().optional(),
+  lowStockAt:  z.number().int().min(0).default(2),
+  imageUrl:    z.string().url().optional().nullable().or(z.literal("")),
 });
 
 export const UpdateProductSchema = CreateProductSchema.partial();
@@ -23,9 +30,8 @@ export const CreateServiceSchema = z.object({
   name:          z.string().min(1).max(200),
   description:   z.string().optional(),
   category:      z.string().min(1),
-  price:         z.number().positive(),
-  discountPrice: z.number().positive().optional(),
-  duration:      z.number().int().positive("Duration must be positive (minutes)"),
+  price:         z.number().min(0, "Price cannot be negative"),
+  discountPrice: z.number().min(0, "Discount price cannot be negative").optional(),
   isPopular:     z.boolean().default(false),
   staffIds:      z.array(z.string()).optional(),
   imageUrl:      z.string().url().optional(),
@@ -38,7 +44,7 @@ export const UpdateServiceSchema = CreateServiceSchema.partial();
 export const CreateClientSchema = z.object({
   name:        z.string().min(1).max(200),
   email:       z.string().email("Invalid email"),
-  phone:       z.string().optional(),
+  phone:       z.string().regex(/^\+(\d{1,4})\s?\d{10}$/, "Phone number must be strictly 10 digits prefixed with a country code (by default +91 for India)").nullable().optional().or(z.literal("")),
   dateOfBirth: z.string().datetime().optional(),
   address:     z.string().optional(),
   notes:       z.string().optional(),
@@ -55,7 +61,7 @@ export const StaffRoleEnum = z.enum([
 export const CreateStaffSchema = z.object({
   name:       z.string().min(1).max(200),
   email:      z.string().email(),
-  phone:      z.string().optional(),
+  phone:      z.string().regex(/^\+(\d{1,4})\s?\d{10}$/, "Phone number must be strictly 10 digits prefixed with a country code (by default +91 for India)").nullable().optional().or(z.literal("")),
   role:       StaffRoleEnum.default("STYLIST"),
   bio:        z.string().optional(),
   imageUrl:   z.string().url().optional(),
@@ -70,7 +76,7 @@ export const UpdateStaffSchema = CreateStaffSchema.omit({ password: true }).part
 // ─── APPOINTMENT ──────────────────────────────────────────────────────────────
 
 export const AppointmentStatusEnum = z.enum([
-  "PENDING", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "NO_SHOW",
+  "PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED", "NO_SHOW",
 ]);
 
 const CreateAppointmentBaseSchema = z.object({
@@ -82,7 +88,7 @@ const CreateAppointmentBaseSchema = z.object({
   startTime:  z.union([z.string().regex(/^\d{2}:\d{2}$/), z.literal("")]).optional(),
   endTime:    z.string().regex(/^\d{2}:\d{2}$/, "End time must be HH:MM").optional().or(z.literal("")),
   notes:      z.string().optional(),
-  price:      z.number().positive(),
+  price:      z.number().min(0, "Price cannot be negative"),
   deleteAppointmentIds: z.array(z.string()).optional(),
   status:     AppointmentStatusEnum.optional(),
 });
@@ -113,7 +119,7 @@ export const TransactionItemSchema = z.object({
   productId: z.string().optional(),
   serviceId: z.string().optional(),
   name:      z.string().min(1),
-  unitPrice: z.number().positive(),
+  unitPrice: z.number().min(0, "Price cannot be negative"),
   quantity:  z.number().int().positive(),
 }).refine(d => d.productId || d.serviceId, {
   message: "Each item must reference a product or service",

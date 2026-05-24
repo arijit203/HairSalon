@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
         orderBy: [{ date: "asc" }, { startTime: "asc" }],
         include: {
           client:  { select: { id: true, name: true, phone: true, email: true } },
-          service: { select: { id: true, name: true, duration: true, category: true } },
+          service: { select: { id: true, name: true, category: true } },
           staff:   { select: { id: true, name: true, role: true } },
         },
       }),
@@ -66,10 +66,10 @@ export async function POST(req: NextRequest) {
       ? data.serviceIds
       : [data.serviceId!];
 
-    // Fetch service durations and prices to compute end times and price allocation
+    // Fetch service prices to compute price allocation
     const services = await prisma.service.findMany({
       where: { id: { in: serviceIds } },
-      select: { id: true, name: true, duration: true, price: true },
+      select: { id: true, name: true, price: true },
     });
 
     if (services.length !== serviceIds.length) {
@@ -82,25 +82,38 @@ export async function POST(req: NextRequest) {
 
     // Sum of list prices
     const totalListPrice = orderedServices.reduce((sum, s) => sum + Number(s.price), 0);
-
-    const totalDuration = orderedServices.reduce((sum, s) => sum + s.duration, 0);
     
     let overallStartTime = data.startTime || "";
     let overallEndTime = data.endTime || "";
 
-    if (overallStartTime && !overallEndTime) {
-      overallEndTime = calculateEndTime(overallStartTime, totalDuration);
-    } else if (overallEndTime && !overallStartTime) {
-      overallStartTime = calculateStartTime(overallEndTime, totalDuration);
-    } else if (!overallStartTime && !overallEndTime) {
-      return handleApiError(new Error("Either startTime or endTime must be provided"));
+    // Determine status first
+    const localToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }); // YYYY-MM-DD in IST
+    const isToday = data.date === localToday;
+    
+    // We temp-check if overallEndTime is provided to auto-complete status
+    let defaultStatus: "PENDING" | "COMPLETED" = "PENDING";
+    if (isToday && overallEndTime) {
+      try {
+        const appointmentEndDateTime = new Date(`${data.date}T${overallEndTime}:00+05:30`);
+        if (Date.now() > appointmentEndDateTime.getTime()) {
+          defaultStatus = "COMPLETED";
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    const status = data.status || defaultStatus;
+
+    // Simple start/end time fallback since duration is removed
+    if (overallEndTime && !overallStartTime) {
+      overallStartTime = overallEndTime;
+    } else if (overallStartTime && !overallEndTime) {
+      overallEndTime = overallStartTime;
     }
 
-    // Check if the appointment start time is in the future (using local IST offset)
-    const appointmentDateTime = new Date(`${data.date}T${overallStartTime}:00+05:30`);
-    const isFuture = appointmentDateTime.getTime() > Date.now();
-    const defaultStatus = isFuture ? ("PENDING" as const) : ("CONFIRMED" as const);
-    const status = data.status || defaultStatus;
+    if (!overallStartTime && !overallEndTime) {
+      return handleApiError(new Error("Either startTime or endTime must be provided"));
+    }
 
     const appointmentsData = [];
 
@@ -143,7 +156,7 @@ export async function POST(req: NextRequest) {
           data: appt,
           include: {
             client:  { select: { id: true, name: true, phone: true } },
-            service: { select: { id: true, name: true, duration: true } },
+            service: { select: { id: true, name: true } },
             staff:   { select: { id: true, name: true } },
           }
         })

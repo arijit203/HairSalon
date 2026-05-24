@@ -28,7 +28,7 @@ async function main() {
     orderBy: { startTime: "asc" },
     include: {
       client:  { select: { id: true, name: true } },
-      service: { select: { id: true, name: true, duration: true } },
+      service: { select: { id: true, name: true } },
       staff:   { select: { id: true, name: true } },
     },
   });

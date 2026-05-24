@@ -288,11 +288,11 @@ export default function PortalDashboard() {
                     className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase"
                     style={{
                       background:
-                        booking.status === "CONFIRMED"
+                        booking.status === "COMPLETED"
                           ? "rgba(16,185,129,0.12)"
                           : "rgba(245,158,11,0.12)",
                       color:
-                        booking.status === "CONFIRMED"
+                        booking.status === "COMPLETED"
                           ? "#10b981"
                           : "#f59e0b",
                     }}

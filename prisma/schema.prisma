@@ -21,7 +21,6 @@ enum ProductStatus {
 
 enum AppointmentStatus {
   PENDING
-  CONFIRMED
   IN_PROGRESS
   COMPLETED
   CANCELLED
@@ -69,13 +68,20 @@ model Product {
   id          String        @id @default(cuid())
   name        String
   description String?
-  category    String
+  category    String[]
   brand       String
   sku         String        @unique
   price       Decimal       @db.Decimal(10, 2)
   costPrice   Decimal?      @db.Decimal(10, 2)
+  salePriceTaxType      String?        @default("WITH_TAX")
+  salePriceDiscount     Decimal?       @db.Decimal(10, 2) @default(0)
+  salePriceDiscountType String?        @default("PERCENTAGE")
+  purchasePriceTaxType  String?        @default("WITH_TAX")
+  wholesalePrice        Decimal?       @db.Decimal(10, 2)
+  wholesalePriceTaxType String?        @default("WITH_TAX")
+  taxRate               Decimal?       @db.Decimal(5, 2) @default(5.00)
   stock       Int           @default(0)
-  lowStockAt  Int           @default(10)  // Alert threshold
+  lowStockAt  Int           @default(2)  // Alert threshold
   status      ProductStatus @default(IN_STOCK)
   imageUrl    String?
   isActive    Boolean       @default(true)
@@ -86,7 +92,6 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([category])
   @@index([status])
   @@index([isActive])
 }
@@ -98,7 +103,6 @@ model Service {
   category     String
   price        Decimal @db.Decimal(10, 2)
   discountPrice Decimal? @db.Decimal(10, 2)
-  duration     Int     // in minutes
   isPopular    Boolean @default(false)
   isActive     Boolean @default(true)
   imageUrl     String?

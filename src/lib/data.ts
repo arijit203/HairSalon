@@ -35,7 +35,7 @@ export async function getDashboardStats() {
       orderBy: { startTime: "asc" },
       include: {
         client:  { select: { id: true, name: true } },
-        service: { select: { id: true, name: true, duration: true } },
+        service: { select: { id: true, name: true } },
         staff:   { select: { id: true, name: true } },
       },
     }),
@@ -103,7 +103,7 @@ export async function getServiceBreakdown(months = 6) {
 export async function getProducts({ search = "", category = "", status = "", page = 1, limit = 15 } = {}) {
   const where = {
     isActive: true,
-    ...(category && { category }),
+    ...(category && { category: { has: category } }),
     ...(status   && { status: status as any }),
     ...(search   && { OR: [
       { name:  { contains: search, mode: "insensitive" as const } },
@@ -134,7 +134,7 @@ export async function getServices({ search = "", category = "" } = {}) {
   return prisma.service.findMany({
     where,
     orderBy: [{ isPopular: "desc" }, { category: "asc" }],
-    include: { _count: { select: { appointments: true } } },
+    include: { appointments: { select: { clientId: true } } },
   });
 }
 
@@ -169,7 +169,7 @@ export async function getAppointmentsByDate(dateStr: string) {
     orderBy: { startTime: "asc" },
     include: {
       client:  { select: { id: true, name: true, phone: true } },
-      service: { select: { id: true, name: true, duration: true, category: true } },
+      service: { select: { id: true, name: true, category: true } },
       staff:   { select: { id: true, name: true } },
     },
   });
