@@ -5,6 +5,7 @@ import {
   getPaginationParams, paginatedResponse, calculateStockStatus,
 } from "@/lib/api";
 import { CreateProductSchema } from "@/lib/validations";
+import { revalidateDashboardAndAnalytics } from "@/lib/revalidate";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,8 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      revalidateDashboardAndAnalytics();
+
       return successResponse({ ...product, _upserted: true });
     }
 
@@ -87,6 +90,8 @@ export async function POST(req: NextRequest) {
         status,
       },
     });
+
+    revalidateDashboardAndAnalytics();
 
     return createdResponse(product);
   } catch (error) {

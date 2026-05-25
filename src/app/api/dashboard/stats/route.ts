@@ -1,40 +1,33 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { successResponse, handleApiError } from "@/lib/api";
+import { unstable_cache } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
-
-// GET /api/dashboard/stats
-export async function GET(_req: NextRequest) {
-  try {
-    const now        = new Date();
-    // Use UTC dates to query @db.Date fields without timezone shifts
-    const todayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-    const todayEnd   = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
-
-    // This month boundaries
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-
-    // Last month boundaries
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+// Cached wrapper for dashboard stats queries
+const getCachedDashboardData = unstable_cache(
+  async (
+    todayStartStr: string,
+    todayEndStr: string,
+    monthStartStr: string,
+    monthEndStr: string,
+    lastMonthStartStr: string,
+    lastMonthEndStr: string
+  ) => {
+    const todayStart = new Date(todayStartStr);
+    const todayEnd   = new Date(todayEndStr);
+    const monthStart = new Date(monthStartStr);
+    const monthEnd   = new Date(monthEndStr);
+    const lastMonthStart = new Date(lastMonthStartStr);
+    const lastMonthEnd   = new Date(lastMonthEndStr);
 
     const [
-      // Revenue
       thisMonthRevenue, lastMonthRevenue,
-      // Bookings
       todayAppointmentsList, createdTodayAppointmentsList,
-      // Clients
       totalClients, newClientsThisMonth,
-      // Products
       thisMonthProductsSold, lastMonthProductsSold,
-      // Low stock
-      lowStockCount,
-      // Out of stock
-      outOfStockCount,
-      // Today's appointments
+      lowStockCount, outOfStockCount,
       todayAppointments,
     ] = await Promise.all([
       // Revenue this month
@@ -108,13 +101,73 @@ export async function GET(_req: NextRequest) {
       }),
     ]);
 
+    return {
+      thisMonthRevenue,
+      lastMonthRevenue,
+      todayAppointmentsList,
+      createdTodayAppointmentsList,
+      totalClients,
+      newClientsThisMonth,
+      thisMonthProductsSold,
+      lastMonthProductsSold,
+      lowStockCount,
+      outOfStockCount,
+      todayAppointments,
+    };
+  },
+  ["dashboard-stats"],
+  {
+    revalidate: 3600, // 1 hour cache time
+    tags: ["dashboard-stats"]
+  }
+);
+
+// GET /api/dashboard/stats
+export async function GET(_req: NextRequest) {
+  try {
+    const now        = new Date();
+    // Use UTC dates to query @db.Date fields without timezone shifts
+    const todayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const todayEnd   = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+
+    // This month boundaries
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+    // Last month boundaries
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+
+    const {
+      thisMonthRevenue,
+      lastMonthRevenue,
+      todayAppointmentsList,
+      createdTodayAppointmentsList,
+      totalClients,
+      newClientsThisMonth,
+      thisMonthProductsSold,
+      lastMonthProductsSold,
+      lowStockCount,
+      outOfStockCount,
+      todayAppointments,
+    } = await getCachedDashboardData(
+      todayStart.toISOString(),
+      todayEnd.toISOString(),
+      monthStart.toISOString(),
+      monthEnd.toISOString(),
+      lastMonthStart.toISOString(),
+      lastMonthEnd.toISOString()
+    );
+
+    const coerceDate = (d: any) => d instanceof Date ? d : new Date(d);
+
     const uniqueTodayBookingsMap = new Set(
-      todayAppointmentsList.map(a => `${a.clientId}_${a.date.toISOString().split("T")[0]}_${a.startTime}_${a.endTime}`)
+      todayAppointmentsList.map(a => `${a.clientId}_${coerceDate(a.date).toISOString().split("T")[0]}_${a.startTime}_${a.endTime}`)
     );
     const todayBookings = uniqueTodayBookingsMap.size;
 
     const uniqueCreatedTodayMap = new Set(
-      createdTodayAppointmentsList.map(a => `${a.clientId}_${a.date.toISOString().split("T")[0]}_${a.startTime}_${a.endTime}`)
+      createdTodayAppointmentsList.map(a => `${a.clientId}_${coerceDate(a.date).toISOString().split("T")[0]}_${a.startTime}_${a.endTime}`)
     );
     const todayBookingsTotal = uniqueCreatedTodayMap.size;
 
@@ -161,3 +214,4 @@ export async function GET(_req: NextRequest) {
     return handleApiError(error);
   }
 }
+

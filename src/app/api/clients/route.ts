@@ -5,6 +5,7 @@ import {
   getPaginationParams, paginatedResponse,
 } from "@/lib/api";
 import { CreateClientSchema } from "@/lib/validations";
+import { revalidateDashboardAndAnalytics } from "@/lib/revalidate";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,9 @@ export async function POST(req: NextRequest) {
     const data = CreateClientSchema.parse(body);
 
     const client = await prisma.client.create({ data });
+
+    revalidateDashboardAndAnalytics();
+
     return createdResponse(client);
   } catch (error) {
     return handleApiError(error);

@@ -1,19 +1,15 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { successResponse, handleApiError } from "@/lib/api";
+import { unstable_cache } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
-
-// GET /api/analytics?from=2026-01-01&to=2026-07-31
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = req.nextUrl;
-
-    // Default: last 6 months
-    const to   = new Date(searchParams.get("to")   ?? new Date());
-    const from = new Date(searchParams.get("from") ?? new Date(to.getFullYear(), to.getMonth() - 5, 1));
-    const period = searchParams.get("period") ?? "6M";
+// Cached wrapper for analytics data queries and grouping
+const getCachedAnalytics = unstable_cache(
+  async (fromStr: string, toStr: string, period: string) => {
+    const from = new Date(fromStr);
+    const to   = new Date(toStr);
 
     // ── Revenue breakdown by period
     const transactions = await prisma.transaction.findMany({
@@ -35,7 +31,7 @@ export async function GET(req: NextRequest) {
           timeZone: "Asia/Kolkata",
           hour: "2-digit",
           hour12: false,
-        }).format(t.createdAt);
+        }).format(new Date(t.createdAt));
         const label = `${hourStr}:00`;
         groupMap.set(label, (groupMap.get(label) ?? 0) + Number(t.total));
       }
@@ -54,7 +50,7 @@ export async function GET(req: NextRequest) {
       }
       
       for (const t of transactions) {
-        const label = dayFormat.format(t.createdAt);
+        const label = dayFormat.format(new Date(t.createdAt));
         if (groupMap.has(label)) {
           groupMap.set(label, (groupMap.get(label) ?? 0) + Number(t.total));
         } else {
@@ -75,7 +71,7 @@ export async function GET(req: NextRequest) {
       }
       
       for (const t of transactions) {
-        const label = monthFormat.format(t.createdAt);
+        const label = monthFormat.format(new Date(t.createdAt));
         if (groupMap.has(label)) {
           groupMap.set(label, (groupMap.get(label) ?? 0) + Number(t.total));
         } else {
@@ -177,15 +173,53 @@ export async function GET(req: NextRequest) {
       _count: { id: true },
     });
 
-    return successResponse({
-      period:           { from, to },
+    return {
       revenueData,
       serviceBreakdown,
       staffStats,
       topProducts:      topProductStats,
       tierDistribution: tierDistribution.map((t) => ({ tier: t.tier, count: t._count.id })),
+    };
+  },
+  ["analytics-data"],
+  {
+    revalidate: 3600, // 1 hour cache time
+    tags: ["analytics"]
+  }
+);
+
+// GET /api/analytics?from=2026-01-01&to=2026-07-31
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = req.nextUrl;
+
+    // Default: last 6 months
+    const to   = new Date(searchParams.get("to")   ?? new Date());
+    const from = new Date(searchParams.get("from") ?? new Date(to.getFullYear(), to.getMonth() - 5, 1));
+    const period = searchParams.get("period") ?? "6M";
+
+    const {
+      revenueData,
+      serviceBreakdown,
+      staffStats,
+      topProducts,
+      tierDistribution,
+    } = await getCachedAnalytics(
+      from.toISOString(),
+      to.toISOString(),
+      period
+    );
+
+    return successResponse({
+      period:           { from, to },
+      revenueData,
+      serviceBreakdown,
+      staffStats,
+      topProducts,
+      tierDistribution,
     });
   } catch (error) {
     return handleApiError(error);
   }
 }
+

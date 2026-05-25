@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { successResponse, notFoundResponse, handleApiError } from "@/lib/api";
 import { UpdateAppointmentSchema } from "@/lib/validations";
+import { revalidateDashboardAndAnalytics } from "@/lib/revalidate";
 
 type Params = { params: { id: string } };
 
@@ -42,6 +43,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       },
     });
 
+    revalidateDashboardAndAnalytics();
+
     return successResponse(appointment);
   } catch (error) {
     return handleApiError(error);
@@ -54,6 +57,9 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     await prisma.appointment.delete({
       where: { id: params.id },
     });
+
+    revalidateDashboardAndAnalytics();
+
     return successResponse({ message: "Appointment deleted" });
   } catch (error) {
     return handleApiError(error);

@@ -4,6 +4,7 @@ import {
   successResponse, notFoundResponse, handleApiError, calculateStockStatus,
 } from "@/lib/api";
 import { UpdateProductSchema } from "@/lib/validations";
+import { revalidateDashboardAndAnalytics } from "@/lib/revalidate";
 
 type Params = { params: { id: string } };
 
@@ -39,6 +40,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data:  { ...data, status },
     });
 
+    revalidateDashboardAndAnalytics();
+
     return successResponse(product);
   } catch (error) {
     return handleApiError(error);
@@ -52,6 +55,9 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       where: { id: params.id },
       data:  { isActive: false },
     });
+
+    revalidateDashboardAndAnalytics();
+
     return successResponse({ message: "Product deleted successfully" });
   } catch (error) {
     return handleApiError(error);

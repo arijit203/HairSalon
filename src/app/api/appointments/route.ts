@@ -6,6 +6,7 @@ import {
   generateInvoiceNumber,
 } from "@/lib/api";
 import { CreateAppointmentSchema } from "@/lib/validations";
+import { revalidateDashboardAndAnalytics } from "@/lib/revalidate";
 
 export const dynamic = "force-dynamic";
 
@@ -254,6 +255,9 @@ export async function POST(req: NextRequest) {
     const responseData = status === "COMPLETED"
       ? (createdAppointments[0] as any).appointments[0]
       : createdAppointments[0];
+
+    // Revalidate stats & charts cache
+    revalidateDashboardAndAnalytics();
 
     return createdResponse(responseData);
   } catch (error) {
