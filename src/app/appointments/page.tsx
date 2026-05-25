@@ -126,7 +126,11 @@ export default function AppointmentsPage() {
   };
 
   const handlePrintReceipt = (group: any) => {
-    const printWindow = window.open("", "_blank", "width=300,height=600");
+    const width = 450;
+    const height = 650;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    const printWindow = window.open("", "_blank", `width=${width},height=${height},left=${left},top=${top}`);
     if (!printWindow) {
       error("Popup blocker prevented printing. Please allow popups.");
       return;
@@ -135,15 +139,45 @@ export default function AppointmentsPage() {
     const servicesHtml = group.appointments.map((a: any) => `
       <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
         <span>${a.service?.name ?? "Service"}</span>
-        <span>₹${Number(a.price).toFixed(2)}</span>
+        <span>₹${Number(a.service?.price ?? a.price).toFixed(2)}</span>
       </div>
     `).join("");
 
-    const totalPrice = group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0);
+    const format24to12 = (time24: string) => {
+      if (!time24) return "";
+      const parts = time24.split(":");
+      if (parts.length !== 2) return time24;
+      let [hoursStr, minutesStr] = parts;
+      let hours = parseInt(hoursStr, 10);
+      const ampm = hours >= 12 ? "pm" : "am";
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      return `${String(hours).padStart(2, "0")}:${minutesStr}${ampm}`;
+    };
 
-    const timeStr = group.startTime 
-      ? `${group.startTime} - ${group.endTime}`
-      : `Ends at ${group.endTime}`;
+    const transaction = group.appointments[0]?.transaction;
+    const originalSubtotal = transaction ? Number(transaction.subtotal) : group.appointments.reduce((sum: number, a: any) => sum + Number(a.service?.price ?? a.price), 0);
+    const paidTotal = transaction ? Number(transaction.total) : group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0);
+    const discountAmt = transaction ? Number(transaction.discountAmt) : Math.max(0, originalSubtotal - paidTotal);
+    const discountPct = transaction ? Number(transaction.discountPct) : (originalSubtotal > 0 ? Math.round((discountAmt / originalSubtotal) * 100) : 0);
+    const taxPct = transaction ? Number(transaction.taxPct) : 0;
+    const taxAmt = transaction ? Number(transaction.taxAmt) : 0;
+
+    const discountHtml = discountAmt > 0 ? `
+      <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+        <span>Discount(${discountPct} %)</span>
+        <span>-₹${discountAmt.toFixed(2)}</span>
+      </div>
+    ` : "";
+
+    const taxHtml = taxAmt > 0 ? `
+      <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+        <span>GST (${taxPct}%)</span>
+        <span>₹${taxAmt.toFixed(2)}</span>
+      </div>
+    ` : "";
+
+    const timeStr = format24to12(group.endTime);
 
     const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
 
@@ -188,12 +222,13 @@ export default function AppointmentsPage() {
         </head>
         <body>
           <div class="center bold" style="font-size: 14px; margin-bottom: 2px;">MADOE SALON</div>
-          <div class="center" style="font-size: 9px; margin-bottom: 5px;">Wyapar Salon Management</div>
+          <div class="center" style="font-size: 9px;">CE/1/B/122 Newtown Kolkata-157</div>
+          <div class="center" style="font-size: 9px; margin-bottom: 5px;">+919836867607(M) </div>
           <div class="divider"></div>
           
           <div><strong>Date:</strong> ${group.date}</div>
           <div><strong>Time:</strong> ${timeStr}</div>
-          <div><strong>Passenger:</strong> ${group.client?.name ?? "Walk-in"}</div>
+          <div><strong>Customer:</strong> ${group.client?.name ?? "Walk-in"}</div>
           ${group.client?.phone ? `<div><strong>Phone:</strong> ${group.client.phone}</div>` : ""}
           <div><strong>Staff:</strong> ${staffNames}</div>
           
@@ -204,17 +239,18 @@ export default function AppointmentsPage() {
           <div class="divider"></div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
             <span>Subtotal</span>
-            <span>₹${totalPrice.toFixed(2)}</span>
+            <span>₹${originalSubtotal.toFixed(2)}</span>
           </div>
+          ${discountHtml}
+          ${taxHtml}
           <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 12px; margin-top: 3px;">
             <span>TOTAL</span>
-            <span>₹${totalPrice.toFixed(2)}</span>
+            <span>₹${paidTotal.toFixed(2)}</span>
           </div>
           
           <div class="divider"></div>
           <div class="center footer">
-            Thank you for visiting!<br>
-            Powered by Wyapar
+            Thank you for visiting!
           </div>
           
           <script>
@@ -263,7 +299,7 @@ export default function AppointmentsPage() {
           <h1 className="page-title flex items-center gap-2">
             <CalendarDays className="w-5 h-5 text-rose-400" /> Appointments
           </h1>
-          <p className="page-subtitle">{appointments.length} appointments on {MONTHS[month]} {day}</p>
+          <p className="page-subtitle">{groupAppointments(appointments).length} booking{groupAppointments(appointments).length !== 1 ? "s" : ""} on {MONTHS[month]} {day}</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-card)" }}>
@@ -329,7 +365,7 @@ export default function AppointmentsPage() {
             <div>
               <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>{MONTHS[month]} {day}, {year}</h2>
               <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                {loading ? "Loading..." : `${appointments.length} appointment${appointments.length !== 1 ? "s" : ""}`}
+                {loading ? "Loading..." : `${groupAppointments(appointments).length} booking${groupAppointments(appointments).length !== 1 ? "s" : ""}`}
               </p>
             </div>
           </div>

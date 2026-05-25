@@ -24,14 +24,16 @@ interface DashboardStats {
   todayAppointments: any[];
 }
 interface AnalyticsData {
-  monthlyRevenue:   { month: string; revenue: number }[];
+  revenueData:      { label: string; revenue: number }[];
   serviceBreakdown: { name: string; category: string; revenue: number }[];
 }
 
 const PERIOD_LABELS: Record<string, string> = {
-  "1M": "1 Month", "3M": "3 Months", "6M": "6 Months", "1Y": "1 Year",
+  "1D": "1 Day",
+  "1M": "1 Month",
+  "3M": "3 Months",
+  "6M": "6 Months",
 };
-const MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 const PIE_COLORS = ["#f43f5e","#a855f7","#06b6d4","#f59e0b","#10b981","#6366f1"];
 
@@ -64,26 +66,45 @@ function StatCardSkeleton() {
 export default function DashboardPage() {
   const { openBooking } = useBooking();
   const { error } = useToast();
-  const [period, setPeriod] = useState("6M");
+  const [period, setPeriod] = useState("1D");
 
-  const periodMonths = period === "1M" ? 1 : period === "3M" ? 3 : period === "1Y" ? 12 : 6;
-  const fromDate = new Date();
-  fromDate.setMonth(fromDate.getMonth() - periodMonths + 1);
-  fromDate.setDate(1);
+  const getPeriodDates = (p: string) => {
+    const to = new Date();
+    to.setHours(23, 59, 59, 999);
 
-  const fromStr = fromDate.toISOString().split("T")[0];
-  const toStr = new Date().toISOString().split("T")[0];
+    const from = new Date();
+    if (p === "1D") {
+      from.setHours(0, 0, 0, 0);
+    } else if (p === "1M") {
+      from.setDate(from.getDate() - 29); // Last 30 days
+      from.setHours(0, 0, 0, 0);
+    } else if (p === "3M") {
+      from.setMonth(from.getMonth() - 2);
+      from.setDate(1);
+      from.setHours(0, 0, 0, 0);
+    } else {
+      // Default 6M
+      from.setMonth(from.getMonth() - 5);
+      from.setDate(1);
+      from.setHours(0, 0, 0, 0);
+    }
+    return { from, to };
+  };
+
+  const { from, to } = getPeriodDates(period);
+  const fromStr = from.toISOString();
+  const toStr = to.toISOString();
 
   const { data: stats, loading: statsLoading } = useApi<DashboardStats>("/api/dashboard/stats");
   const { data: analytics, loading: analyticsLoading } = useApi<AnalyticsData>(
-    `/api/analytics?from=${fromStr}&to=${toStr}`
+    `/api/analytics?from=${fromStr}&to=${toStr}&period=${period}`
   );
 
   const greeting = new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 17 ? "Good afternoon" : "Good evening";
 
-  const chartData = (analytics?.monthlyRevenue ?? []).map(m => ({
-    name: MONTH_ABBR[parseInt(m.month.split("-")[1]) - 1],
-    revenue: Math.round(m.revenue),
+  const chartData = (analytics?.revenueData ?? []).map(r => ({
+    name: r.label,
+    revenue: Math.round(r.revenue),
   }));
 
   const pieData = (analytics?.serviceBreakdown ?? []).slice(0, 6).map(s => ({
@@ -117,7 +138,11 @@ export default function DashboardPage() {
   };
 
   const handlePrintReceipt = (group: any) => {
-    const printWindow = window.open("", "_blank", "width=300,height=600");
+    const width = 450;
+    const height = 650;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    const printWindow = window.open("", "_blank", `width=${width},height=${height},left=${left},top=${top}`);
     if (!printWindow) {
       error("Popup blocker prevented printing. Please allow popups.");
       return;
@@ -126,15 +151,45 @@ export default function DashboardPage() {
     const servicesHtml = group.appointments.map((a: any) => `
       <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
         <span>${a.service?.name ?? "Service"}</span>
-        <span>₹${Number(a.price).toFixed(2)}</span>
+        <span>₹${Number(a.service?.price ?? a.price).toFixed(2)}</span>
       </div>
     `).join("");
 
-    const totalPrice = group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0);
+    const format24to12 = (time24: string) => {
+      if (!time24) return "";
+      const parts = time24.split(":");
+      if (parts.length !== 2) return time24;
+      let [hoursStr, minutesStr] = parts;
+      let hours = parseInt(hoursStr, 10);
+      const ampm = hours >= 12 ? "pm" : "am";
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      return `${String(hours).padStart(2, "0")}:${minutesStr}${ampm}`;
+    };
 
-    const timeStr = group.startTime 
-      ? `${group.startTime} - ${group.endTime}`
-      : `Ends at ${group.endTime}`;
+    const transaction = group.appointments[0]?.transaction;
+    const originalSubtotal = transaction ? Number(transaction.subtotal) : group.appointments.reduce((sum: number, a: any) => sum + Number(a.service?.price ?? a.price), 0);
+    const paidTotal = transaction ? Number(transaction.total) : group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0);
+    const discountAmt = transaction ? Number(transaction.discountAmt) : Math.max(0, originalSubtotal - paidTotal);
+    const discountPct = transaction ? Number(transaction.discountPct) : (originalSubtotal > 0 ? Math.round((discountAmt / originalSubtotal) * 100) : 0);
+    const taxPct = transaction ? Number(transaction.taxPct) : 0;
+    const taxAmt = transaction ? Number(transaction.taxAmt) : 0;
+
+    const discountHtml = discountAmt > 0 ? `
+      <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+        <span>Discount(${discountPct} %)</span>
+        <span>-₹${discountAmt.toFixed(2)}</span>
+      </div>
+    ` : "";
+
+    const taxHtml = taxAmt > 0 ? `
+      <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+        <span>GST (${taxPct}%)</span>
+        <span>₹${taxAmt.toFixed(2)}</span>
+      </div>
+    ` : "";
+
+    const timeStr = format24to12(group.endTime);
 
     const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
 
@@ -179,12 +234,13 @@ export default function DashboardPage() {
         </head>
         <body>
           <div class="center bold" style="font-size: 14px; margin-bottom: 2px;">MADOE SALON</div>
-          <div class="center" style="font-size: 9px; margin-bottom: 5px;">Wyapar Salon Management</div>
+          <div class="center" style="font-size: 9px;">CE/1/B/122 Newtown Kolkata-157</div>
+          <div class="center" style="font-size: 9px; margin-bottom: 5px;">+919836867607(M) </div>
           <div class="divider"></div>
           
           <div><strong>Date:</strong> ${group.date}</div>
           <div><strong>Time:</strong> ${timeStr}</div>
-          <div><strong>Passenger:</strong> ${group.client?.name ?? "Walk-in"}</div>
+          <div><strong>Customer:</strong> ${group.client?.name ?? "Walk-in"}</div>
           ${group.client?.phone ? `<div><strong>Phone:</strong> ${group.client.phone}</div>` : ""}
           <div><strong>Staff:</strong> ${staffNames}</div>
           
@@ -195,17 +251,18 @@ export default function DashboardPage() {
           <div class="divider"></div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
             <span>Subtotal</span>
-            <span>₹${totalPrice.toFixed(2)}</span>
+            <span>₹${originalSubtotal.toFixed(2)}</span>
           </div>
+          ${discountHtml}
+          ${taxHtml}
           <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 12px; margin-top: 3px;">
             <span>TOTAL</span>
-            <span>₹${totalPrice.toFixed(2)}</span>
+            <span>₹${paidTotal.toFixed(2)}</span>
           </div>
           
           <div class="divider"></div>
           <div class="center footer">
-            Thank you for visiting!<br>
-            Powered by Wyapar
+            Thank you for visiting!
           </div>
           
           <script>
@@ -373,6 +430,11 @@ export default function DashboardPage() {
             <div className="h-52 flex items-center justify-center">
               <div className="w-8 h-8 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
             </div>
+          ) : chartData.length === 0 ? (
+            <div className="h-52 flex flex-col items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
+              <TrendingUp className="w-8 h-8 mb-2 opacity-30" />
+              <p>No Data to Display</p>
+            </div>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
@@ -428,7 +490,7 @@ export default function DashboardPage() {
           <div>
             <h2 className="card-title">Today&apos;s Schedule</h2>
             <p className="card-subtitle">
-              {statsLoading ? "Loading..." : `${stats?.todayAppointments.length ?? 0} appointments`}
+              {statsLoading ? "Loading..." : `${groupAppointments(stats?.todayAppointments ?? []).length} booking${groupAppointments(stats?.todayAppointments ?? []).length !== 1 ? "s" : ""}`}
             </p>
           </div>
           <a href="/appointments" className="btn-ghost text-sm flex items-center gap-1.5">

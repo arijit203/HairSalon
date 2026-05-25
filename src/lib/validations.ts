@@ -91,6 +91,8 @@ const CreateAppointmentBaseSchema = z.object({
   price:      z.number().min(0, "Price cannot be negative"),
   deleteAppointmentIds: z.array(z.string()).optional(),
   status:     AppointmentStatusEnum.optional(),
+  taxPct:      z.number().optional(),
+  discountPct: z.number().optional(),
 });
 
 export const CreateAppointmentSchema = CreateAppointmentBaseSchema.refine(

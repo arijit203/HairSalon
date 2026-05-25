@@ -25,7 +25,7 @@ export async function GET(_req: NextRequest) {
       // Revenue
       thisMonthRevenue, lastMonthRevenue,
       // Bookings
-      todayBookings, todayBookingsTotal,
+      todayAppointmentsList, createdTodayAppointmentsList,
       // Clients
       totalClients, newClientsThisMonth,
       // Products
@@ -47,13 +47,15 @@ export async function GET(_req: NextRequest) {
         where:  { createdAt: { gte: lastMonthStart, lte: lastMonthEnd }, status: "COMPLETED" },
         _sum:   { total: true },
       }),
-      // Today's booking count
-      prisma.appointment.count({
-        where: { date: { gte: todayStart, lt: todayEnd } },
+      // Today's appointments for grouping
+      prisma.appointment.findMany({
+        where: { date: { gte: todayStart, lt: todayEnd }, status: "COMPLETED" },
+        select: { clientId: true, date: true, startTime: true, endTime: true },
       }),
-      // Today's new bookings (created today)
-      prisma.appointment.count({
-        where: { createdAt: { gte: todayStart, lt: todayEnd } },
+      // Today's new appointments (created today) for grouping
+      prisma.appointment.findMany({
+        where: { createdAt: { gte: todayStart, lt: todayEnd }, status: "COMPLETED" },
+        select: { clientId: true, date: true, startTime: true, endTime: true },
       }),
       // Total active clients
       prisma.client.count({ where: { isActive: true } }),
@@ -99,11 +101,22 @@ export async function GET(_req: NextRequest) {
         orderBy: { createdAt: "desc" },
         include: {
           client:  { select: { id: true, name: true, phone: true, email: true } },
-          service: { select: { id: true, name: true } },
+          service: { select: { id: true, name: true, price: true } },
           staff:   { select: { id: true, name: true } },
+          transaction: true,
         },
       }),
     ]);
+
+    const uniqueTodayBookingsMap = new Set(
+      todayAppointmentsList.map(a => `${a.clientId}_${a.date.toISOString().split("T")[0]}_${a.startTime}_${a.endTime}`)
+    );
+    const todayBookings = uniqueTodayBookingsMap.size;
+
+    const uniqueCreatedTodayMap = new Set(
+      createdTodayAppointmentsList.map(a => `${a.clientId}_${a.date.toISOString().split("T")[0]}_${a.startTime}_${a.endTime}`)
+    );
+    const todayBookingsTotal = uniqueCreatedTodayMap.size;
 
     // Revenue change %
     const thisRev  = Number(thisMonthRevenue._sum.total ?? 0);

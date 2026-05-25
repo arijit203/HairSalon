@@ -420,6 +420,8 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
     endTime: string;
     salePrice: number;
     discountPct: number;
+    taxPct: number;
+    taxAmt: number;
     finalPrice: number;
   } | null>(null);
 
@@ -483,9 +485,19 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
     let overallEndTime = endTime || time || "";
 
     const todayStr = getLocalDateStr();
-    const isToday = date === todayStr;
 
-    if (isToday && overallEndTime) {
+    // 1. If date is in the past, default to COMPLETED
+    if (date < todayStr) {
+      return "COMPLETED";
+    }
+
+    // 2. If date is in the future, default to PENDING
+    if (date > todayStr) {
+      return "PENDING";
+    }
+
+    // 3. If date is today, check timestamp
+    if (date === todayStr && overallEndTime) {
       try {
         const appointmentEndDateTime = new Date(`${date}T${overallEndTime}:00+05:30`);
         if (Date.now() > appointmentEndDateTime.getTime()) {
@@ -574,6 +586,18 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
   const taxAmt        = Math.round(priceAfterDiscount * taxPct / 100);
   const finalPrice    = priceAfterDiscount + taxAmt;
 
+  const displayTimeSummary = (timeHH && timeMM)
+    ? `${timeHH}:${timeMM} ${timeAmPm.toLowerCase()}`
+    : endTime
+      ? format24to12(endTime).toLowerCase()
+      : "";
+
+  const displayTimeConfirm = createdBooking?.endTime
+    ? format24to12(createdBooking.endTime).toLowerCase()
+    : createdBooking?.time
+      ? createdBooking.time.toLowerCase()
+      : "";
+
   // ── Inline service creation ────────────────────────────────────────────────
 
   const handleCreateService = async () => {
@@ -632,7 +656,11 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
   const handlePrintReceipt = (bookingDetails: typeof createdBooking) => {
     if (!bookingDetails) return;
-    const printWindow = window.open("", "_blank", "width=300,height=600");
+    const width = 450;
+    const height = 650;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    const printWindow = window.open("", "_blank", `width=${width},height=${height},left=${left},top=${top}`);
     if (!printWindow) {
       error("Popup blocker prevented printing. Please allow popups.");
       return;
@@ -647,14 +675,20 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
     const discountHtml = bookingDetails.discountPct > 0 ? `
       <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-        <span>Discount (${bookingDetails.discountPct}%)</span>
+        <span>Discount(${bookingDetails.discountPct} %)</span>
         <span>-₹${(bookingDetails.salePrice * bookingDetails.discountPct / 100).toFixed(2)}</span>
       </div>
     ` : "";
 
-    const timeStr = bookingDetails.time 
-      ? `${bookingDetails.time} - ${bookingDetails.endTime}`
-      : `Ends at ${bookingDetails.endTime}`;
+    const taxAmt = bookingDetails.taxAmt !== undefined ? bookingDetails.taxAmt : (bookingDetails.taxPct > 0 ? Math.round((bookingDetails.salePrice - (bookingDetails.salePrice * bookingDetails.discountPct / 100)) * bookingDetails.taxPct / 100) : 0);
+    const taxHtml = taxAmt > 0 ? `
+      <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+        <span>GST (${bookingDetails.taxPct}%)</span>
+        <span>₹${Number(taxAmt).toFixed(2)}</span>
+      </div>
+    ` : "";
+
+    const timeStr = bookingDetails.endTime ? format24to12(bookingDetails.endTime).toLowerCase().replace(/\s+/g, "") : "";
 
     printWindow.document.write(`
       <html>
@@ -697,12 +731,13 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
         </head>
         <body>
           <div class="center bold" style="font-size: 14px; margin-bottom: 2px;">MADOE SALON</div>
-          <div class="center" style="font-size: 9px; margin-bottom: 5px;">Wyapar Salon Management</div>
+          <div class="center" style="font-size: 9px;">CE/1/B/122 Newtown Kolkata-157</div>
+          <div class="center" style="font-size: 9px; margin-bottom: 5px;">+919836867607(M) </div>
           <div class="divider"></div>
           
           <div><strong>Date:</strong> ${bookingDetails.date}</div>
           <div><strong>Time:</strong> ${timeStr}</div>
-          <div><strong>Passenger:</strong> ${bookingDetails.clientName}</div>
+          <div><strong>Customer:</strong> ${bookingDetails.clientName}</div>
           ${bookingDetails.clientPhone ? `<div><strong>Phone:</strong> ${bookingDetails.clientPhone}</div>` : ""}
           <div><strong>Staff:</strong> ${bookingDetails.staffName}</div>
           
@@ -716,6 +751,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
             <span>₹${bookingDetails.salePrice.toFixed(2)}</span>
           </div>
           ${discountHtml}
+          ${taxHtml}
           <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 12px; margin-top: 3px;">
             <span>TOTAL</span>
             <span>₹${bookingDetails.finalPrice.toFixed(2)}</span>
@@ -723,8 +759,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
           
           <div class="divider"></div>
           <div class="center footer">
-            Thank you for visiting!<br>
-            Powered by Wyapar
+            Thank you for visiting!
           </div>
           
           <script>
@@ -863,6 +898,8 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
           price:     finalPrice,
           notes:     notes.trim() || undefined,
           status:    status || undefined,
+          taxPct,
+          discountPct: discountNum,
           ...(editingGroup && { deleteAppointmentIds: editingGroup.appointments.map((a: any) => a.id) }),
         }),
       });
@@ -883,6 +920,8 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
         endTime: isFutureDate ? apptData.data.endTime : finalEndTime,
         salePrice: salePriceNum,
         discountPct: discountNum,
+        taxPct,
+        taxAmt,
         finalPrice,
       });
     } catch (e: any) {
@@ -967,7 +1006,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
               <div className="rounded-xl p-4 mb-6 text-left space-y-3" style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}>
                 <div className="flex justify-between text-xs">
-                  <span style={{ color: "var(--text-muted)" }}>Passenger:</span>
+                  <span style={{ color: "var(--text-muted)" }}>Customer:</span>
                   <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{createdBooking.clientName}</span>
                 </div>
                 <div className="flex justify-between text-xs">
@@ -975,11 +1014,15 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                   <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{createdBooking.staffName}</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span style={{ color: "var(--text-muted)" }}>Date & Time:</span>
-                  <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
-                    {createdBooking.date} {createdBooking.time ? `at ${createdBooking.time}` : ""} {createdBooking.endTime ? `(ends at ${createdBooking.endTime})` : ""}
-                  </span>
+                  <span style={{ color: "var(--text-muted)" }}>Date:</span>
+                  <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{createdBooking.date}</span>
                 </div>
+                {displayTimeConfirm && (
+                  <div className="flex justify-between text-xs">
+                    <span style={{ color: "var(--text-muted)" }}>Time:</span>
+                    <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{displayTimeConfirm}</span>
+                  </div>
+                )}
                 <div className="border-t border-dashed border-gray-700 my-2"></div>
                 <div className="flex justify-between text-sm font-bold">
                   <span style={{ color: "var(--text-secondary)" }}>Total Price:</span>
@@ -1759,7 +1802,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                         {clientName && (
                           <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
                             <User className="w-3.5 h-3.5 text-rose-400 shrink-0" /> 
-                            <span><strong>Passenger:</strong> {clientName} {clientPhone && `· ${clientPhone}`}</span>
+                            <span><strong>Customer:</strong> {clientName} {clientPhone && `· ${clientPhone}`}</span>
                           </div>
                         )}
                         {selectedServices.length > 0 && (
@@ -1785,10 +1828,14 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                         )}
                         {date && (
                           <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-                            <CalendarDays className="w-3.5 h-3.5 text-rose-400" /> 
-                            <span>
-                              {date} {time ? `at ${time}` : ""} {endTime ? `(ends at ${endTime})` : ""}
-                            </span>
+                            <CalendarDays className="w-3.5 h-3.5 text-rose-400 shrink-0" /> 
+                            <span><strong>Date:</strong> {date}</span>
+                          </div>
+                        )}
+                        {displayTimeSummary && (
+                          <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+                            <Clock className="w-3.5 h-3.5 text-rose-400 shrink-0" /> 
+                            <span><strong>Time:</strong> {displayTimeSummary}</span>
                           </div>
                         )}
                       </div>

@@ -13,23 +13,81 @@ export async function GET(req: NextRequest) {
     // Default: last 6 months
     const to   = new Date(searchParams.get("to")   ?? new Date());
     const from = new Date(searchParams.get("from") ?? new Date(to.getFullYear(), to.getMonth() - 5, 1));
+    const period = searchParams.get("period") ?? "6M";
 
-    // ── Monthly revenue breakdown
+    // ── Revenue breakdown by period
     const transactions = await prisma.transaction.findMany({
       where:   { createdAt: { gte: from, lte: to }, status: "COMPLETED" },
       select:  { total: true, createdAt: true },
     });
 
-    // Group by month
-    const monthlyMap = new Map<string, number>();
-    for (const t of transactions) {
-      const key = `${t.createdAt.getFullYear()}-${String(t.createdAt.getMonth() + 1).padStart(2, "0")}`;
-      monthlyMap.set(key, (monthlyMap.get(key) ?? 0) + Number(t.total));
+    const groupMap = new Map<string, number>();
+
+    if (period === "1D") {
+      // Group by hour in Asia/Kolkata timezone
+      for (let h = 9; h <= 21; h++) {
+        const label = `${String(h).padStart(2, "0")}:00`;
+        groupMap.set(label, 0);
+      }
+      
+      for (const t of transactions) {
+        const hourStr = new Intl.DateTimeFormat("en-US", {
+          timeZone: "Asia/Kolkata",
+          hour: "2-digit",
+          hour12: false,
+        }).format(t.createdAt);
+        const label = `${hourStr}:00`;
+        groupMap.set(label, (groupMap.get(label) ?? 0) + Number(t.total));
+      }
+    } else if (period === "1M") {
+      // Group by day of the month in Asia/Kolkata timezone
+      const dayFormat = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Kolkata",
+        month: "short",
+        day: "numeric",
+      });
+      
+      const temp = new Date(from);
+      while (temp <= to) {
+        groupMap.set(dayFormat.format(temp), 0);
+        temp.setDate(temp.getDate() + 1);
+      }
+      
+      for (const t of transactions) {
+        const label = dayFormat.format(t.createdAt);
+        if (groupMap.has(label)) {
+          groupMap.set(label, (groupMap.get(label) ?? 0) + Number(t.total));
+        } else {
+          groupMap.set(label, Number(t.total));
+        }
+      }
+    } else {
+      // Group by month in Asia/Kolkata timezone (for 3M, 6M)
+      const monthFormat = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Kolkata",
+        month: "short",
+      });
+      
+      const temp = new Date(from);
+      while (temp <= to) {
+        groupMap.set(monthFormat.format(temp), 0);
+        temp.setMonth(temp.getMonth() + 1);
+      }
+      
+      for (const t of transactions) {
+        const label = monthFormat.format(t.createdAt);
+        if (groupMap.has(label)) {
+          groupMap.set(label, (groupMap.get(label) ?? 0) + Number(t.total));
+        } else {
+          groupMap.set(label, Number(t.total));
+        }
+      }
     }
 
-    const monthlyRevenue = Array.from(monthlyMap.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, revenue]) => ({ month, revenue }));
+    const revenueData = Array.from(groupMap.entries()).map(([label, revenue]) => ({
+      label,
+      revenue,
+    }));
 
     // ── Revenue by service category
     const serviceRevenue = await prisma.transactionItem.groupBy({
@@ -121,7 +179,7 @@ export async function GET(req: NextRequest) {
 
     return successResponse({
       period:           { from, to },
-      monthlyRevenue,
+      revenueData,
       serviceBreakdown,
       staffStats,
       topProducts:      topProductStats,

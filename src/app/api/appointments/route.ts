@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   successResponse, createdResponse, handleApiError,
   getPaginationParams, paginatedResponse, calculateEndTime, calculateStartTime,
+  generateInvoiceNumber,
 } from "@/lib/api";
 import { CreateAppointmentSchema } from "@/lib/validations";
 
@@ -43,8 +44,9 @@ export async function GET(req: NextRequest) {
         orderBy: [{ date: "asc" }, { startTime: "asc" }],
         include: {
           client:  { select: { id: true, name: true, phone: true, email: true } },
-          service: { select: { id: true, name: true, category: true } },
+          service: { select: { id: true, name: true, category: true, price: true } },
           staff:   { select: { id: true, name: true, role: true } },
+          transaction: true,
         },
       }),
       prisma.appointment.count({ where }),
@@ -143,6 +145,19 @@ export async function POST(req: NextRequest) {
 
     const queries: any[] = [];
     if (deleteAppointmentIds && deleteAppointmentIds.length > 0) {
+      const appointmentsToDelete = await prisma.appointment.findMany({
+        where: { id: { in: deleteAppointmentIds } },
+        select: { transactionId: true },
+      });
+      const txIdsToDelete = appointmentsToDelete.map(a => a.transactionId).filter(Boolean) as string[];
+      if (txIdsToDelete.length > 0) {
+        queries.push(
+          prisma.transaction.deleteMany({
+            where: { id: { in: txIdsToDelete } },
+          })
+        );
+      }
+
       queries.push(
         prisma.appointment.deleteMany({
           where: { id: { in: deleteAppointmentIds } },
@@ -150,18 +165,84 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    appointmentsData.forEach(appt => {
+    if (status === "COMPLETED") {
+      const discountPct = data.discountPct ?? (totalListPrice > data.price ? Math.round(((totalListPrice - data.price) / totalListPrice) * 100) : 0);
+      const discountAmt = data.discountPct !== undefined ? Math.round((totalListPrice * data.discountPct) / 100) : (totalListPrice > data.price ? totalListPrice - data.price : 0);
+      const taxPct = data.taxPct ?? 0;
+      const priceAfterDiscount = Math.max(0, totalListPrice - discountAmt);
+      const taxAmt = Math.round((priceAfterDiscount * taxPct) / 100);
+      
       queries.push(
-        prisma.appointment.create({
-          data: appt,
+        prisma.transaction.create({
+          data: {
+            invoiceNumber: generateInvoiceNumber(),
+            clientId:      data.clientId,
+            subtotal:      totalListPrice,
+            discountPct,
+            discountAmt,
+            taxPct,
+            taxAmt,
+            total:         data.price,
+            paymentMethod: "CASH",
+            notes:         data.notes,
+            createdAt:     new Date(`${data.date}T${overallEndTime || "12:00"}:00+05:30`),
+            items: {
+              create: orderedServices.map((service) => {
+                let allocatedPrice = 0;
+                if (totalListPrice > 0) {
+                  allocatedPrice = Math.round((Number(service.price) / totalListPrice) * data.price * 100) / 100;
+                } else {
+                  allocatedPrice = Math.round((data.price / orderedServices.length) * 100) / 100;
+                }
+                return {
+                  serviceId: service.id,
+                  name:      service.name,
+                  unitPrice: service.price,
+                  quantity:  1,
+                  lineTotal: allocatedPrice,
+                };
+              }),
+            },
+            appointments: {
+              create: appointmentsData.map(appt => ({
+                clientId:  appt.clientId,
+                serviceId: appt.serviceId,
+                staffId:   appt.staffId,
+                date:      appt.date,
+                startTime: appt.startTime,
+                endTime:   appt.endTime,
+                status:    appt.status,
+                price:     appt.price,
+                notes:     appt.notes,
+              })),
+            },
+          },
           include: {
-            client:  { select: { id: true, name: true, phone: true } },
-            service: { select: { id: true, name: true } },
-            staff:   { select: { id: true, name: true } },
+            appointments: {
+              include: {
+                client:  { select: { id: true, name: true, phone: true } },
+                service: { select: { id: true, name: true, price: true } },
+                staff:   { select: { id: true, name: true } },
+              }
+            }
           }
         })
       );
-    });
+    } else {
+      appointmentsData.forEach(appt => {
+        queries.push(
+          prisma.appointment.create({
+            data: appt,
+            include: {
+              client:  { select: { id: true, name: true, phone: true } },
+              service: { select: { id: true, name: true, price: true } },
+              staff:   { select: { id: true, name: true } },
+              transaction: true,
+            }
+          })
+        );
+      });
+    }
 
     // Run in a prisma transaction to ensure atomic creation/deletion
     const transactionResult = await prisma.$transaction(queries);
@@ -170,7 +251,11 @@ export async function POST(req: NextRequest) {
       : transactionResult;
 
     // Return the first created appointment
-    return createdResponse(createdAppointments[0]);
+    const responseData = status === "COMPLETED"
+      ? (createdAppointments[0] as any).appointments[0]
+      : createdAppointments[0];
+
+    return createdResponse(responseData);
   } catch (error) {
     return handleApiError(error);
   }
