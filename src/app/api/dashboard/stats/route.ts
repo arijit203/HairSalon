@@ -122,21 +122,50 @@ const getCachedDashboardData = unstable_cache(
   }
 );
 
+// Helper to get current date parts in Asia/Kolkata timezone
+function getKolkataDateParts() {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  
+  const formatted = formatter.format(new Date());
+  const [datePart, timePart] = formatted.split(", ");
+  const [month, day, year] = datePart.split("/");
+  
+  return {
+    year: parseInt(year, 10),
+    month: parseInt(month, 10) - 1, // 0-indexed
+    day: parseInt(day, 10),
+  };
+}
+
 // GET /api/dashboard/stats
 export async function GET(_req: NextRequest) {
   try {
-    const now        = new Date();
-    // Use UTC dates to query @db.Date fields without timezone shifts
-    const todayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-    const todayEnd   = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+    const { year, month, day } = getKolkataDateParts();
 
-    // This month boundaries
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    // Use UTC midnight dates to query @db.Date fields correctly
+    const todayStart = new Date(Date.UTC(year, month, day));
+    const todayEnd   = new Date(Date.UTC(year, month, day + 1));
 
-    // Last month boundaries
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    // This month boundaries in Asia/Kolkata local timezone
+    const monthStart = new Date(`${year}-${String(month + 1).padStart(2, "0")}-01T00:00:00+05:30`);
+    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+    const monthEnd   = new Date(`${year}-${String(month + 1).padStart(2, "0")}-${lastDayOfMonth}T23:59:59+05:30`);
+
+    // Last month boundaries in Asia/Kolkata local timezone
+    const prevYear = month === 0 ? year - 1 : year;
+    const prevMonth = month === 0 ? 12 : month;
+    const lastDayOfPrevMonth = new Date(year, month, 0).getDate();
+    const lastMonthStart = new Date(`${prevYear}-${String(prevMonth).padStart(2, "0")}-01T00:00:00+05:30`);
+    const lastMonthEnd   = new Date(`${prevYear}-${String(prevMonth).padStart(2, "0")}-${lastDayOfPrevMonth}T23:59:59+05:30`);
 
     const {
       thisMonthRevenue,
