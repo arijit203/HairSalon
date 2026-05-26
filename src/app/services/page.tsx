@@ -358,7 +358,7 @@ export default function ServicesPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col sm:flex-row items-center gap-3">
         <div className="relative flex-1 max-w-[250px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-muted)" }} />
           <input
@@ -369,8 +369,8 @@ export default function ServicesPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-2 pb-1 flex-1">
-          <div className="flex items-center gap-2 pb-1 pt-2 pr-2 overflow-x-auto">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="flex items-center gap-2 py-1 pr-2 overflow-x-auto w-full">
             {categoriesList.map((cat) => {
               const isAll = cat === "All";
               const isActive = selectedCategory === cat;

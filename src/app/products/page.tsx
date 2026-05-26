@@ -28,6 +28,8 @@ function ProductsPageContent() {
   const [status,   setStatus]   = useState(searchParams.get("status") || "All");
   const [page,     setPage]     = useState(1);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [isAddCategoryModalOpen, setIsAddCategoryModalOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
 
   // Modal and editing states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -207,6 +209,24 @@ function ProductsPageContent() {
     }
   };
 
+  const handleAddCategory = () => {
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) return;
+    if (allCategories.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+      toastError(`Category "${trimmed}" already exists.`);
+      return;
+    }
+    const updated = [...customCategories, trimmed];
+    setCustomCategories(updated);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("wyapar_custom_categories", JSON.stringify(updated));
+    }
+    setCategory(trimmed);
+    setNewCategoryName("");
+    setIsAddCategoryModalOpen(false);
+    success(`Category "${trimmed}" added!`);
+  };
+
   const allCategories = useMemo(() => {
     const defaultCats = ["Hair Care", "Skin Care", "Nail Care", "Body Care", "Packages", "Tools", "Spa"];
     const activeCats = dynamicCategories.concat(serviceCategories).filter(Boolean);
@@ -276,13 +296,13 @@ function ProductsPageContent() {
               className="glass-card p-4 flex items-center gap-3 cursor-pointer select-none transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
               style={{ 
                 border: isActive 
-                  ? `1.5px solid ${s.color}` 
+                  ? "1.5px solid var(--accent-rose)" 
                   : "1px solid var(--border-default)",
                 boxShadow: isActive 
-                  ? `0 0 12px ${s.color}20` 
+                  ? "var(--shadow-glow)" 
                   : "none",
                 background: isActive 
-                  ? `${s.color}05` 
+                  ? "var(--bg-card-hover)" 
                   : "var(--bg-card)",
               }}
             >
@@ -300,14 +320,14 @@ function ProductsPageContent() {
 
       {/* Filters */}
       <div className="glass-card p-4 space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
           <div className="relative flex-1 max-w-[280px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-muted)" }} />
             <input type="text" placeholder="Search by name, brand, SKU..." className="input-field pl-10 w-full"
               value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
           </div>
-          <div className="flex items-center gap-2 pb-1 flex-1">
-            <div className="flex items-center gap-2 pb-1 pt-2 pr-2 overflow-x-auto">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="flex items-center gap-2 py-1 pr-2 overflow-x-auto w-full">
             {allCategories.map((c) => {
               const isAll = c === "All";
               const isActive = category === c;
@@ -315,7 +335,7 @@ function ProductsPageContent() {
                 <div
                   key={c}
                   onClick={() => { setCategory(c); setPage(1); }}
-                  className={`filter-pill flex items-center gap-1.5 cursor-pointer group relative inline-flex ${
+                  className={`filter-pill flex items-center gap-1.5 cursor-pointer group relative inline-flex flex-shrink-0 ${
                     isActive ? "active" : ""
                   } ${!isAll ? "px-4" : ""}`}
                 >
@@ -336,6 +356,20 @@ function ProductsPageContent() {
                 </div>
               );
             })}
+            {/* Add Category Pill */}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setNewCategoryName("");
+                  setIsAddCategoryModalOpen(true);
+                }}
+                className="filter-pill flex items-center justify-center w-7 h-7 rounded-full p-0 flex-shrink-0 hover:bg-white/[0.08] inline-flex"
+                title="Add Category"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            )}
             </div>
           </div>
         </div>
@@ -513,6 +547,50 @@ function ProductsPageContent() {
             <span>Warning: Services will be deleted, but products will only have this category removed.</span>
           </div>
         </div>
+      </Modal>
+
+      {/* Add Category Modal */}
+      <Modal
+        open={isAddCategoryModalOpen}
+        onClose={() => setIsAddCategoryModalOpen(false)}
+        title="Add New Category"
+        subtitle="Create a custom category to group your salon products"
+        size="sm"
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn-secondary py-2 px-4 text-xs"
+              onClick={() => setIsAddCategoryModalOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary py-2 px-4 text-xs"
+              onClick={handleAddCategory}
+            >
+              Add Category
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={(e) => { e.preventDefault(); handleAddCategory(); }} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+              Category Name *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g., Styling, Hair Care, Skin Care"
+              className="input-field"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              required
+              autoFocus
+            />
+          </div>
+        </form>
       </Modal>
     </div>
   );
