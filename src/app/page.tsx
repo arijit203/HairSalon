@@ -515,7 +515,7 @@ export default function DashboardPage() {
           <div className="flex flex-col items-center justify-center py-12" style={{ color: "var(--text-muted)" }}>
             <CalendarCheck className="w-10 h-10 mb-3 opacity-30" />
             <p className="text-sm">No appointments scheduled for today</p>
-            <button className="btn-primary mt-4 text-xs px-4 py-2"><Plus className="w-3.5 h-3.5" /> Book Now</button>
+            <button className="btn-primary mt-4 text-xs px-4 py-2" onClick={() => openBooking()}><Plus className="w-3.5 h-3.5" /> Book Now</button>
           </div>
         ) : (
           <div className="space-y-6">
