@@ -17,6 +17,14 @@ import {
   Loader2,
   Check,
   X,
+  Calendar,
+  Flame,
+  Paintbrush,
+  Heart,
+  Crown,
+  Wrench,
+  Smile,
+  type LucideIcon,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { usePaginatedApi } from "@/hooks/useApi";
@@ -27,28 +35,28 @@ import Modal from "@/components/ui/Modal";
 
 const serviceCategories = ["All", "Hair Care", "Skin Care", "Nail Care", "Body Care", "Packages", "Tools", "Spa"];
 
-const mapCategoryToEmoji = (cat: string) => {
+const mapCategoryToIcon = (cat: string): LucideIcon => {
   switch (cat.toLowerCase()) {
     case "hair":
     case "hair care":
-      return "✂️";
+      return Scissors;
     case "skin & facial":
     case "skin care":
-      return "✨";
+      return Sparkles;
     case "nails":
     case "nail care":
-      return "💅";
+      return Paintbrush;
     case "body & wax":
     case "body care":
-      return "🌟";
+      return Heart;
     case "packages":
-      return "👑";
+      return Crown;
     case "tools":
-      return "🛠️";
+      return Wrench;
     case "spa":
-      return "💆";
+      return Smile;
     default:
-      return "✂️";
+      return Scissors;
   }
 };
 
@@ -82,6 +90,7 @@ export default function ServicesPage() {
   const { openBooking } = useBooking();
 
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [statsFilter, setStatsFilter] = useState("All");
   const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [isAddCategoryModalOpen, setIsAddCategoryModalOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -260,7 +269,7 @@ export default function ServicesPage() {
         totalBookings: uniqueClients.size,
         staff: s.staffServices?.map((ss: any) => ss.staff?.name).filter(Boolean) || [],
         description: s.description || "",
-        icon: mapCategoryToEmoji(s.category),
+        icon: mapCategoryToIcon(s.category),
         color: mapCategoryToColor(s.category),
         popular: s.isPopular,
         raw: s,
@@ -274,21 +283,38 @@ export default function ServicesPage() {
       const matchCat = selectedCategory === "All" || s.category === selectedCategory;
       const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           s.description.toLowerCase().includes(searchQuery.toLowerCase());
+      let matchStats = true;
+      if (statsFilter === "Bookings") {
+        matchStats = s.totalBookings > 0;
+      } else if (statsFilter === "Rating") {
+        matchStats = s.rating >= 4.8;
+      } else if (statsFilter === "Popular") {
+        matchStats = s.popular === true;
+      }
+      return matchCat && matchSearch && matchStats;
+    });
+  }, [mappedServices, selectedCategory, searchQuery, statsFilter]);
+
+  // Statistics
+  const statsBase = useMemo(() => {
+    return mappedServices.filter((s) => {
+      const matchCat = selectedCategory === "All" || s.category === selectedCategory;
+      const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          s.description.toLowerCase().includes(searchQuery.toLowerCase());
       return matchCat && matchSearch;
     });
   }, [mappedServices, selectedCategory, searchQuery]);
 
-  // Statistics
   const stats = useMemo(() => {
-    const totalServices = dbServices.length;
-    const totalBookings = mappedServices.reduce((acc, s) => acc + s.totalBookings, 0);
-    const popularCount = dbServices.filter((s) => s.isPopular).length;
+    const totalServices = statsBase.length;
+    const totalBookings = statsBase.reduce((acc, s) => acc + s.totalBookings, 0);
+    const popularCount = statsBase.filter((s) => s.popular).length;
     return {
       totalServices,
       totalBookings,
       popularCount,
     };
-  }, [dbServices, mappedServices]);
+  }, [statsBase]);
 
   const handleDelete = async (serviceId: string) => {
     if (!confirm("Are you sure you want to delete this service?")) return;
@@ -328,7 +354,7 @@ export default function ServicesPage() {
             Services
           </h1>
           <p className="page-subtitle">
-            {stats.totalServices} services · {stats.popularCount} featured
+            {filtered.length} services shown · {stats.popularCount} featured
           </p>
         </div>
         {isAdmin && (
@@ -342,19 +368,40 @@ export default function ServicesPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: "Total Services", value: stats.totalServices, color: "#f43f5e", bg: "rgba(244,63,94,0.1)", icon: "🌸" },
-          { label: "Total Bookings", value: stats.totalBookings.toLocaleString(), color: "#a855f7", bg: "rgba(168,85,247,0.1)", icon: "📅" },
-          { label: "Avg. Rating", value: "4.8", color: "#fbbf24", bg: "rgba(251,191,36,0.1)", icon: "⭐" },
-          { label: "Popular Services", value: stats.popularCount, color: "#10b981", bg: "rgba(16,185,129,0.1)", icon: "🔥" },
-        ].map((card, i) => (
-          <div key={i} className="glass-card p-4 flex items-center gap-3">
-            <span className="text-2xl">{card.icon}</span>
-            <div>
-              <p className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>{card.value}</p>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>{card.label}</p>
+          { statusVal: "All",      label: "Total Services", value: stats.totalServices, color: "#f43f5e", activeBorder: "var(--border-total-active)", activeShadow: "0 0 12px var(--border-total-active)", activeBg: "var(--bg-total-active)", icon: Scissors },
+          { statusVal: "Bookings", label: "Total Bookings", value: stats.totalBookings.toLocaleString(), color: "#a855f7", activeBorder: "#a855f7", activeShadow: "0 0 12px rgba(168,85,247,0.2)", activeBg: "rgba(168,85,247,0.05)", icon: Calendar },
+          { statusVal: "Rating",   label: "Avg. Rating",    value: "4.8", color: "#fbbf24", activeBorder: "#fbbf24", activeShadow: "0 0 12px rgba(251,191,36,0.2)", activeBg: "rgba(251,191,36,0.05)", icon: Star },
+          { statusVal: "Popular",  label: "Popular Services", value: stats.popularCount, color: "#10b981", activeBorder: "#10b981", activeShadow: "0 0 12px rgba(16,185,129,0.2)", activeBg: "rgba(16,185,129,0.05)", icon: Flame },
+        ].map(s => {
+          const Icon = s.icon;
+          const isActive = statsFilter === s.statusVal;
+          return (
+            <div 
+              key={s.label} 
+              onClick={() => setStatsFilter(s.statusVal)}
+              className="glass-card p-4 flex items-center gap-3 cursor-pointer select-none transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+              style={{ 
+                border: isActive 
+                  ? `1.5px solid ${s.activeBorder}` 
+                  : "1px solid var(--border-default)",
+                boxShadow: isActive 
+                  ? s.activeShadow 
+                  : "none",
+                background: isActive 
+                  ? s.activeBg 
+                  : "var(--bg-card)",
+              }}
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${s.color}18` }}>
+                <Icon className="w-4 h-4" style={{ color: s.color }} />
+              </div>
+              <div>
+                <p className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>{s.value}</p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>{s.label}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Filters */}
@@ -501,10 +548,10 @@ export default function ServicesPage() {
                 {/* Icon */}
                 <div className="mt-8 mb-4 flex items-start gap-4">
                   <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 animate-fade-in"
+                    className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 animate-fade-in"
                     style={{ background: `${service.color}15`, border: `1px solid ${service.color}25` }}
                   >
-                    {service.icon}
+                    <service.icon className="w-6 h-6" style={{ color: service.color }} />
                   </div>
                   <div className="flex-1 min-w-0 pt-1">
                     <p className="text-base font-semibold leading-tight truncate" style={{ color: "var(--text-primary)" }}>
