@@ -31,6 +31,20 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<UserSession | null>(null);
+  const [salonName, setSalonName] = useState("Wyapar Beauty Studio");
+  const [logoUrl, setLogoUrl] = useState("");
+
+  const fetchSettings = () => {
+    fetch("/api/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data) {
+          setSalonName(data.data.salon_name || "Wyapar Beauty Studio");
+          setLogoUrl(data.data.logo_url || "");
+        }
+      })
+      .catch(() => {});
+  };
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -41,6 +55,10 @@ export default function Sidebar() {
         }
       })
       .catch(() => {});
+
+    fetchSettings();
+    window.addEventListener("settings-updated", fetchSettings);
+    return () => window.removeEventListener("settings-updated", fetchSettings);
   }, []);
 
   const isActive = (href: string) =>
@@ -125,26 +143,30 @@ export default function Sidebar() {
       <div className="px-5 py-5">
         <Link href={isClient ? "/portal" : "/"} className="flex items-center gap-3">
           <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"
             style={{
-              background: "linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)",
-              boxShadow: "0 4px 14px rgba(244,63,94,0.4)",
+              background: logoUrl ? "none" : "linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)",
+              boxShadow: logoUrl ? "none" : "0 4px 14px rgba(244,63,94,0.4)",
             }}
           >
-            <Sparkles className="w-4.5 h-4.5 text-white" style={{ width: "18px", height: "18px" }} />
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
+            ) : (
+              <Sparkles className="w-4.5 h-4.5 text-white" style={{ width: "18px", height: "18px" }} />
+            )}
           </div>
           <div>
             <p
               className="text-base font-bold tracking-tight leading-none"
               style={{ fontFamily: "var(--font-playfair)", color: "var(--text-primary)" }}
             >
-              Wyapar
+              {salonName.split(" ")[0]}
             </p>
             <p
               className="text-[10px] font-medium tracking-widest uppercase mt-0.5"
               style={{ color: "var(--text-muted)" }}
             >
-              Beauty Studio
+              {salonName.split(" ").slice(1).join(" ") || "Beauty Studio"}
             </p>
           </div>
         </Link>

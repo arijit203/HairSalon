@@ -147,6 +147,7 @@ export default function SettingsPage() {
       if (d.success) {
         success("Settings updated successfully");
         setSettings((prev: any) => ({ ...prev, ...updatedFields }));
+        window.dispatchEvent(new Event("settings-updated"));
       } else {
         throw new Error(d.error ?? "Failed to save settings");
       }
