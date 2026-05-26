@@ -25,7 +25,9 @@ export async function middleware(request: NextRequest) {
     path.startsWith("/_next") ||
     path.startsWith("/static") ||
     path.includes(".") ||
-    path.startsWith("/api/auth")
+    path.startsWith("/api/auth") ||
+    path.startsWith("/invoice-upload") ||
+    path.startsWith("/api/invoice-scan/upload")
   ) {
     return NextResponse.next();
   }

@@ -1,11 +1,12 @@
 "use client";
 
-import { Package, Plus, Search, Edit2, Trash2, AlertTriangle, TrendingDown, ChevronLeft, ChevronRight, X, Loader2 } from "lucide-react";
+import { Package, Plus, Search, Edit2, Trash2, AlertTriangle, TrendingDown, ChevronLeft, ChevronRight, X, Loader2, ScanLine } from "lucide-react";
 import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { usePaginatedApi } from "@/hooks/useApi";
 import { useToast } from "@/context/ToastContext";
 import ProductModal from "@/components/products/ProductModal";
+import InvoiceScannerModal from "@/components/products/InvoiceScannerModal";
 import Modal from "@/components/ui/Modal";
 
 interface Product {
@@ -34,6 +35,7 @@ function ProductsPageContent() {
   // Modal and editing states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isInvoiceScannerOpen, setIsInvoiceScannerOpen] = useState(false);
   const [dynamicCategories, setDynamicCategories] = useState<string[]>([]);
   const [serviceCategories, setServiceCategories] = useState<string[]>([]);
   const [customCategories, setCustomCategories] = useState<string[]>([]);
@@ -271,12 +273,20 @@ function ProductsPageContent() {
           <h1 className="page-title flex items-center gap-2"><Package className="w-5 h-5 text-rose-400" /> Products</h1>
           <p className="page-subtitle">{pagination.total} items across {allCategories.length - 1} categories</p>
         </div>
-        <button 
-          onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}
-          className="btn-primary"
-        >
-          <Plus className="w-4 h-4" /> Add Product
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsInvoiceScannerOpen(true)}
+            className="btn-secondary py-2 px-3 text-xs flex items-center gap-1.5"
+          >
+            <ScanLine className="w-4 h-4" /> Scan Invoice
+          </button>
+          <button 
+            onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}
+            className="btn-primary"
+          >
+            <Plus className="w-4 h-4" /> Add Product
+          </button>
+        </div>
       </div>
 
       {/* Stat pills */}
@@ -476,6 +486,12 @@ function ProductsPageContent() {
         }}
         onSaved={refetch}
         editingProduct={editingProduct}
+      />
+
+      <InvoiceScannerModal
+        open={isInvoiceScannerOpen}
+        onClose={() => setIsInvoiceScannerOpen(false)}
+        onProductsUpdated={refetch}
       />
 
       {/* Delete Category Confirmation Modal */}
