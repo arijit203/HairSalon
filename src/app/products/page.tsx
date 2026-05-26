@@ -262,7 +262,7 @@ function ProductsPageContent() {
       {/* Stat pills */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { statusVal: "All",          label: "Total Items",   value: stats.total,      color: "#f43f5e", icon: Package },
+          { statusVal: "All",          label: "Total Items",   value: stats.total,      color: "#6366f1", icon: Package },
           { statusVal: "IN_STOCK",     label: "In Stock",      value: stats.inStock,    color: "#10b981", icon: Package },
           { statusVal: "LOW_STOCK",     label: "Low Stock",     value: stats.lowStock,   color: "#f59e0b", icon: AlertTriangle },
           { statusVal: "OUT_OF_STOCK",  label: "Out of Stock",  value: stats.outOfStock, color: "#ef4444", icon: TrendingDown },
