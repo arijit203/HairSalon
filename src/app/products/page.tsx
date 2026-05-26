@@ -282,10 +282,10 @@ function ProductsPageContent() {
       {/* Stat pills */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { statusVal: "All",          label: "Total Items",   value: stats.total,      color: "#6366f1", icon: Package },
-          { statusVal: "IN_STOCK",     label: "In Stock",      value: stats.inStock,    color: "#10b981", icon: Package },
-          { statusVal: "LOW_STOCK",     label: "Low Stock",     value: stats.lowStock,   color: "#f59e0b", icon: AlertTriangle },
-          { statusVal: "OUT_OF_STOCK",  label: "Out of Stock",  value: stats.outOfStock, color: "#ef4444", icon: TrendingDown },
+          { statusVal: "All",          label: "Total Items",   value: stats.total,      color: "#6b7280", activeBorder: "var(--border-total-active)", activeShadow: "0 0 12px var(--border-total-active)", activeBg: "var(--bg-total-active)", icon: Package },
+          { statusVal: "IN_STOCK",     label: "In Stock",      value: stats.inStock,    color: "#10b981", activeBorder: "#10b981", activeShadow: "0 0 12px rgba(16,185,129,0.2)", activeBg: "rgba(16,185,129,0.05)", icon: Package },
+          { statusVal: "LOW_STOCK",     label: "Low Stock",     value: stats.lowStock,   color: "#f59e0b", activeBorder: "#f59e0b", activeShadow: "0 0 12px rgba(245,158,11,0.2)", activeBg: "rgba(245,158,11,0.05)", icon: AlertTriangle },
+          { statusVal: "OUT_OF_STOCK",  label: "Out of Stock",  value: stats.outOfStock, color: "#ef4444", activeBorder: "#ef4444", activeShadow: "0 0 12px rgba(239,68,68,0.2)", activeBg: "rgba(239,68,68,0.05)", icon: TrendingDown },
         ].map(s => {
           const Icon = s.icon;
           const isActive = status === s.statusVal;
@@ -296,13 +296,13 @@ function ProductsPageContent() {
               className="glass-card p-4 flex items-center gap-3 cursor-pointer select-none transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
               style={{ 
                 border: isActive 
-                  ? "1.5px solid var(--accent-rose)" 
+                  ? `1.5px solid ${s.activeBorder}` 
                   : "1px solid var(--border-default)",
                 boxShadow: isActive 
-                  ? "var(--shadow-glow)" 
+                  ? s.activeShadow 
                   : "none",
                 background: isActive 
-                  ? "var(--bg-card-hover)" 
+                  ? s.activeBg 
                   : "var(--bg-card)",
               }}
             >

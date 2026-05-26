@@ -25,6 +25,8 @@
   --border-card:       rgba(255, 255, 255, 0.07);
   --border-subtle:     rgba(255, 255, 255, 0.04);
   --border-sidebar:    rgba(255, 255, 255, 0.06);
+  --border-total-active: rgba(255, 255, 255, 0.24);
+  --bg-total-active:     rgba(255, 255, 255, 0.04);
 
   --text-primary:      #f5eef0;
   --text-secondary:    #b89da8;
@@ -71,6 +73,8 @@
   --border-card:       rgba(0, 0, 0, 0.07);
   --border-subtle:     rgba(0, 0, 0, 0.05);
   --border-sidebar:    rgba(0, 0, 0, 0.07);
+  --border-total-active: rgba(0, 0, 0, 0.22);
+  --bg-total-active:     rgba(0, 0, 0, 0.03);
 
   --text-primary:      #150810;
   --text-secondary:    #4a3040;
