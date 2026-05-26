@@ -27,6 +27,7 @@ function ProductsPageContent() {
   const [category, setCategory] = useState("All");
   const [status,   setStatus]   = useState(searchParams.get("status") || "All");
   const [page,     setPage]     = useState(1);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
 
   // Modal and editing states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -74,6 +75,23 @@ function ProductsPageContent() {
       })
       .catch((err) => console.error("Error loading service categories:", err));
   }, [products]);
+
+  // Fetch all products matching current category and search to compute stats
+  useEffect(() => {
+    const statsParams = new URLSearchParams();
+    statsParams.set("limit", "1000");
+    if (category !== "All") statsParams.set("category", category);
+    if (search) statsParams.set("search", search);
+
+    fetch(`/api/products?${statsParams}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.data) {
+          setAllProducts(d.data);
+        }
+      })
+      .catch((err) => console.error("Error loading all products for stats:", err));
+  }, [category, search, products]);
 
   // Load custom categories from localStorage on mount
   useEffect(() => {
@@ -200,12 +218,13 @@ function ProductsPageContent() {
     return ["All", ...merged];
   }, [dynamicCategories, serviceCategories, customCategories]);
 
-  const stats = useMemo(() => ({
-    total:      pagination.total,
-    lowStock:   products.filter(p => p.status === "LOW_STOCK").length,
-    outOfStock: products.filter(p => p.status === "OUT_OF_STOCK").length,
-    inStock:    products.filter(p => p.status === "IN_STOCK").length,
-  }), [products, pagination]);
+  const stats = useMemo(() => {
+    const total = allProducts.length;
+    const inStock = allProducts.filter(p => p.status === "IN_STOCK").length;
+    const lowStock = allProducts.filter(p => p.status === "LOW_STOCK").length;
+    const outOfStock = allProducts.filter(p => p.status === "OUT_OF_STOCK").length;
+    return { total, inStock, lowStock, outOfStock };
+  }, [allProducts]);
 
   const handleDelete = async (id: string, name: string) => {
     if (!window.confirm(`Are you sure you want to delete "${name}"?`)) return;
@@ -243,14 +262,30 @@ function ProductsPageContent() {
       {/* Stat pills */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Total Items",   value: pagination.total,   color: "#f43f5e", icon: Package },
-          { label: "In Stock",      value: stats.inStock,      color: "#10b981", icon: Package },
-          { label: "Low Stock",     value: stats.lowStock,     color: "#f59e0b", icon: AlertTriangle },
-          { label: "Out of Stock",  value: stats.outOfStock,   color: "#ef4444", icon: TrendingDown },
+          { statusVal: "All",          label: "Total Items",   value: stats.total,      color: "#f43f5e", icon: Package },
+          { statusVal: "IN_STOCK",     label: "In Stock",      value: stats.inStock,    color: "#10b981", icon: Package },
+          { statusVal: "LOW_STOCK",     label: "Low Stock",     value: stats.lowStock,   color: "#f59e0b", icon: AlertTriangle },
+          { statusVal: "OUT_OF_STOCK",  label: "Out of Stock",  value: stats.outOfStock, color: "#ef4444", icon: TrendingDown },
         ].map(s => {
           const Icon = s.icon;
+          const isActive = status === s.statusVal;
           return (
-            <div key={s.label} className="glass-card p-4 flex items-center gap-3">
+            <div 
+              key={s.label} 
+              onClick={() => { setStatus(s.statusVal); setPage(1); }}
+              className="glass-card p-4 flex items-center gap-3 cursor-pointer select-none transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+              style={{ 
+                border: isActive 
+                  ? `1.5px solid ${s.color}` 
+                  : "1px solid var(--border-default)",
+                boxShadow: isActive 
+                  ? `0 0 12px ${s.color}20` 
+                  : "none",
+                background: isActive 
+                  ? `${s.color}05` 
+                  : "var(--bg-card)",
+              }}
+            >
               <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${s.color}18` }}>
                 <Icon className="w-4 h-4" style={{ color: s.color }} />
               </div>
@@ -303,20 +338,6 @@ function ProductsPageContent() {
             })}
             </div>
           </div>
-        </div>
-        <div className="flex justify-start">
-          <select className="input-field text-sm cursor-pointer" value={status}
-            onChange={e => { setStatus(e.target.value); setPage(1); }}
-            style={{ 
-              width: "135px",
-              borderColor: "rgba(244, 63, 94, 0.25)",
-              boxShadow: "0 0 0 1px rgba(244, 63, 94, 0.05)"
-            }}>
-            <option value="All" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>All Status</option>
-            <option value="IN_STOCK" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>In Stock</option>
-            <option value="LOW_STOCK" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>Low Stock</option>
-            <option value="OUT_OF_STOCK" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>Out of Stock</option>
-          </select>
         </div>
       </div>
 
