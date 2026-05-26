@@ -54,7 +54,9 @@ export async function GET() {
     // Merge with defaults for missing keys
     const mergedSettings = { ...DEFAULT_SETTINGS, ...settingsMap };
 
-    return successResponse(mergedSettings);
+    const response = successResponse(mergedSettings);
+    response.headers.set("Cache-Control", "no-store, max-age=0, must-revalidate");
+    return response;
   } catch (error) {
     return handleApiError(error);
   }

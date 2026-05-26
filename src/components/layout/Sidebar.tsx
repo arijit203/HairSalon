@@ -35,7 +35,7 @@ export default function Sidebar() {
   const [logoUrl, setLogoUrl] = useState("");
 
   const fetchSettings = () => {
-    fetch("/api/settings")
+    fetch("/api/settings", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.data) {
@@ -47,7 +47,7 @@ export default function Sidebar() {
   };
 
   useEffect(() => {
-    fetch("/api/auth/me")
+    fetch("/api/auth/me", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
