@@ -19,6 +19,8 @@ interface ConfirmItem {
   unitPrice: number;
   discount: number;
   categories: string[];
+  salePrice?: number;
+  costPrice?: number;
 }
 
 // POST /api/invoice-scan/confirm — Confirm and add/update products
@@ -56,14 +58,24 @@ export async function POST(req: NextRequest) {
           const newStock = existing.stock + item.quantity;
           const status = calculateStockStatus(newStock, existing.lowStockAt) as any;
 
+          const updateData: any = {
+            stock: newStock,
+            status,
+          };
+
+          if (item.costPrice !== undefined) {
+            updateData.costPrice = item.costPrice;
+          } else if (item.unitPrice > 0) {
+            updateData.costPrice = item.unitPrice;
+          }
+
+          if (item.salePrice !== undefined) {
+            updateData.price = item.salePrice;
+          }
+
           const updated = await prisma.product.update({
             where: { id: item.productId },
-            data: {
-              stock: newStock,
-              status,
-              // Update price if provided
-              ...(item.unitPrice > 0 && { price: item.unitPrice }),
-            },
+            data: updateData,
           });
 
           results.updated.push({
@@ -84,8 +96,8 @@ export async function POST(req: NextRequest) {
               brand: item.brand || "",
               category: item.categories.length > 0 ? item.categories : [],
               sku,
-              price: item.unitPrice,
-              costPrice: item.unitPrice,
+              price: item.salePrice !== undefined ? item.salePrice : item.unitPrice,
+              costPrice: item.costPrice !== undefined ? item.costPrice : item.unitPrice,
               stock: item.quantity,
               lowStockAt: 2,
               status,

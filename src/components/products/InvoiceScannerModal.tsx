@@ -17,10 +17,15 @@ interface ParsedItem {
   unitPrice: number;
   discount: number;
   suggestedCategories: string[];
-  action: "update" | "create";
+  action: "update" | "create" | "conflict";
+  conflictType?: "price-mismatch";
   productId?: string;
   existingStock?: number;
   existingName?: string;
+  existingCostPrice?: number;
+  existingPrice?: number;
+  salePrice?: number;
+  costPrice?: number;
 }
 
 interface InvoiceScannerModalProps {
@@ -199,7 +204,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
     setConfirmLoading(true);
     try {
       const confirmItems = items.map((item) => ({
-        action: item.action,
+        action: item.action === "conflict" ? "create" as const : item.action, // Fallback safety
         productId: item.productId,
         name: item.name,
         brand: item.brand,
@@ -207,6 +212,8 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
         unitPrice: item.unitPrice,
         discount: item.discount,
         categories: item.suggestedCategories,
+        salePrice: item.salePrice,
+        costPrice: item.costPrice,
       }));
 
       const res = await fetch("/api/invoice-scan/confirm", {
@@ -726,6 +733,62 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                       <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
                                         {item.brand || "No brand"}
                                       </p>
+                                      {item.action === "conflict" && (
+                                        <div className="mt-2 p-2.5 rounded-lg border text-[10px] space-y-1.5"
+                                          style={{
+                                            background: "rgba(245, 158, 11, 0.08)",
+                                            borderColor: "rgba(245, 158, 11, 0.2)",
+                                            color: "rgb(253, 230, 138)"
+                                          }}
+                                        >
+                                          <p className="font-semibold flex items-center gap-1">
+                                            <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                                            Price Mismatch with Existing Product
+                                          </p>
+                                          <p style={{ color: "var(--text-muted)" }}>
+                                            Existing Cost: <span className="font-mono text-white">₹{item.existingCostPrice}</span> vs New Cost: <span className="font-mono text-white">₹{item.unitPrice}</span>
+                                          </p>
+                                          <div className="flex gap-1.5 pt-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const avgPrice = Math.round(((item.existingCostPrice || 0) + item.unitPrice) / 2 * 100) / 100;
+                                                const avgSalePrice = item.existingPrice
+                                                  ? Math.round((item.existingPrice + item.unitPrice) / 2 * 100) / 100
+                                                  : undefined;
+                                                updateItem(idx, {
+                                                  action: "update",
+                                                  unitPrice: avgPrice,
+                                                  costPrice: avgPrice,
+                                                  salePrice: avgSalePrice,
+                                                });
+                                              }}
+                                              className="px-2 py-0.5 rounded font-bold transition-all"
+                                              style={{
+                                                background: "rgba(245, 158, 11, 0.15)",
+                                                border: "1px solid rgba(245, 158, 11, 0.3)",
+                                                color: "rgb(253, 230, 138)"
+                                              }}
+                                            >
+                                              Merge & Avg (₹{Math.round(((item.existingCostPrice || 0) + item.unitPrice) / 2 * 100) / 100})
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                updateItem(idx, { action: "create" });
+                                              }}
+                                              className="px-2 py-0.5 rounded font-bold transition-all"
+                                              style={{
+                                                background: "rgba(255,255,255,0.05)",
+                                                border: "1px solid var(--border-default)",
+                                                color: "var(--text-secondary)"
+                                              }}
+                                            >
+                                              Add as New
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </td>
@@ -813,24 +876,37 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                   )}
                                 </td>
                                 <td className="px-3 py-3 text-center">
-                                  <span
-                                    className="text-[10px] font-semibold px-2 py-1 rounded-full"
-                                    style={{
-                                      background:
-                                        item.action === "update"
-                                          ? "rgba(16,185,129,0.1)"
-                                          : "rgba(168,85,247,0.1)",
-                                      color: item.action === "update" ? "#10b981" : "#a855f7",
-                                    }}
-                                  >
-                                    {item.action === "update" ? "Update Stock" : "New Product"}
-                                  </span>
-                                  {item.action === "update" && item.existingStock !== undefined && (
-                                    <p className="text-[9px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-                                      {item.existingStock} → {item.existingStock + item.quantity}
-                                    </p>
-                                  )}
-                                </td>
+                                   {item.action === "conflict" ? (
+                                     <span
+                                       className="text-[10px] font-semibold px-2 py-1 rounded-full border"
+                                       style={{
+                                         background: "rgba(245, 158, 11, 0.1)",
+                                         borderColor: "rgba(245, 158, 11, 0.2)",
+                                         color: "#f59e0b",
+                                       }}
+                                     >
+                                       Action Required
+                                     </span>
+                                   ) : (
+                                     <span
+                                       className="text-[10px] font-semibold px-2 py-1 rounded-full"
+                                       style={{
+                                         background:
+                                           item.action === "update"
+                                             ? "rgba(16,185,129,0.1)"
+                                             : "rgba(168,85,247,0.1)",
+                                         color: item.action === "update" ? "#10b981" : "#a855f7",
+                                       }}
+                                     >
+                                       {item.action === "update" ? "Update Stock" : "New Product"}
+                                     </span>
+                                   )}
+                                   {item.action === "update" && item.existingStock !== undefined && (
+                                     <p className="text-[9px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+                                       {item.existingStock} → {item.existingStock + item.quantity}
+                                     </p>
+                                   )}
+                                 </td>
                                 <td className="px-3 py-3 text-center">
                                   <div className="flex items-center gap-1 justify-center">
                                     <button
@@ -1006,11 +1082,21 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                     Cancel
                   </button>
                 )}
+                {step === "review" && items.some(i => i.action === "conflict") && (
+                  <span className="text-xs text-amber-400 font-medium flex items-center gap-1 mr-2 animate-pulse">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Please resolve price conflicts
+                  </span>
+                )}
                 {step === "review" && items.length > 0 && (
                   <button
                     onClick={handleConfirm}
-                    disabled={confirmLoading}
+                    disabled={confirmLoading || items.some(i => i.action === "conflict")}
                     className="btn-primary py-2 px-4 text-xs flex items-center gap-1.5"
+                    style={{
+                      opacity: items.some(i => i.action === "conflict") ? 0.5 : 1,
+                      cursor: items.some(i => i.action === "conflict") ? "not-allowed" : "pointer"
+                    }}
                   >
                     {confirmLoading ? (
                       <>

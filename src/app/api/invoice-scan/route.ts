@@ -16,10 +16,41 @@ interface ParsedItem {
 }
 
 interface MatchedItem extends ParsedItem {
-  action: "update" | "create";
+  action: "update" | "create" | "conflict";
+  conflictType?: "price-mismatch";
   productId?: string;
   existingStock?: number;
   existingName?: string;
+  existingCostPrice?: number;
+  existingPrice?: number;
+}
+
+function getStringSimilarity(s1: string, s2: string): number {
+  const str1 = s1.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const str2 = s2.toLowerCase().replace(/[^a-z0-9]/g, "");
+  
+  if (str1 === str2) return 1.0;
+  if (str1.length < 2 || str2.length < 2) return 0.0;
+
+  const getBigrams = (str: string) => {
+    const bigrams = new Set<string>();
+    for (let i = 0; i < str.length - 1; i++) {
+      bigrams.add(str.substring(i, i + 2));
+    }
+    return bigrams;
+  };
+
+  const bigrams1 = getBigrams(str1);
+  const bigrams2 = getBigrams(str2);
+
+  let intersection = 0;
+  Array.from(bigrams1).forEach((bigram) => {
+    if (bigrams2.has(bigram)) {
+      intersection++;
+    }
+  });
+
+  return (2.0 * intersection) / (bigrams1.size + bigrams2.size);
 }
 
 // POST /api/invoice-scan — Parse invoice image with Gemini Vision
@@ -44,7 +75,7 @@ export async function POST(req: NextRequest) {
     const [products, services] = await Promise.all([
       prisma.product.findMany({
         where: { isActive: true },
-        select: { id: true, name: true, brand: true, category: true, stock: true, sku: true },
+        select: { id: true, name: true, brand: true, category: true, stock: true, sku: true, costPrice: true, price: true },
       }),
       prisma.service.findMany({
         where: { isActive: true },
@@ -152,26 +183,52 @@ Example output format:
       });
     }
 
-    // Match against existing products
+    // Match against existing products using best similarity match
     const matchedItems: MatchedItem[] = parsedItems.map((item) => {
-      // Try to find an existing product with matching name + brand (case-insensitive)
-      const match = products.find((p) => {
-        const nameMatch =
-          p.name.toLowerCase().trim() === item.name.toLowerCase().trim();
-        const brandMatch =
-          !item.brand ||
-          !p.brand ||
-          p.brand.toLowerCase().trim() === item.brand.toLowerCase().trim();
-        return nameMatch && brandMatch;
-      });
+      let bestMatch = null;
+      let highestSimilarity = 0.95; // 95% threshold
 
-      if (match) {
+      for (const p of products) {
+        // Brand must match (case-insensitive)
+        const pBrand = (p.brand || "").toLowerCase().trim();
+        const iBrand = (item.brand || "").toLowerCase().trim();
+        if (pBrand !== iBrand) continue;
+
+        const similarity = getStringSimilarity(p.name, item.name);
+        if (similarity >= highestSimilarity) {
+          highestSimilarity = similarity;
+          bestMatch = p;
+        }
+      }
+
+      if (bestMatch) {
+        const existingCost = Number(bestMatch.costPrice || bestMatch.price || 0);
+        const newCost = item.unitPrice;
+        
+        // If price differs by more than 1 unit, flag as a conflict
+        const priceDiffers = Math.abs(existingCost - newCost) > 1.0;
+
+        if (priceDiffers) {
+          return {
+            ...item,
+            action: "conflict" as const,
+            conflictType: "price-mismatch" as const,
+            productId: bestMatch.id,
+            existingStock: bestMatch.stock,
+            existingName: bestMatch.name,
+            existingCostPrice: existingCost,
+            existingPrice: Number(bestMatch.price || 0),
+          };
+        }
+
         return {
           ...item,
           action: "update" as const,
-          productId: match.id,
-          existingStock: match.stock,
-          existingName: match.name,
+          productId: bestMatch.id,
+          existingStock: bestMatch.stock,
+          existingName: bestMatch.name,
+          existingCostPrice: existingCost,
+          existingPrice: Number(bestMatch.price || 0),
         };
       }
 
@@ -187,6 +244,7 @@ Example output format:
         total: matchedItems.length,
         updates: matchedItems.filter((i) => i.action === "update").length,
         creates: matchedItems.filter((i) => i.action === "create").length,
+        conflicts: matchedItems.filter((i) => i.action === "conflict").length,
       },
     });
   } catch (error) {

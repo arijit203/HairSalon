@@ -643,7 +643,7 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
                   {/* Sale Price block */}
                   <div className="space-y-2">
                     <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>
-                      Sale Price *
+                      Individual Unit Price (Sale Price) *
                     </label>
                     
                     {/* Sale Price input + Tax selection */}
@@ -654,7 +654,7 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
                           type="number"
                           min="0"
                           step="any"
-                          placeholder="Sale Price"
+                          placeholder="Individual Unit Price"
                           className="input-field pl-9 w-full"
                           value={price}
                           onChange={(e) => setPrice(e.target.value)}
@@ -777,17 +777,19 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
                   {/* Purchase Price block */}
                   <div className="space-y-2">
                     <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>
-                      Purchase Price (With Tax)
+                      Total Purchase Amt (With Tax)
                     </label>
                     <div className="relative">
                       <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-zinc-400" />
                       <input
-                        type="number"
-                        min="0"
-                        step="any"
+                        type="text"
                         placeholder="0"
                         className="input-field pl-9 w-full bg-zinc-100/50 dark:bg-white/[0.02] cursor-not-allowed"
-                        value={costPrice}
+                        value={
+                          costPrice && stock && !isNaN(parseFloat(costPrice)) && !isNaN(parseInt(stock, 10))
+                            ? (parseFloat(costPrice) * parseInt(stock, 10)).toFixed(2)
+                            : "0.00"
+                        }
                         readOnly
                       />
                     </div>
