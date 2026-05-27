@@ -21,6 +21,7 @@ interface ConfirmItem {
   categories: string[];
   salePrice?: number;
   costPrice?: number;
+  itemCode?: string;
 }
 
 // POST /api/invoice-scan/confirm — Confirm and add/update products
@@ -58,20 +59,23 @@ export async function POST(req: NextRequest) {
           const newStock = existing.stock + item.quantity;
           const status = calculateStockStatus(newStock, existing.lowStockAt) as any;
 
+          // Calculate weighted average cost price
+          const existingStock = existing.stock > 0 ? existing.stock : 0;
+          const existingCost = existing.costPrice ? Number(existing.costPrice) : 0;
+          const scannedQty = item.quantity;
+          const scannedCost = item.unitPrice > 0 ? item.unitPrice : (item.costPrice || 0);
+
+          let avgCostPrice = existingCost;
+          if (existingStock + scannedQty > 0) {
+            avgCostPrice = ((existingStock * existingCost) + (scannedQty * scannedCost)) / (existingStock + scannedQty);
+            avgCostPrice = Math.round(avgCostPrice * 100) / 100;
+          }
+
           const updateData: any = {
             stock: newStock,
             status,
+            costPrice: avgCostPrice,
           };
-
-          if (item.costPrice !== undefined) {
-            updateData.costPrice = item.costPrice;
-          } else if (item.unitPrice > 0) {
-            updateData.costPrice = item.unitPrice;
-          }
-
-          if (item.salePrice !== undefined) {
-            updateData.price = item.salePrice;
-          }
 
           const updated = await prisma.product.update({
             where: { id: item.productId },
@@ -86,7 +90,9 @@ export async function POST(req: NextRequest) {
           });
         } else {
           // Create new product
-          const sku = `INV-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+          const sku = item.itemCode && item.itemCode.trim() !== ""
+            ? item.itemCode.trim()
+            : `INV-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
           const status = calculateStockStatus(item.quantity, 2) as any;
 

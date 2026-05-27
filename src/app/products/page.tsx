@@ -11,7 +11,7 @@ import Modal from "@/components/ui/Modal";
 
 interface Product {
   id: string; name: string; category: string[]; brand: string;
-  sku: string; price: string; stock: number; lowStockAt: number;
+  sku: string; price: string; costPrice?: string; stock: number; lowStockAt: number;
   status: string; isActive: boolean; createdAt: string;
 }
 
@@ -422,7 +422,16 @@ function ProductsPageContent() {
                           </div>
                         </td>
                         <td><code className="text-xs" style={{ color: "var(--text-muted)" }}>{p.sku}</code></td>
-                        <td><span className="font-semibold" style={{ color: "var(--text-primary)" }}>₹{Number(p.price).toLocaleString("en-IN")}</span></td>
+                        <td>
+                          <div>
+                            <span className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>₹{Number(p.price).toLocaleString("en-IN")}</span>
+                            {p.costPrice && Number(p.costPrice) > 0 && (
+                              <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+                                Avg Cost: ₹{Number(p.costPrice).toLocaleString("en-IN")}
+                              </p>
+                            )}
+                          </div>
+                        </td>
                         <td>
                           <div className="flex items-center gap-2">
                             <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-card)" }}>

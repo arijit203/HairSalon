@@ -13,6 +13,7 @@ interface ParsedItem {
   unitPrice: number;
   discount: number;
   suggestedCategories: string[];
+  itemCode: string;
 }
 
 interface MatchedItem extends ParsedItem {
@@ -21,6 +22,9 @@ interface MatchedItem extends ParsedItem {
   productId?: string;
   existingStock?: number;
   existingName?: string;
+  existingBrand?: string;
+  existingCategory?: string[];
+  existingSku?: string;
   existingCostPrice?: number;
   existingPrice?: number;
 }
@@ -51,6 +55,16 @@ function getStringSimilarity(s1: string, s2: string): number {
   });
 
   return (2.0 * intersection) / (bigrams1.size + bigrams2.size);
+}
+
+function hasWordOverlap(s1: string, s2: string): boolean {
+  const stopWords = new Set(["for", "the", "and", "with", "pack", "single", "size", "ml", "gm", "pcs", "free", "off", "new", "kit"]);
+  
+  const words1 = s1.toLowerCase().split(/[^a-z0-9+]/).map(w => w.trim()).filter(w => w.length >= 3 && !stopWords.has(w));
+  const words2 = s2.toLowerCase().split(/[^a-z0-9+]/).map(w => w.trim()).filter(w => w.length >= 3 && !stopWords.has(w));
+  
+  const set2 = new Set(words2);
+  return words1.some(word => set2.has(word));
 }
 
 // POST /api/invoice-scan — Parse invoice image with Gemini Vision
@@ -103,6 +117,7 @@ For EACH product item found, extract:
 4. "unitPrice": Price per unit in INR (number, no currency symbol)
 5. "discount": Discount percentage on this item (0 if none)
 6. "suggestedCategories": Array of 1-3 categories from the EXISTING CATEGORIES list that best match this product. If no existing category fits well, return an empty array [].
+7. "itemCode": Item code, SKU, barcode, HSN code, or article number if listed on the receipt (empty string "" if not found)
 
 IMPORTANT RULES:
 - Return ONLY a valid JSON array of objects. No markdown, no code fences, no explanation.
@@ -114,7 +129,7 @@ IMPORTANT RULES:
 - Clean up product names — remove random codes, fix spelling if obviously wrong.
 
 Example output format:
-[{"name":"L'Oreal Paris Shampoo","brand":"L'Oreal","quantity":2,"unitPrice":450,"discount":10,"suggestedCategories":["Hair Care"]},{"name":"Vitamin E Cream","brand":"","quantity":1,"unitPrice":299,"discount":0,"suggestedCategories":["Skin Care"]}]`;
+[{"name":"L'Oreal Paris Shampoo","brand":"L'Oreal","quantity":2,"unitPrice":450,"discount":10,"suggestedCategories":["Hair Care"],"itemCode":"LRP-SH-300"},{"name":"Vitamin E Cream","brand":"","quantity":1,"unitPrice":299,"discount":0,"suggestedCategories":["Skin Care"],"itemCode":""}]`;
 
     // Call Gemini Vision API
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -133,10 +148,10 @@ Example output format:
       ]);
       responseText = result.response.text();
     } catch (primaryError: any) {
-      console.warn("Primary model (gemini-2.5-flash) failed or hit quota limits. Trying fallback model (gemini-3.5-flash)...", primaryError);
+      console.warn("Primary model (gemini-2.5-flash) failed or hit quota limits. Trying fallback model (gemini-1.5-flash)...", primaryError);
       
       try {
-        const fallbackModel = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
+        const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const result = await fallbackModel.generateContent([
           prompt,
           {
@@ -186,7 +201,8 @@ Example output format:
     // Match against existing products using best similarity match
     const matchedItems: MatchedItem[] = parsedItems.map((item) => {
       let bestMatch = null;
-      let highestSimilarity = 0.95; // 95% threshold
+      let highestSimilarity = 0.50; // 50% threshold
+      let isPartialOverlap = false;
 
       for (const p of products) {
         // Brand must match (case-insensitive)
@@ -198,6 +214,10 @@ Example output format:
         if (similarity >= highestSimilarity) {
           highestSimilarity = similarity;
           bestMatch = p;
+          isPartialOverlap = false;
+        } else if (hasWordOverlap(p.name, item.name) && !bestMatch) {
+          bestMatch = p;
+          isPartialOverlap = true;
         }
       }
 
@@ -205,10 +225,11 @@ Example output format:
         const existingCost = Number(bestMatch.costPrice || bestMatch.price || 0);
         const newCost = item.unitPrice;
         
-        // If price differs by more than 1 unit, flag as a conflict
+        // If price differs by more than 1 unit, or it's a partial match, flag as a conflict
         const priceDiffers = Math.abs(existingCost - newCost) > 1.0;
+        const needsResolution = priceDiffers || isPartialOverlap;
 
-        if (priceDiffers) {
+        if (needsResolution) {
           return {
             ...item,
             action: "conflict" as const,
@@ -216,6 +237,9 @@ Example output format:
             productId: bestMatch.id,
             existingStock: bestMatch.stock,
             existingName: bestMatch.name,
+            existingBrand: bestMatch.brand,
+            existingCategory: bestMatch.category,
+            existingSku: bestMatch.sku,
             existingCostPrice: existingCost,
             existingPrice: Number(bestMatch.price || 0),
           };
@@ -227,6 +251,9 @@ Example output format:
           productId: bestMatch.id,
           existingStock: bestMatch.stock,
           existingName: bestMatch.name,
+          existingBrand: bestMatch.brand,
+          existingCategory: bestMatch.category,
+          existingSku: bestMatch.sku,
           existingCostPrice: existingCost,
           existingPrice: Number(bestMatch.price || 0),
         };

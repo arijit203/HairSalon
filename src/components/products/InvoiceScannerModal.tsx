@@ -17,11 +17,15 @@ interface ParsedItem {
   unitPrice: number;
   discount: number;
   suggestedCategories: string[];
+  itemCode: string;
   action: "update" | "create" | "conflict";
   conflictType?: "price-mismatch";
   productId?: string;
   existingStock?: number;
   existingName?: string;
+  existingBrand?: string;
+  existingCategory?: string[];
+  existingSku?: string;
   existingCostPrice?: number;
   existingPrice?: number;
   salePrice?: number;
@@ -50,6 +54,27 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
   const [successResults, setSuccessResults] = useState<any>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editingBackup, setEditingBackup] = useState<ParsedItem | null>(null);
+  const [allCategoriesList, setAllCategoriesList] = useState<string[]>([
+    "Hair Care", "Skin Care", "Nail Care", "Body Care", "Packages", "Tools", "Spa"
+  ]);
+
+  // Load custom categories from localStorage
+  useEffect(() => {
+    if (open && typeof window !== "undefined") {
+      const saved = localStorage.getItem("wyapar_custom_categories") || localStorage.getItem("wyapar_service_categories");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            setAllCategoriesList((prev) => Array.from(new Set([...prev, ...parsed])));
+          }
+        } catch (e) {
+          console.error("Error parsing custom categories:", e);
+        }
+      }
+    }
+  }, [open]);
 
   useEffect(() => setMounted(true), []);
 
@@ -71,6 +96,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
       setQrDataUrl(null);
       setSessionId("");
       setEditingIndex(null);
+      setEditingBackup(null);
     } else {
       if (pollingInterval) {
         clearInterval(pollingInterval);
@@ -192,7 +218,22 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
         return;
       }
 
-      setItems(data.data.items);
+      const processed = data.data.items.map((item: any) => {
+        if (item.action === "update") {
+          return {
+            ...item,
+            name: item.existingName || item.name,
+            brand: item.existingBrand || item.brand,
+            suggestedCategories: item.existingCategory || item.suggestedCategories,
+            itemCode: item.existingSku || item.itemCode || "",
+          };
+        }
+        return {
+          ...item,
+          itemCode: item.itemCode || "",
+        };
+      });
+      setItems(processed);
       setStep("review");
     } catch (err: any) {
       setProcessingError(err.message || "Failed to process the invoice. Please try again.");
@@ -214,6 +255,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
         categories: item.suggestedCategories,
         salePrice: item.salePrice,
         costPrice: item.costPrice,
+        itemCode: item.itemCode,
       }));
 
       const res = await fetch("/api/invoice-scan/confirm", {
@@ -255,6 +297,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
 
   const updateCount = items.filter((i) => i.action === "update").length;
   const createCount = items.filter((i) => i.action === "create").length;
+  const conflictCount = items.filter((i) => i.action === "conflict").length;
 
   return createPortal(
     <AnimatePresence>
@@ -276,7 +319,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
 
           {/* Panel */}
           <motion.div
-            className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden"
+            className="relative w-full max-w-6xl max-h-[94vh] flex flex-col rounded-2xl overflow-hidden"
             style={{
               background: "var(--bg-secondary)",
               border: "1px solid var(--border-default)",
@@ -631,6 +674,19 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                         <Package className="w-3 h-3" />
                         {items.length} items detected
                       </div>
+                      {conflictCount > 0 && (
+                        <div
+                          className="px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 animate-pulse"
+                          style={{
+                            background: "rgba(245, 158, 11, 0.1)",
+                            color: "#f59e0b",
+                            border: "1px solid rgba(245, 158, 11, 0.35)",
+                          }}
+                        >
+                          <AlertCircle className="w-3 h-3" />
+                          {conflictCount} {conflictCount === 1 ? "conflict" : "conflicts"} to resolve
+                        </div>
+                      )}
                       {updateCount > 0 && (
                         <div
                           className="px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5"
@@ -676,10 +732,13 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                 background: "rgba(255,255,255,0.02)",
                               }}
                             >
-                              <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                              <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)", minWidth: "360px" }}>
                                 Product
                               </th>
-                              <th className="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                              <th className="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)", minWidth: "120px" }}>
+                                Item Code
+                              </th>
+                              <th className="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)", minWidth: "130px" }}>
                                 Category
                               </th>
                               <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
@@ -689,10 +748,13 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                 Price
                               </th>
                               <th className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                                Action
+                                Status
+                              </th>
+                              <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                                Total
                               </th>
                               <th className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                                
+                                Action
                               </th>
                             </tr>
                           </thead>
@@ -710,7 +772,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                 }}
                               >
                                 <td className="px-4 py-3">
-                                  {editingIndex === idx ? (
+                                  {editingIndex === idx && item.action !== "update" ? (
                                     <div className="space-y-1.5">
                                       <input
                                         className="input-field text-xs py-1.5 px-2 w-full"
@@ -734,55 +796,44 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                         {item.brand || "No brand"}
                                       </p>
                                       {item.action === "conflict" && (
-                                        <div className="mt-2 p-2.5 rounded-lg border text-[10px] space-y-1.5"
+                                        <div className="mt-2.5 p-3 rounded-xl border text-[11px] space-y-2 text-amber-800 dark:text-amber-200"
                                           style={{
-                                            background: "rgba(245, 158, 11, 0.08)",
-                                            borderColor: "rgba(245, 158, 11, 0.2)",
-                                            color: "rgb(253, 230, 138)"
+                                            background: "rgba(245, 158, 11, 0.06)",
+                                            borderColor: "rgba(245, 158, 11, 0.35)",
+                                            borderWidth: "1.5px"
                                           }}
                                         >
-                                          <p className="font-semibold flex items-center gap-1">
-                                            <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-                                            Price Mismatch with Existing Product
+                                          <p className="font-bold flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+                                            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                                            Similar Product Found in Inventory
                                           </p>
-                                          <p style={{ color: "var(--text-muted)" }}>
-                                            Existing Cost: <span className="font-mono text-white">₹{item.existingCostPrice}</span> vs New Cost: <span className="font-mono text-white">₹{item.unitPrice}</span>
+                                          <p className="leading-relaxed font-medium">
+                                            Existing: <span className="text-gray-900 dark:text-white font-bold">{item.existingName}</span> (Cost: <span className="font-mono text-gray-900 dark:text-white font-semibold">₹{item.existingCostPrice}</span>)
+                                            <br />
+                                            Scanned: <span className="text-gray-900 dark:text-white font-bold">{item.name}</span> (Cost: <span className="font-mono text-gray-900 dark:text-white font-semibold">₹{item.unitPrice}</span>)
                                           </p>
-                                          <div className="flex gap-1.5 pt-1">
+                                          <div className="flex gap-2 pt-1">
                                             <button
                                               type="button"
                                               onClick={() => {
-                                                const avgPrice = Math.round(((item.existingCostPrice || 0) + item.unitPrice) / 2 * 100) / 100;
-                                                const avgSalePrice = item.existingPrice
-                                                  ? Math.round((item.existingPrice + item.unitPrice) / 2 * 100) / 100
-                                                  : undefined;
                                                 updateItem(idx, {
                                                   action: "update",
-                                                  unitPrice: avgPrice,
-                                                  costPrice: avgPrice,
-                                                  salePrice: avgSalePrice,
+                                                  name: item.existingName || item.name,
+                                                  brand: item.existingBrand || item.brand,
+                                                  suggestedCategories: item.existingCategory || item.suggestedCategories,
+                                                  itemCode: item.existingSku || item.itemCode || "",
                                                 });
                                               }}
-                                              className="px-2 py-0.5 rounded font-bold transition-all"
-                                              style={{
-                                                background: "rgba(245, 158, 11, 0.15)",
-                                                border: "1px solid rgba(245, 158, 11, 0.3)",
-                                                color: "rgb(253, 230, 138)"
-                                              }}
+                                              className="px-2.5 py-1 rounded-lg font-bold transition-all shadow-sm bg-amber-600 hover:bg-amber-700 text-white text-[10px]"
                                             >
-                                              Merge & Avg (₹{Math.round(((item.existingCostPrice || 0) + item.unitPrice) / 2 * 100) / 100})
+                                              Merge Stock (Existing Cost: ₹{item.existingCostPrice})
                                             </button>
                                             <button
                                               type="button"
                                               onClick={() => {
                                                 updateItem(idx, { action: "create" });
                                               }}
-                                              className="px-2 py-0.5 rounded font-bold transition-all"
-                                              style={{
-                                                background: "rgba(255,255,255,0.05)",
-                                                border: "1px solid var(--border-default)",
-                                                color: "var(--text-secondary)"
-                                              }}
+                                              className="px-2.5 py-1 rounded-lg font-bold transition-all border border-amber-600/40 text-amber-800 hover:bg-amber-500/10 dark:border-amber-400/30 dark:text-amber-300 dark:hover:bg-amber-400/10 text-[10px]"
                                             >
                                               Add as New
                                             </button>
@@ -793,39 +844,88 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                   )}
                                 </td>
                                 <td className="px-3 py-3">
-                                  {editingIndex === idx ? (
+                                  {editingIndex === idx && item.action !== "update" ? (
                                     <input
-                                      className="input-field text-xs py-1.5 px-2 w-full"
-                                      value={item.suggestedCategories.join(", ")}
-                                      onChange={(e) =>
-                                        updateItem(idx, {
-                                          suggestedCategories: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                                        })
-                                      }
-                                      placeholder="Categories (comma-separated)"
+                                      className="input-field text-xs py-1.5 px-2 w-full font-mono"
+                                      value={item.itemCode || ""}
+                                      onChange={(e) => updateItem(idx, { itemCode: e.target.value })}
+                                      placeholder="SKU / Item Code"
                                     />
                                   ) : (
-                                    <div className="flex flex-wrap gap-1">
-                                      {item.suggestedCategories.length > 0 ? (
-                                        item.suggestedCategories.map((c) => (
-                                          <span
-                                            key={c}
-                                            className="text-[10px] px-1.5 py-0.5 rounded-md"
-                                            style={{
-                                              background: "rgba(255,255,255,0.05)",
-                                              color: "var(--text-secondary)",
-                                              border: "1px solid var(--border-default)",
-                                            }}
-                                          >
-                                            {c}
-                                          </span>
-                                        ))
-                                      ) : (
-                                        <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>—</span>
-                                      )}
-                                    </div>
+                                    <code className="text-xs font-semibold px-2 py-1 rounded bg-black/10 dark:bg-white/5 border border-default tabular-nums" style={{ color: "var(--text-secondary)" }}>
+                                      {item.itemCode || "—"}
+                                    </code>
                                   )}
                                 </td>
+                                <td className="px-3 py-3">
+                                   {editingIndex === idx && item.action !== "update" ? (
+                                     <div className="space-y-1.5 min-w-[120px]">
+                                       {/* Pills for current categories */}
+                                       <div className="flex flex-wrap gap-1 max-h-[50px] overflow-y-auto">
+                                         {item.suggestedCategories.map((cat) => (
+                                           <span
+                                             key={cat}
+                                             className="text-[9px] font-semibold px-1 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center gap-0.5"
+                                           >
+                                             {cat}
+                                             <button
+                                               type="button"
+                                               onClick={() => {
+                                                 updateItem(idx, {
+                                                   suggestedCategories: item.suggestedCategories.filter((c) => c !== cat),
+                                                 });
+                                               }}
+                                               className="hover:text-red-400 ml-0.5 font-bold"
+                                             >
+                                               ×
+                                             </button>
+                                           </span>
+                                         ))}
+                                       </div>
+                                       {/* Select dropdown to pick from existing categories */}
+                                       <select
+                                         className="input-field text-[10px] py-1 px-1.5 w-full"
+                                         style={{ background: "var(--bg-input)", color: "var(--text-primary)" }}
+                                         value=""
+                                         onChange={(e) => {
+                                           const selected = e.target.value;
+                                           if (selected && !item.suggestedCategories.includes(selected)) {
+                                             updateItem(idx, {
+                                               suggestedCategories: [...item.suggestedCategories, selected],
+                                             });
+                                           }
+                                         }}
+                                       >
+                                         <option value="" style={{ background: "var(--bg-primary)", color: "var(--text-muted)" }}>+ Select category</option>
+                                         {allCategoriesList.map((cat) => (
+                                           <option key={cat} value={cat} style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
+                                             {cat}
+                                           </option>
+                                         ))}
+                                       </select>
+                                     </div>
+                                   ) : (
+                                     <div className="flex flex-wrap gap-1">
+                                       {item.suggestedCategories.length > 0 ? (
+                                         item.suggestedCategories.map((c) => (
+                                           <span
+                                             key={c}
+                                             className="text-[10px] px-1.5 py-0.5 rounded-md"
+                                             style={{
+                                               background: "rgba(255,255,255,0.05)",
+                                               color: "var(--text-secondary)",
+                                               border: "1px solid var(--border-default)",
+                                             }}
+                                           >
+                                             {c}
+                                           </span>
+                                         ))
+                                       ) : (
+                                         <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>—</span>
+                                       )}
+                                     </div>
+                                   )}
+                                 </td>
                                 <td className="px-3 py-3 text-right">
                                   {editingIndex === idx ? (
                                     <input
@@ -907,30 +1007,64 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                      </p>
                                    )}
                                  </td>
-                                <td className="px-3 py-3 text-center">
-                                  <div className="flex items-center gap-1 justify-center">
-                                    <button
-                                      onClick={() =>
-                                        setEditingIndex(editingIndex === idx ? null : idx)
-                                      }
-                                      className="btn-icon w-6 h-6"
-                                      title={editingIndex === idx ? "Done editing" : "Edit"}
-                                    >
-                                      {editingIndex === idx ? (
-                                        <Check className="w-3 h-3" style={{ color: "#10b981" }} />
-                                      ) : (
-                                        <Pencil className="w-3 h-3" />
-                                      )}
-                                    </button>
-                                    <button
-                                      onClick={() => removeItem(idx)}
-                                      className="btn-icon w-6 h-6"
-                                      title="Remove item"
-                                    >
-                                      <Trash2 className="w-3 h-3" style={{ color: "#f87171" }} />
-                                    </button>
-                                  </div>
-                                </td>
+                                 <td className="px-3 py-3 text-right">
+                                   <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
+                                     ₹{((item.unitPrice * item.quantity) * (1 - (item.discount || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                   </span>
+                                 </td>
+                                 <td className="px-3 py-3 text-center">
+                                   <div className="flex items-center gap-1 justify-center">
+                                     {editingIndex === idx ? (
+                                       <>
+                                         <button
+                                           onClick={() => {
+                                             setEditingIndex(null);
+                                             setEditingBackup(null);
+                                           }}
+                                           className="btn-icon w-6 h-6"
+                                           title="Save"
+                                         >
+                                           <Check className="w-3 h-3" style={{ color: "#10b981" }} />
+                                         </button>
+                                         <button
+                                           onClick={() => {
+                                             if (editingBackup) {
+                                               setItems((prev) =>
+                                                 prev.map((item, i) => (i === idx ? editingBackup : item))
+                                               );
+                                             }
+                                             setEditingIndex(null);
+                                             setEditingBackup(null);
+                                           }}
+                                           className="btn-icon w-6 h-6"
+                                           title="Cancel"
+                                         >
+                                           <X className="w-3 h-3" style={{ color: "#f87171" }} />
+                                         </button>
+                                       </>
+                                     ) : (
+                                       <>
+                                         <button
+                                           onClick={() => {
+                                             setEditingBackup({ ...item });
+                                             setEditingIndex(idx);
+                                           }}
+                                           className="btn-icon w-6 h-6"
+                                           title="Edit"
+                                         >
+                                           <Pencil className="w-3 h-3" />
+                                         </button>
+                                         <button
+                                           onClick={() => removeItem(idx)}
+                                           className="btn-icon w-6 h-6"
+                                           title="Remove item"
+                                         >
+                                           <Trash2 className="w-3 h-3" style={{ color: "#f87171" }} />
+                                         </button>
+                                       </>
+                                     )}
+                                   </div>
+                                 </td>
                               </tr>
                             ))}
                           </tbody>
