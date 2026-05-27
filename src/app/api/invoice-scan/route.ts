@@ -90,7 +90,7 @@ Example output format:
     let responseText = "";
 
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
       const result = await model.generateContent([
         prompt,
         {
@@ -102,10 +102,10 @@ Example output format:
       ]);
       responseText = result.response.text();
     } catch (primaryError: any) {
-      console.warn("Primary model (gemini-2.0-flash) failed or hit quota limits. Trying fallback model (gemini-1.5-flash)...", primaryError);
+      console.warn("Primary model (gemini-2.5-flash) failed or hit quota limits. Trying fallback model (gemini-3.5-flash)...", primaryError);
       
       try {
-        const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const fallbackModel = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
         const result = await fallbackModel.generateContent([
           prompt,
           {
