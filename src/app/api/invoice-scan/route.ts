@@ -87,19 +87,41 @@ Example output format:
 
     // Call Gemini Vision API
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    let responseText = "";
 
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          mimeType: mimeType || "image/jpeg",
-          data: image, // base64 string (no prefix)
+    try {
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+      const result = await model.generateContent([
+        prompt,
+        {
+          inlineData: {
+            mimeType: mimeType || "image/jpeg",
+            data: image, // base64 string (no prefix)
+          },
         },
-      },
-    ]);
-
-    const responseText = result.response.text();
+      ]);
+      responseText = result.response.text();
+    } catch (primaryError: any) {
+      console.warn("Primary model (gemini-2.0-flash) failed or hit quota limits. Trying fallback model (gemini-1.5-flash)...", primaryError);
+      
+      try {
+        const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const result = await fallbackModel.generateContent([
+          prompt,
+          {
+            inlineData: {
+              mimeType: mimeType || "image/jpeg",
+              data: image, // base64 string (no prefix)
+            },
+          },
+        ]);
+        responseText = result.response.text();
+      } catch (fallbackError: any) {
+        console.error("All Gemini models failed:", fallbackError);
+        // Throw the original error so it's bubble-up handled with accurate details
+        throw primaryError;
+      }
+    }
 
     // Parse the AI response
     let parsedItems: ParsedItem[] = [];
