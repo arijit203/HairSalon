@@ -31,31 +31,49 @@ interface MatchedItem extends ParsedItem {
 }
 
 function getStringSimilarity(s1: string, s2: string): number {
+  // 1. Character bigram similarity
   const str1 = s1.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/0/g, "o");
   const str2 = s2.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/0/g, "o");
   
-  if (str1 === str2) return 1.0;
-  if (str1.length < 2 || str2.length < 2) return 0.0;
+  let bigramSim = 0;
+  if (str1 === str2) {
+    bigramSim = 1.0;
+  } else if (str1.length >= 2 && str2.length >= 2) {
+    const getBigrams = (str: string) => {
+      const bigrams = new Set<string>();
+      for (let i = 0; i < str.length - 1; i++) {
+        bigrams.add(str.substring(i, i + 2));
+      }
+      return bigrams;
+    };
 
-  const getBigrams = (str: string) => {
-    const bigrams = new Set<string>();
-    for (let i = 0; i < str.length - 1; i++) {
-      bigrams.add(str.substring(i, i + 2));
-    }
-    return bigrams;
-  };
+    const bigrams1 = getBigrams(str1);
+    const bigrams2 = getBigrams(str2);
 
-  const bigrams1 = getBigrams(str1);
-  const bigrams2 = getBigrams(str2);
+    let intersection = 0;
+    Array.from(bigrams1).forEach((bigram) => {
+      if (bigrams2.has(bigram)) {
+        intersection++;
+      }
+    });
 
-  let intersection = 0;
-  Array.from(bigrams1).forEach((bigram) => {
-    if (bigrams2.has(bigram)) {
-      intersection++;
-    }
-  });
+    bigramSim = (2.0 * intersection) / (bigrams1.size + bigrams2.size);
+  }
 
-  return (2.0 * intersection) / (bigrams1.size + bigrams2.size);
+  // 2. Word overlap similarity
+  const stopWords = new Set(["for", "the", "and", "with", "pack", "single", "size", "ml", "gm", "pcs", "free", "off", "new", "kit"]);
+  const words1 = s1.toLowerCase().split(/[^a-z0-9+]/).map(w => w.trim()).filter(w => w.length >= 2 && !stopWords.has(w));
+  const words2 = s2.toLowerCase().split(/[^a-z0-9+]/).map(w => w.trim()).filter(w => w.length >= 2 && !stopWords.has(w));
+
+  let wordSim = 0;
+  if (words1.length > 0 && words2.length > 0) {
+    const set2 = new Set(words2);
+    const intersect = words1.filter(w => set2.has(w)).length;
+    const minLength = Math.min(words1.length, words2.length);
+    wordSim = intersect / minLength;
+  }
+
+  return Math.max(bigramSim, wordSim);
 }
 
 function hasWordOverlap(s1: string, s2: string): boolean {
