@@ -22,6 +22,7 @@ interface ConfirmItem {
   salePrice?: number;
   costPrice?: number;
   itemCode?: string;
+  taxRate?: number;
 }
 
 // POST /api/invoice-scan/confirm — Confirm and add/update products
@@ -77,6 +78,10 @@ export async function POST(req: NextRequest) {
             costPrice: avgCostPrice,
           };
 
+          if (item.taxRate !== undefined) {
+            updateData.taxRate = item.taxRate;
+          }
+
           const updated = await prisma.product.update({
             where: { id: item.productId },
             data: updateData,
@@ -109,6 +114,7 @@ export async function POST(req: NextRequest) {
               status,
               salePriceDiscount: item.discount || 0,
               salePriceDiscountType: "PERCENTAGE",
+              taxRate: item.taxRate !== undefined ? item.taxRate : 5.00,
             },
           });
 

@@ -18,6 +18,7 @@ interface ParsedItem {
   discount: number;
   suggestedCategories: string[];
   itemCode: string;
+  taxRate: number;
   action: "update" | "create" | "conflict";
   conflictType?: "price-mismatch";
   productId?: string;
@@ -58,6 +59,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
   const [allCategoriesList, setAllCategoriesList] = useState<string[]>([
     "Hair Care", "Skin Care", "Nail Care", "Body Care", "Packages", "Tools", "Spa"
   ]);
+  const [existingProducts, setExistingProducts] = useState<any[]>([]);
 
   // Load custom categories from localStorage
   useEffect(() => {
@@ -97,6 +99,21 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
       setSessionId("");
       setEditingIndex(null);
       setEditingBackup(null);
+
+      // Load products and categories for client-side matching
+      fetch("/api/products?limit=1000")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && Array.isArray(data.data)) {
+            setExistingProducts(data.data);
+            const productCats = data.data.flatMap((p: any) => p.category || []);
+            setAllCategoriesList((prev) => {
+              const merged = new Set([...prev, ...productCats]);
+              return Array.from(merged).filter(Boolean).sort();
+            });
+          }
+        })
+        .catch((err) => console.error("Error loading products/categories:", err));
     } else {
       if (pollingInterval) {
         clearInterval(pollingInterval);
@@ -226,11 +243,13 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
             brand: item.existingBrand || item.brand,
             suggestedCategories: item.existingCategory || item.suggestedCategories,
             itemCode: item.existingSku || item.itemCode || "",
+            taxRate: typeof item.taxRate === "number" ? item.taxRate : 0,
           };
         }
         return {
           ...item,
           itemCode: item.itemCode || "",
+          taxRate: typeof item.taxRate === "number" ? item.taxRate : 0,
         };
       });
       setItems(processed);
@@ -238,6 +257,109 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
     } catch (err: any) {
       setProcessingError(err.message || "Failed to process the invoice. Please try again.");
     }
+  };
+
+  // Save edited row and run conflict/matching logic client-side
+  const handleSaveRow = (idx: number) => {
+    const item = items[idx];
+    
+    // Find best match in existingProducts
+    let bestMatch: any = null;
+    let highestSimilarity = 0.50; // 50% threshold
+    let isPartialOverlap = false;
+
+    for (const p of existingProducts) {
+      // 1. Check SKU / itemCode exact match first
+      const itemSku = (item.itemCode || "").toLowerCase().trim();
+      const pSku = (p.sku || "").toLowerCase().trim();
+      
+      if (itemSku && pSku && itemSku === pSku) {
+        bestMatch = p;
+        highestSimilarity = 1.0;
+        isPartialOverlap = false;
+        break;
+      }
+
+      // 2. Check SKU / itemCode similarity >= 0.50
+      const codeSim = itemSku && pSku ? getStringSimilarity(pSku, itemSku) : 0;
+      if (codeSim >= 0.50) {
+        bestMatch = p;
+        highestSimilarity = codeSim;
+        isPartialOverlap = false;
+        break;
+      }
+
+      // 3. Brand matches if both are empty, one contains the other, or similarity is >= 50%
+      const pBrandNorm = (p.brand || "").toLowerCase().replace(/[^a-z0-9]/g, "").replace(/0/g, "o").trim();
+      const iBrandNorm = (item.brand || "").toLowerCase().replace(/[^a-z0-9]/g, "").replace(/0/g, "o").trim();
+      const brandSim = getStringSimilarity(p.brand || "", item.brand || "");
+      const brandMatches = 
+        (pBrandNorm === "" && iBrandNorm === "") || 
+        (pBrandNorm !== "" && iBrandNorm !== "" && (pBrandNorm.includes(iBrandNorm) || iBrandNorm.includes(pBrandNorm) || brandSim >= 0.50));
+      if (!brandMatches) continue;
+
+      // 4. Name similarity >= 50%
+      const nameSim = getStringSimilarity(p.name, item.name);
+      if (nameSim >= highestSimilarity) {
+        highestSimilarity = nameSim;
+        bestMatch = p;
+        isPartialOverlap = false;
+      } else if (hasWordOverlap(p.name, item.name) && !bestMatch) {
+        bestMatch = p;
+        isPartialOverlap = true;
+      }
+    }
+
+    if (bestMatch) {
+      const existingCost = Number(bestMatch.costPrice || bestMatch.price || 0);
+      const newCost = item.unitPrice;
+      
+      // If price differs by more than 1 unit, or it's a partial match, flag as conflict
+      const priceDiffers = Math.abs(existingCost - newCost) > 1.0;
+      const needsResolution = priceDiffers || isPartialOverlap;
+
+      if (needsResolution) {
+        updateItem(idx, {
+          action: "conflict",
+          conflictType: "price-mismatch",
+          productId: bestMatch.id,
+          existingStock: bestMatch.stock,
+          existingName: bestMatch.name,
+          existingBrand: bestMatch.brand,
+          existingCategory: bestMatch.category,
+          existingSku: bestMatch.sku,
+          existingCostPrice: existingCost,
+          existingPrice: Number(bestMatch.price || 0),
+        });
+      } else {
+        updateItem(idx, {
+          action: "update",
+          productId: bestMatch.id,
+          existingStock: bestMatch.stock,
+          existingName: bestMatch.name,
+          existingBrand: bestMatch.brand,
+          existingCategory: bestMatch.category,
+          existingSku: bestMatch.sku,
+          existingCostPrice: existingCost,
+          existingPrice: Number(bestMatch.price || 0),
+        });
+      }
+    } else {
+      updateItem(idx, {
+        action: "create",
+        productId: undefined,
+        existingStock: undefined,
+        existingName: undefined,
+        existingBrand: undefined,
+        existingCategory: undefined,
+        existingSku: undefined,
+        existingCostPrice: undefined,
+        existingPrice: undefined,
+      });
+    }
+
+    setEditingIndex(null);
+    setEditingBackup(null);
   };
 
   // Confirm and add products
@@ -256,6 +378,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
         salePrice: item.salePrice,
         costPrice: item.costPrice,
         itemCode: item.itemCode,
+        taxRate: item.taxRate,
       }));
 
       const res = await fetch("/api/invoice-scan/confirm", {
@@ -943,24 +1066,42 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                 </td>
                                 <td className="px-3 py-3 text-right">
                                   {editingIndex === idx ? (
-                                    <div className="space-y-1.5">
-                                      <input
-                                        type="number"
-                                        className="input-field text-xs py-1.5 px-2 w-20 text-right"
-                                        value={item.unitPrice}
-                                        onChange={(e) => updateItem(idx, { unitPrice: parseFloat(e.target.value) || 0 })}
-                                        min={0}
-                                        placeholder="Price"
-                                      />
-                                      <input
-                                        type="number"
-                                        className="input-field text-xs py-1.5 px-2 w-20 text-right"
-                                        value={item.discount}
-                                        onChange={(e) => updateItem(idx, { discount: parseFloat(e.target.value) || 0 })}
-                                        min={0}
-                                        max={100}
-                                        placeholder="Disc %"
-                                      />
+                                    <div className="space-y-1.5 min-w-[90px]">
+                                      <div className="flex flex-col items-end gap-0.5">
+                                        <span className="text-[9px] text-gray-500 font-medium">Price (₹)</span>
+                                        <input
+                                          type="number"
+                                          className="input-field text-xs py-1 px-1.5 w-20 text-right"
+                                          value={item.unitPrice}
+                                          onChange={(e) => updateItem(idx, { unitPrice: parseFloat(e.target.value) || 0 })}
+                                          min={0}
+                                          placeholder="Price"
+                                        />
+                                      </div>
+                                      <div className="flex flex-col items-end gap-0.5">
+                                        <span className="text-[9px] text-gray-500 font-medium">Disc (%)</span>
+                                        <input
+                                          type="number"
+                                          className="input-field text-xs py-1 px-1.5 w-20 text-right"
+                                          value={item.discount}
+                                          onChange={(e) => updateItem(idx, { discount: parseFloat(e.target.value) || 0 })}
+                                          min={0}
+                                          max={100}
+                                          placeholder="Disc %"
+                                        />
+                                      </div>
+                                      <div className="flex flex-col items-end gap-0.5">
+                                        <span className="text-[9px] text-gray-500 font-medium">Tax (%)</span>
+                                        <input
+                                          type="number"
+                                          className="input-field text-xs py-1 px-1.5 w-20 text-right"
+                                          value={item.taxRate}
+                                          onChange={(e) => updateItem(idx, { taxRate: parseFloat(e.target.value) || 0 })}
+                                          min={0}
+                                          max={100}
+                                          placeholder="Tax %"
+                                        />
+                                      </div>
                                     </div>
                                   ) : (
                                     <div>
@@ -968,8 +1109,13 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                         ₹{item.unitPrice.toLocaleString("en-IN")}
                                       </span>
                                       {item.discount > 0 && (
-                                        <span className="text-[10px] ml-1" style={{ color: "#10b981" }}>
+                                        <span className="text-[10px] ml-1 text-emerald-500 font-medium">
                                           -{item.discount}%
+                                        </span>
+                                      )}
+                                      {item.taxRate > 0 && (
+                                        <span className="text-[10px] block text-amber-500 font-medium mt-0.5">
+                                          +{item.taxRate}% Tax
                                         </span>
                                       )}
                                     </div>
@@ -1009,7 +1155,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                  </td>
                                  <td className="px-3 py-3 text-right">
                                    <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
-                                     ₹{((item.unitPrice * item.quantity) * (1 - (item.discount || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                     ₹{((item.unitPrice * item.quantity) * (1 - (item.discount || 0) / 100) * (1 + (item.taxRate || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                    </span>
                                  </td>
                                  <td className="px-3 py-3 text-center">
@@ -1017,10 +1163,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                      {editingIndex === idx ? (
                                        <>
                                          <button
-                                           onClick={() => {
-                                             setEditingIndex(null);
-                                             setEditingBackup(null);
-                                           }}
+                                           onClick={() => handleSaveRow(idx)}
                                            className="btn-icon w-6 h-6"
                                            title="Save"
                                          >
@@ -1262,4 +1405,43 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
     </AnimatePresence>,
     document.body
   );
+}
+
+// Helper functions for string similarity matching
+function getStringSimilarity(s1: string, s2: string): number {
+  const str1 = s1.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/0/g, "o");
+  const str2 = s2.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/0/g, "o");
+  
+  if (str1 === str2) return 1.0;
+  if (str1.length < 2 || str2.length < 2) return 0.0;
+
+  const getBigrams = (str: string) => {
+    const bigrams = new Set<string>();
+    for (let i = 0; i < str.length - 1; i++) {
+      bigrams.add(str.substring(i, i + 2));
+    }
+    return bigrams;
+  };
+
+  const bigrams1 = getBigrams(str1);
+  const bigrams2 = getBigrams(str2);
+
+  let intersection = 0;
+  Array.from(bigrams1).forEach((bigram) => {
+    if (bigrams2.has(bigram)) {
+      intersection++;
+    }
+  });
+
+  return (2.0 * intersection) / (bigrams1.size + bigrams2.size);
+}
+
+function hasWordOverlap(s1: string, s2: string): boolean {
+  const stopWords = new Set(["for", "the", "and", "with", "pack", "single", "size", "ml", "gm", "pcs", "free", "off", "new", "kit"]);
+  
+  const words1 = s1.toLowerCase().split(/[^a-z0-9+]/).map(w => w.trim()).filter(w => w.length >= 3 && !stopWords.has(w));
+  const words2 = s2.toLowerCase().split(/[^a-z0-9+]/).map(w => w.trim()).filter(w => w.length >= 3 && !stopWords.has(w));
+  
+  const set2 = new Set(words2);
+  return words1.some(word => set2.has(word));
 }

@@ -14,6 +14,7 @@ interface ParsedItem {
   discount: number;
   suggestedCategories: string[];
   itemCode: string;
+  taxRate: number;
 }
 
 interface MatchedItem extends ParsedItem {
@@ -30,8 +31,8 @@ interface MatchedItem extends ParsedItem {
 }
 
 function getStringSimilarity(s1: string, s2: string): number {
-  const str1 = s1.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const str2 = s2.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const str1 = s1.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/0/g, "o");
+  const str2 = s2.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/0/g, "o");
   
   if (str1 === str2) return 1.0;
   if (str1.length < 2 || str2.length < 2) return 0.0;
@@ -106,30 +107,49 @@ export async function POST(req: NextRequest) {
     // Build the AI prompt
     const prompt = `You are an expert invoice/bill/receipt parser for a salon & beauty products inventory system.
 
-Analyze this invoice/bill/receipt image carefully and extract ALL product items listed.
+Analyze this invoice/bill/receipt image carefully and extract ALL product items listed, as well as invoice-level totals.
 
 EXISTING CATEGORIES in our system: ${JSON.stringify(allCategories)}
 
-For EACH product item found, extract:
-1. "name": The product name (clean it up, proper casing)
-2. "brand": Brand name if visible (empty string "" if not found)
-3. "quantity": Number of units purchased (default 1 if unclear)
-4. "unitPrice": Price per unit in INR (number, no currency symbol)
-5. "discount": Discount percentage on this item (0 if none)
-6. "suggestedCategories": Array of 1-3 categories from the EXISTING CATEGORIES list that best match this product. If no existing category fits well, return an empty array [].
-7. "itemCode": Item code, SKU, barcode, HSN code, or article number if listed on the receipt (empty string "" if not found)
+You MUST return a JSON object with the following fields:
+1. "items": An array of objects, one for each product item found. For each item, extract:
+   - "name": The product name (clean it up, proper casing)
+   - "brand": Brand name or brand code if listed under Brand/ID column (empty string "" if not found)
+   - "quantity": Number of units purchased (default 1 if unclear)
+   - "unitPrice": Rate or price per unit in INR (number, no currency symbol)
+   - "discount": Discount percentage on this item (0 if none)
+   - "suggestedCategories": Array of 1-3 categories from the EXISTING CATEGORIES list that best match this product. If no existing category fits well, return an empty array [].
+   - "itemCode": Item code, SKU, barcode, Brand/ID, HSN code, or article number if listed on the receipt (empty string "" if not found)
+   - "taxRate": The tax percentage (GST/VAT) applied to this product line item as a number, e.g. 5, 12, 18, 28 (0 if no tax is listed or if it is tax-exempt)
+
+2. "invoiceSubtotal": Total amount of all items before discount and tax as listed on the receipt (0 if not listed)
+3. "invoiceDiscountAmount": Total discount amount listed at the bottom (0 if none)
+4. "invoiceDiscountRate": Total discount percentage rate listed at the bottom (0 if none)
+5. "invoiceTaxAmount": Total tax amount (CGST + SGST or VAT) listed at the bottom (0 if none)
+6. "invoiceTaxRate": Total tax percentage rate listed at the bottom (0 if none)
+7. "invoiceGrandTotal": Grand total amount listed at the bottom (0 if not listed)
 
 IMPORTANT RULES:
-- Return ONLY a valid JSON array of objects. No markdown, no code fences, no explanation.
-- If the image is not an invoice/bill/receipt, return: []
-- If no items can be detected, return: []
-- Prices should be numbers (not strings). Remove any currency symbols.
+- Return ONLY a valid JSON object. No markdown, no code fences, no explanation.
+- If the image is not an invoice/bill/receipt, return: {"items": [], "invoiceSubtotal": 0, "invoiceDiscountAmount": 0, "invoiceDiscountRate": 0, "invoiceTaxAmount": 0, "invoiceTaxRate": 0, "invoiceGrandTotal": 0}
+- Prices and amounts should be numbers (not strings). Remove any currency symbols or commas.
 - For quantity, default to 1 if not clearly stated.
 - Be thorough — extract EVERY line item from the invoice.
 - Clean up product names — remove random codes, fix spelling if obviously wrong.
 
 Example output format:
-[{"name":"L'Oreal Paris Shampoo","brand":"L'Oreal","quantity":2,"unitPrice":450,"discount":10,"suggestedCategories":["Hair Care"],"itemCode":"LRP-SH-300"},{"name":"Vitamin E Cream","brand":"","quantity":1,"unitPrice":299,"discount":0,"suggestedCategories":["Skin Care"],"itemCode":""}]`;
+{
+  "items": [
+    {"name":"L'Oreal Paris Shampoo","brand":"L'Oreal","quantity":2,"unitPrice":450,"discount":0,"suggestedCategories":["Hair Care"],"itemCode":"LOR001","taxRate":0},
+    {"name":"Wella Hair Mask","brand":"Wella","quantity":1,"unitPrice":650,"discount":0,"suggestedCategories":["Hair Care"],"itemCode":"WEL002","taxRate":0}
+  ],
+  "invoiceSubtotal": 1550,
+  "invoiceDiscountAmount": 77.5,
+  "invoiceDiscountRate": 5,
+  "invoiceTaxAmount": 0,
+  "invoiceTaxRate": 0,
+  "invoiceGrandTotal": 1472.5
+}`;
 
     // Call Gemini Vision API
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -171,6 +191,9 @@ Example output format:
 
     // Parse the AI response
     let parsedItems: ParsedItem[] = [];
+    let calculatedDiscount = 0;
+    let calculatedTax = 0;
+
     try {
       // Try to extract JSON from the response (handle cases where AI wraps in code blocks)
       let jsonStr = responseText.trim();
@@ -178,10 +201,31 @@ Example output format:
       if (jsonStr.startsWith("```")) {
         jsonStr = jsonStr.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
       }
-      parsedItems = JSON.parse(jsonStr);
+      
+      const parsedData = JSON.parse(jsonStr);
+      if (parsedData && typeof parsedData === "object" && !Array.isArray(parsedData)) {
+        parsedItems = parsedData.items || [];
+        
+        const subtotal = parsedData.invoiceSubtotal || parsedItems.reduce((acc, item) => acc + (item.unitPrice * item.quantity), 0) || 0;
+        
+        // Calculate global discount rate
+        calculatedDiscount = parsedData.invoiceDiscountRate || 0;
+        if (calculatedDiscount === 0 && parsedData.invoiceDiscountAmount && parsedData.invoiceDiscountAmount > 0 && subtotal > 0) {
+          calculatedDiscount = (parsedData.invoiceDiscountAmount / subtotal) * 100;
+        }
+        calculatedDiscount = Math.round(calculatedDiscount * 100) / 100;
 
-      if (!Array.isArray(parsedItems)) {
-        parsedItems = [];
+        // Calculate global tax rate
+        calculatedTax = parsedData.invoiceTaxRate || 0;
+        if (calculatedTax === 0 && parsedData.invoiceTaxAmount && parsedData.invoiceTaxAmount > 0) {
+          const subtotalAfterDiscount = subtotal - (parsedData.invoiceDiscountAmount || 0);
+          if (subtotalAfterDiscount > 0) {
+            calculatedTax = (parsedData.invoiceTaxAmount / subtotalAfterDiscount) * 100;
+          }
+        }
+        calculatedTax = Math.round(calculatedTax * 100) / 100;
+      } else if (Array.isArray(parsedData)) {
+        parsedItems = parsedData;
       }
     } catch {
       console.error("Failed to parse Gemini response:", responseText);
@@ -198,17 +242,32 @@ Example output format:
       });
     }
 
+    // Apply calculated discount/tax to items if they don't have individual ones
+    const itemsWithCalculatedRates = parsedItems.map(item => {
+      return {
+        ...item,
+        discount: item.discount > 0 ? item.discount : calculatedDiscount,
+        taxRate: item.taxRate > 0 ? item.taxRate : calculatedTax,
+      };
+    });
+
     // Match against existing products using best similarity match
-    const matchedItems: MatchedItem[] = parsedItems.map((item) => {
+    const matchedItems: MatchedItem[] = itemsWithCalculatedRates.map((item) => {
       let bestMatch = null;
       let highestSimilarity = 0.50; // 50% threshold
       let isPartialOverlap = false;
 
       for (const p of products) {
-        // Brand must match (case-insensitive)
-        const pBrand = (p.brand || "").toLowerCase().trim();
-        const iBrand = (item.brand || "").toLowerCase().trim();
-        if (pBrand !== iBrand) continue;
+        // Normalize brands for comparison (strip non-alphanumeric, map 0 to o)
+        const pBrandNorm = (p.brand || "").toLowerCase().replace(/[^a-z0-9]/g, "").replace(/0/g, "o").trim();
+        const iBrandNorm = (item.brand || "").toLowerCase().replace(/[^a-z0-9]/g, "").replace(/0/g, "o").trim();
+        const brandSim = getStringSimilarity(p.brand || "", item.brand || "");
+        
+        // Brand matches if both are empty, one contains the other, or similarity is >= 50%
+        const brandMatches = 
+          (pBrandNorm === "" && iBrandNorm === "") || 
+          (pBrandNorm !== "" && iBrandNorm !== "" && (pBrandNorm.includes(iBrandNorm) || iBrandNorm.includes(pBrandNorm) || brandSim >= 0.50));
+        if (!brandMatches) continue;
 
         const similarity = getStringSimilarity(p.name, item.name);
         if (similarity >= highestSimilarity) {
