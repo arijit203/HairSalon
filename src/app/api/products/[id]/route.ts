@@ -40,6 +40,24 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data:  { ...data, status },
     });
 
+    // Log expense if stock was manually increased
+    if (data.stock !== undefined && data.stock > existing.stock) {
+      const stockAdded = data.stock - existing.stock;
+      const costPriceVal = data.costPrice ?? (existing.costPrice ? Number(existing.costPrice) : 0);
+      const expenseAmt = stockAdded * costPriceVal;
+      if (expenseAmt > 0) {
+        await prisma.expense.create({
+          data: {
+            title: `Restock: ${product.name} (x${stockAdded})`,
+            amount: expenseAmt,
+            category: "PRODUCT_PURCHASE",
+            type: "BILL",
+            notes: `Manually restocked via product edit. SKU: ${product.sku}`,
+          },
+        });
+      }
+    }
+
     revalidateDashboardAndAnalytics();
 
     return successResponse(product);

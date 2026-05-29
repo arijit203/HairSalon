@@ -75,6 +75,23 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      // Log expense for added stock
+      if (data.stock > 0) {
+        const costPriceVal = data.costPrice ?? (existing.costPrice ? Number(existing.costPrice) : 0);
+        const expenseAmt = data.stock * costPriceVal;
+        if (expenseAmt > 0) {
+          await prisma.expense.create({
+            data: {
+              title: `Restock: ${product.name} (x${data.stock})`,
+              amount: expenseAmt,
+              category: "PRODUCT_PURCHASE",
+              type: "BILL",
+              notes: `Restocked via manual product creation (matching SKU: ${product.sku})`,
+            },
+          });
+        }
+      }
+
       revalidateDashboardAndAnalytics();
 
       return successResponse({ ...product, _upserted: true });
@@ -90,6 +107,23 @@ export async function POST(req: NextRequest) {
         status,
       },
     });
+
+    // Log expense for initial stock
+    if (data.stock > 0) {
+      const costPriceVal = data.costPrice ?? 0;
+      const expenseAmt = data.stock * costPriceVal;
+      if (expenseAmt > 0) {
+        await prisma.expense.create({
+          data: {
+            title: `Purchase: ${product.name} (x${data.stock})`,
+            amount: expenseAmt,
+            category: "PRODUCT_PURCHASE",
+            type: "BILL",
+            notes: `Manually created product. SKU: ${product.sku}`,
+          },
+        });
+      }
+    }
 
     revalidateDashboardAndAnalytics();
 

@@ -49,6 +49,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [items, setItems] = useState<ParsedItem[]>([]);
+  const [scannedGrandTotal, setScannedGrandTotal] = useState<number>(0);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [processingError, setProcessingError] = useState<string>("");
   const [confirmLoading, setConfirmLoading] = useState(false);
@@ -92,6 +93,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
     if (open) {
       setStep("upload");
       setItems([]);
+      setScannedGrandTotal(0);
       setImagePreview(null);
       setProcessingError("");
       setSuccessResults(null);
@@ -253,6 +255,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
         };
       });
       setItems(processed);
+      setScannedGrandTotal(data.data.invoiceGrandTotal || 0);
       setStep("review");
     } catch (err: any) {
       setProcessingError(err.message || "Failed to process the invoice. Please try again.");
@@ -408,12 +411,16 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
     setItems((prev) =>
       prev.map((item, i) => (i === index ? { ...item, ...updates } : item))
     );
+    if ('unitPrice' in updates || 'quantity' in updates || 'discount' in updates || 'taxRate' in updates) {
+      setScannedGrandTotal(0);
+    }
   };
 
   // Remove an item
   const removeItem = (index: number) => {
     setItems((prev) => prev.filter((_, i) => i !== index));
     setEditingIndex(null);
+    setScannedGrandTotal(0);
   };
 
   if (!mounted) return null;
@@ -1214,6 +1221,42 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                         </table>
                       </div>
                     </div>
+
+                    {/* Grand Total Summary Bar */}
+                    {items.length > 0 && (() => {
+                      const calculated = items.reduce((sum, item) => {
+                        return sum + (item.unitPrice * item.quantity) * (1 - (item.discount || 0) / 100) * (1 + (item.taxRate || 0) / 100);
+                      }, 0);
+                      const grandTotal = scannedGrandTotal > 0 ? scannedGrandTotal : calculated;
+                      const isFromReceipt = scannedGrandTotal > 0;
+                      const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
+                      const hasDiscount = items.some(i => (i.discount || 0) > 0);
+                      const hasTax = items.some(i => (i.taxRate || 0) > 0);
+                      return (
+                        <div
+                          className="mt-3 px-5 py-3 rounded-xl flex items-center justify-between"
+                          style={{
+                            background: "rgba(244,63,94,0.06)",
+                            border: "1px solid rgba(244,63,94,0.18)",
+                          }}
+                        >
+                          <div className="flex items-center gap-4 text-xs" style={{ color: "var(--text-secondary)" }}>
+                            <span><span className="font-bold" style={{ color: "var(--text-primary)" }}>{items.length}</span> item type{items.length !== 1 ? "s" : ""}</span>
+                            <span><span className="font-bold" style={{ color: "var(--text-primary)" }}>{totalQty}</span> units total</span>
+                            {hasDiscount && <span className="text-emerald-400 font-medium">Discounts applied</span>}
+                            {hasTax && <span className="text-cyan-400 font-medium">Tax included</span>}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] font-medium mb-0.5" style={{ color: "var(--text-muted)" }}>
+                              {isFromReceipt ? "Grand Total (from receipt)" : "Grand Total (calculated)"}
+                            </p>
+                            <p className="text-xl font-bold tabular-nums" style={{ color: "var(--accent-rose-light)" }}>
+                              ₹{grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {processingError && (
                       <div

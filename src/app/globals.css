@@ -350,26 +350,34 @@ body::before {
 
   /* Nav Link */
   .nav-link {
-    @apply flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium cursor-pointer;
+    @apply flex items-center gap-3 rounded-xl text-sm font-medium cursor-pointer;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-left: 11px;
+    padding-right: 14px;
     color: var(--text-muted);
     transition: all 0.18s ease;
     border: 1px solid transparent;
+    border-left: 3px solid transparent;
   }
   .nav-link:hover {
     background: var(--bg-card);
     color: var(--text-primary);
     border-color: var(--border-subtle);
+    border-left-color: transparent;
   }
   .nav-link.active {
     background: rgba(244, 63, 94, 0.1);
     color: var(--accent-rose-light);
     border-color: rgba(244, 63, 94, 0.18);
+    border-left-color: #f43f5e;
     font-weight: 600;
   }
   [data-theme="light"] .nav-link.active {
     background: rgba(244, 63, 94, 0.08);
     color: var(--accent-rose-dark);
     border-color: rgba(244, 63, 94, 0.15);
+    border-left-color: #e11d48;
   }
 
   /* Progress Bar */

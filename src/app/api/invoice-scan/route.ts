@@ -169,48 +169,67 @@ Example output format:
   "invoiceGrandTotal": 1472.5
 }`;
 
-    // Call Gemini Vision API
+    // Call Gemini Vision API — cascade through models with retry on 503
     const genAI = new GoogleGenerativeAI(apiKey);
     let responseText = "";
 
-    try {
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const modelCascade = [
+      "gemini-3.5-flash",      // Newest flagship fast model
+      "gemini-3.1-flash-lite", // High-volume, cost-efficient Gemini 3
+      "gemini-2.5-flash",      // Fast Gemini 2 fallback
+      "gemini-2.5-pro",        // Most capable, last resort
+    ];
+
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    const callModel = async (modelName: string): Promise<string> => {
+      const model = genAI.getGenerativeModel({ model: modelName });
       const result = await model.generateContent([
         prompt,
-        {
-          inlineData: {
-            mimeType: mimeType || "image/jpeg",
-            data: image, // base64 string (no prefix)
-          },
-        },
+        { inlineData: { mimeType: mimeType || "image/jpeg", data: image } },
       ]);
-      responseText = result.response.text();
-    } catch (primaryError: any) {
-      console.warn("Primary model (gemini-2.5-flash) failed or hit quota limits. Trying fallback model (gemini-1.5-flash)...", primaryError);
-      
-      try {
-        const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const result = await fallbackModel.generateContent([
-          prompt,
-          {
-            inlineData: {
-              mimeType: mimeType || "image/jpeg",
-              data: image, // base64 string (no prefix)
-            },
-          },
-        ]);
-        responseText = result.response.text();
-      } catch (fallbackError: any) {
-        console.error("All Gemini models failed:", fallbackError);
-        // Throw the original error so it's bubble-up handled with accurate details
-        throw primaryError;
+      return result.response.text();
+    };
+
+    let lastError: any = null;
+    for (const modelName of modelCascade) {
+      // Try each model once; on 503/overload, retry once after a short delay
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          responseText = await callModel(modelName);
+          lastError = null;
+          break; // success — stop retrying this model
+        } catch (err: any) {
+          lastError = err;
+          const is503 = err?.status === 503 || String(err?.message || "").includes("503");
+          if (is503 && attempt === 1) {
+            console.warn(`Model ${modelName} returned 503 on attempt ${attempt}, retrying after 1.5s...`);
+            await sleep(1500);
+            continue;
+          }
+          // Non-503 error or second attempt failed — break to next model
+          console.warn(`Model ${modelName} failed (attempt ${attempt}):`, err?.message || err);
+          break;
+        }
       }
+      if (!lastError) break; // a model succeeded — exit the cascade
+    }
+
+    if (lastError) {
+      console.error("All Gemini models failed:", lastError);
+      const is503 = lastError?.status === 503 || String(lastError?.message || "").includes("503");
+      throw new Error(
+        is503
+          ? "The AI service is currently experiencing high demand. Please wait a moment and try again."
+          : lastError.message || "Failed to process the invoice with AI"
+      );
     }
 
     // Parse the AI response
     let parsedItems: ParsedItem[] = [];
     let calculatedDiscount = 0;
     let calculatedTax = 0;
+    let invoiceGrandTotal = 0;
 
     try {
       // Try to extract JSON from the response (handle cases where AI wraps in code blocks)
@@ -242,6 +261,9 @@ Example output format:
           }
         }
         calculatedTax = Math.round(calculatedTax * 100) / 100;
+
+        // Capture invoice grand total if listed on the receipt
+        invoiceGrandTotal = parsedData.invoiceGrandTotal || 0;
       } else if (Array.isArray(parsedData)) {
         parsedItems = parsedData;
       }
@@ -344,6 +366,7 @@ Example output format:
 
     return successResponse({
       items: matchedItems,
+      invoiceGrandTotal,
       summary: {
         total: matchedItems.length,
         updates: matchedItems.filter((i) => i.action === "update").length,

@@ -147,3 +147,15 @@ export const DateRangeSchema = z.object({
   from: z.string().datetime().optional(),
   to:   z.string().datetime().optional(),
 });
+
+// ─── EXPENSE ──────────────────────────────────────────────────────────────────
+
+export const CreateExpenseSchema = z.object({
+  title:    z.string().min(1, "Title is required").max(200),
+  amount:   z.number().positive("Amount must be positive"),
+  category: z.enum(["PRODUCT_PURCHASE", "STAFF_PAYMENT", "INFRASTRUCTURE", "MISCELLANEOUS"]),
+  type:     z.enum(["BILL", "PAYMENT_OUT", "MISC"]),
+  date:     z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
+  notes:    z.string().optional(),
+});
+

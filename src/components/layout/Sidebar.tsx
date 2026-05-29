@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
@@ -15,7 +15,6 @@ import {
   Sparkles,
   ChevronRight,
   LogOut,
-  User,
 } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -30,6 +29,7 @@ interface UserSession {
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<UserSession | null>(null);
   const [salonName, setSalonName] = useState("Wyapar Beauty Studio");
   const [logoUrl, setLogoUrl] = useState("");
@@ -60,6 +60,8 @@ export default function Sidebar() {
     window.addEventListener("settings-updated", fetchSettings);
     return () => window.removeEventListener("settings-updated", fetchSettings);
   }, []);
+
+
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -112,6 +114,7 @@ export default function Sidebar() {
       {
         label: "Business",
         items: [
+          { label: "Purchase & Expense", href: "/expenses", icon: ShoppingCart, badge: null },
           { label: "Clients", href: "/clients", icon: Users, badge: null },
           { label: "Point of Sale", href: "/pos", icon: ShoppingCart, badge: null },
         ],
@@ -204,9 +207,9 @@ export default function Sidebar() {
               {group.label}
             </p>
             <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const active = isActive(item.href);
+              {group.items.map((item: any) => {
                 const Icon = item.icon;
+                const active = isActive(item.href);
                 return (
                   <Link
                     key={item.href}

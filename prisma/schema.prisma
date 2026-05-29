@@ -265,3 +265,19 @@ model SalonSettings {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+model Expense {
+  id          String   @id @default(cuid())
+  title       String
+  amount      Decimal  @db.Decimal(10, 2)
+  category    String   // "PRODUCT_PURCHASE" | "STAFF_PAYMENT" | "INFRASTRUCTURE" | "MISCELLANEOUS"
+  type        String   // "BILL" | "PAYMENT_OUT" | "MISC"
+  date        DateTime @default(now())
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([type])
+  @@index([date])
+}

@@ -783,16 +783,58 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
                       <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-zinc-400" />
                       <input
                         type="text"
-                        placeholder="0"
+                        placeholder="0.00"
                         className="input-field pl-9 w-full bg-zinc-100/50 dark:bg-white/[0.02] cursor-not-allowed"
-                        value={
-                          costPrice && stock && !isNaN(parseFloat(costPrice)) && !isNaN(parseInt(stock, 10))
-                            ? (parseFloat(costPrice) * parseInt(stock, 10)).toFixed(2)
-                            : "0.00"
-                        }
+                        value={(() => {
+                          const salePrice = parseFloat(price);
+                          if (isNaN(salePrice) || salePrice <= 0) return "0.00";
+
+                          // If wholesale price is provided, use min(wholesale, sale) as base
+                          const wpVal = parseFloat(wholesalePrice);
+                          const basePrice = showWholesalePrice && !isNaN(wpVal) && wpVal > 0
+                            ? Math.min(wpVal, salePrice)
+                            : salePrice;
+
+                          const qty = parseInt(stock, 10) || 1;
+                          const discountAmt = parseFloat(salePriceDiscount) || 0;
+
+                          // Apply discount
+                          let effectivePrice = basePrice;
+                          if (discountAmt > 0) {
+                            if (salePriceDiscountType === "PERCENTAGE") {
+                              effectivePrice = basePrice * (1 - discountAmt / 100);
+                            } else {
+                              effectivePrice = Math.max(0, basePrice - discountAmt);
+                            }
+                          }
+
+                          // Apply tax only if the base price is WITHOUT tax
+                          const baseTaxType = showWholesalePrice && !isNaN(wpVal) && wpVal > 0
+                            ? wholesalePriceTaxType
+                            : salePriceTaxType;
+                          if (baseTaxType === "WITHOUT_TAX") {
+                            effectivePrice = effectivePrice * (1 + taxRate / 100);
+                          }
+
+                          return (effectivePrice * qty).toFixed(2);
+                        })()}
                         readOnly
                       />
                     </div>
+                    <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                      {(() => {
+                        const wp = parseFloat(wholesalePrice);
+                        const sp = parseFloat(price);
+                        const usingWholesale = showWholesalePrice && !isNaN(wp) && wp > 0 && !isNaN(sp) && sp > 0;
+                        const qty = parseInt(stock, 10);
+                        const basis = usingWholesale
+                          ? `min(₹${Math.min(wp, sp).toFixed(2)} wholesale, ₹${sp.toFixed(2)} sale)`
+                          : "sale price";
+                        return qty > 0
+                          ? `${qty} unit(s) × ${basis} after discount`
+                          : `Per-unit total based on ${basis} (qty not set)`;
+                      })()}
+                    </p>
                   </div>
 
                   {/* Initial Stock & Low Stock Alert */}

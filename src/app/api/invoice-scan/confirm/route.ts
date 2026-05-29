@@ -41,6 +41,16 @@ export async function POST(req: NextRequest) {
       errors: [] as { name: string; error: string }[],
     };
 
+    const loggedItems: {
+      name: string;
+      quantity: number;
+      unitPrice: number;
+      discount: number;
+      taxRate: number;
+      itemCode?: string;
+      total: number;
+    }[] = [];
+
     for (const item of items) {
       try {
         if (item.action === "update" && item.productId) {
@@ -87,6 +97,18 @@ export async function POST(req: NextRequest) {
             data: updateData,
           });
 
+          // Accumulate for single expense log
+          const itemTotal = (item.quantity * item.unitPrice) * (1 - (item.discount || 0) / 100) * (1 + (item.taxRate || 0) / 100);
+          loggedItems.push({
+            name: updated.name,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            discount: item.discount || 0,
+            taxRate: item.taxRate || 0,
+            itemCode: item.itemCode,
+            total: itemTotal,
+          });
+
           results.updated.push({
             id: updated.id,
             name: updated.name,
@@ -118,6 +140,18 @@ export async function POST(req: NextRequest) {
             },
           });
 
+          // Accumulate for single expense log
+          const itemTotal = (item.quantity * item.unitPrice) * (1 - (item.discount || 0) / 100) * (1 + (item.taxRate || 0) / 100);
+          loggedItems.push({
+            name: created.name,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            discount: item.discount || 0,
+            taxRate: item.taxRate || 0,
+            itemCode: item.itemCode,
+            total: itemTotal,
+          });
+
           results.created.push({
             id: created.id,
             name: created.name,
@@ -128,6 +162,31 @@ export async function POST(req: NextRequest) {
         results.errors.push({
           name: item.name,
           error: err.message || "Unknown error",
+        });
+      }
+    }
+
+    // Log single aggregated expense for all scanned items
+    if (loggedItems.length > 0) {
+      const totalAmount = loggedItems.reduce((sum, item) => sum + item.total, 0);
+      if (totalAmount > 0) {
+        const notesLines = [
+          `Confirmed via Invoice Scanner. Total items: ${loggedItems.length}`,
+          "",
+          "Items List:",
+          ...loggedItems.map(item => 
+            `- ${item.name} (x${item.quantity}) @ ₹${item.unitPrice.toFixed(2)} | Disc: ${item.discount}% | Tax: ${item.taxRate}% | Total: ₹${item.total.toFixed(2)}`
+          )
+        ];
+
+        await prisma.expense.create({
+          data: {
+            title: `Invoice Scan Purchase (${loggedItems.length} items)`,
+            amount: totalAmount,
+            category: "PRODUCT_PURCHASE",
+            type: "BILL",
+            notes: notesLines.join("\n"),
+          },
         });
       }
     }
