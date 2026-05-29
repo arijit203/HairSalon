@@ -18,6 +18,8 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get("category") ?? undefined;
     const type     = searchParams.get("type")     ?? undefined;
     const search   = searchParams.get("search")   ?? undefined;
+    const startDate = searchParams.get("startDate") ?? undefined;
+    const endDate   = searchParams.get("endDate")   ?? undefined;
 
     const where = {
       ...(category && { category }),
@@ -27,6 +29,12 @@ export async function GET(req: NextRequest) {
           { title: { contains: search, mode: "insensitive" as const } },
           { notes: { contains: search, mode: "insensitive" as const } },
         ],
+      }),
+      ...((startDate || endDate) && {
+        date: {
+          ...(startDate && { gte: new Date(startDate) }),
+          ...(endDate && { lte: new Date(endDate + "T23:59:59.999Z") }),
+        },
       }),
     };
 

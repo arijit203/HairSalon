@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   X, User, Phone, Scissors, Search, Plus, ChevronDown,
   CalendarDays, Tag, Percent, Check, Loader2,
-  ChevronRight, AlertCircle, Clock, Printer,
+  ChevronRight, AlertCircle, Clock, Printer, Package,
 } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 
@@ -18,6 +18,14 @@ interface Service {
   price: number | string;
   discountPrice?: number | string | null;
   isPopular: boolean;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  category: string[];
+  price: number | string;
+  stock: number;
 }
 
 interface StaffMember {
@@ -46,12 +54,7 @@ const TIME_SLOTS = Array.from({ length: 22 }, (_, i) => {
 
 type Tab = "client" | "service" | "schedule" | "pricing";
 
-const TABS: { id: Tab; label: string; icon: any }[] = [
-  { id: "client",   label: "Client",   icon: User },
-  { id: "service",  label: "Service",  icon: Scissors },
-  { id: "schedule", label: "Schedule", icon: CalendarDays },
-  { id: "pricing",  label: "Pricing",  icon: Tag },
-];
+
 
 // Helper to get current local time in HH:MM format for Asia/Kolkata
 const getCurrentTimeHHMM = () => {
@@ -211,7 +214,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
   const [activeTab, setActiveTab] = useState<Tab>("client");
 
   // Client info
-  const [clientName, setClientName]   = useState("");
+  const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [phoneDigits, setPhoneDigits] = useState(""); // only the 10-digit part
   const [clientEmail, setClientEmail] = useState("");
@@ -281,25 +284,49 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
   };
 
   // Service selection
-  const [services, setServices]           = useState<Service[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
   const [serviceSearch, setServiceSearch] = useState("");
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
 
+  // Product selection
+  const [bookingMode, setBookingMode] = useState<"service" | "product">("service");
+  const [productsList, setProductsList] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
+  const [selectedProducts, setSelectedProducts] = useState<(Product & { quantity: number })[]>([]);
+
+  const handleUpdateQty = (prodId: string, delta: number) => {
+    setSelectedProducts(prev => {
+      const next = prev.map(p => {
+        if (p.id === prodId) {
+          const newQty = Math.max(1, Math.min(p.stock, p.quantity + delta));
+          return { ...p, quantity: newQty };
+        }
+        return p;
+      });
+      const sumPrice = next.reduce((sum, p) => sum + Number(p.price) * p.quantity, 0);
+      setSalePrice(String(sumPrice));
+      setDiscountPct("0");
+      return next;
+    });
+  };
+  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "UPI" | "BANK_TRANSFER">("UPI");
+
   // Inline new-service form
-  const [showNewService, setShowNewService]   = useState(false);
-  const [newSvcName, setNewSvcName]           = useState("");
-  const [newSvcCategory, setNewSvcCategory]   = useState("");
+  const [showNewService, setShowNewService] = useState(false);
+  const [newSvcName, setNewSvcName] = useState("");
+  const [newSvcCategory, setNewSvcCategory] = useState("");
   const [selectedCategoryOption, setSelectedCategoryOption] = useState("");
-  const [newSvcPrice, setNewSvcPrice]         = useState("");
+  const [newSvcPrice, setNewSvcPrice] = useState("");
   const [creatingService, setCreatingService] = useState(false);
 
   // Schedule
-  const [staffList, setStaffList]       = useState<StaffMember[]>([]);
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [staffLoading, setStaffLoading] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
-  const [date, setDate]   = useState(defaultDate ?? getLocalDateStr());
-  const [time, setTime]   = useState(""); // Default to empty string for "Auto-calculate"
+  const [date, setDate] = useState(defaultDate ?? getLocalDateStr());
+  const [time, setTime] = useState(""); // Default to empty string for "Auto-calculate"
   const [endTime, setEndTime] = useState(() => getCurrentTimeHHMM());
   const [currentTime, setCurrentTime] = useState("");
   const [notes, setNotes] = useState("");
@@ -307,9 +334,9 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
   const [isStatusManuallyChanged, setIsStatusManuallyChanged] = useState(false);
 
   // ── Segmented Time Input (HH : MM  AM/PM) ────────────────────────────────
-  const [timeHH, setTimeHH]         = useState(""); // "01"–"12"
-  const [timeMM, setTimeMM]         = useState(""); // "00"–"59"
-  const [timeAmPm, setTimeAmPm]     = useState<"AM" | "PM">("AM");
+  const [timeHH, setTimeHH] = useState(""); // "01"–"12"
+  const [timeMM, setTimeMM] = useState(""); // "00"–"59"
+  const [timeAmPm, setTimeAmPm] = useState<"AM" | "PM">("AM");
   const hhRef = useRef<HTMLInputElement>(null);
   const mmRef = useRef<HTMLInputElement>(null);
 
@@ -329,11 +356,11 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
     if (raw.length === 2) {
       let n = parseInt(raw, 10);
       // 24h → 12h conversion
-      if (n === 0)          { setTimeHH("12"); setTimeAmPm("AM"); }
-      else if (n === 12)    { setTimeHH("12"); setTimeAmPm("PM"); }
+      if (n === 0) { setTimeHH("12"); setTimeAmPm("AM"); }
+      else if (n === 12) { setTimeHH("12"); setTimeAmPm("PM"); }
       else if (n >= 13 && n <= 23) { setTimeHH(String(n - 12).padStart(2, "0")); setTimeAmPm("PM"); }
-      else if (n >= 1 && n <= 9)   { setTimeHH(String(n).padStart(2, "0")); }
-      else                  { setTimeHH(raw); }
+      else if (n >= 1 && n <= 9) { setTimeHH(String(n).padStart(2, "0")); }
+      else { setTimeHH(raw); }
       // Auto-jump to MM
       setTimeout(() => { mmRef.current?.focus(); mmRef.current?.select(); }, 0);
     } else {
@@ -402,9 +429,9 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
 
   // Pricing
-  const [salePrice, setSalePrice]     = useState("");
+  const [salePrice, setSalePrice] = useState("");
   const [discountPct, setDiscountPct] = useState("0");
-  const [taxPct, setTaxPct]           = useState(0); // 0 = None
+  const [taxPct, setTaxPct] = useState(0); // 0 = None
 
   // Submission
   const [submitting, setSubmitting] = useState(false);
@@ -414,6 +441,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
     clientName: string;
     clientPhone: string;
     services: Service[];
+    products?: (Product & { quantity: number })[];
     staffName: string;
     date: string;
     time: string;
@@ -423,6 +451,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
     taxPct: number;
     taxAmt: number;
     finalPrice: number;
+    paymentMethod?: string;
   } | null>(null);
 
   // ── Load data when modal opens ─────────────────────────────────────────────
@@ -434,12 +463,16 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
     // Reset tab
     setActiveTab("client");
 
-    // Load services
+    // Load services (filter out internal "Product Sale" dummy service)
     setServicesLoading(true);
     fetch("/api/services?limit=100")
       .then(r => r.json())
-      .then(d => { if (d.data) setServices(d.data); })
-      .catch(() => {})
+      .then(d => {
+        if (d.data) {
+          setServices(d.data.filter((s: Service) => !(s.name === "Product Sale" && s.category === "Retail")));
+        }
+      })
+      .catch(() => { })
       .finally(() => setServicesLoading(false));
 
     // Load staff
@@ -447,9 +480,31 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
     fetch("/api/staff?limit=100")
       .then(r => r.json())
       .then(d => { if (d.data) setStaffList(d.data); })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setStaffLoading(false));
   }, [open]);
+
+  // Load products when mode is product and list is empty
+  useEffect(() => {
+    if (open && bookingMode === "product" && productsList.length === 0) {
+      setProductsLoading(true);
+      fetch("/api/products?limit=1000")
+        .then(r => r.json())
+        .then(d => { if (d.data) setProductsList(d.data); })
+        .catch(() => { })
+        .finally(() => setProductsLoading(false));
+    }
+  }, [open, bookingMode, productsList]);
+
+  // Reset selections when bookingMode toggles
+  useEffect(() => {
+    setSelectedServices([]);
+    setSelectedProducts([]);
+    setSalePrice("");
+    setDiscountPct("0");
+    setProductSearch("");
+    setServiceSearch("");
+  }, [bookingMode]);
 
   useEffect(() => {
     if (!open) return;
@@ -466,12 +521,17 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
       setNotes(editingGroup.notes || "");
       setStatus(editingGroup.status || "");
       setIsStatusManuallyChanged(!!editingGroup.status);
+      setBookingMode("service");
+      setPaymentMethod(editingGroup.appointments?.[0]?.transaction?.paymentMethod || "UPI");
     } else {
       setClientName(""); setClientPhone(""); setPhoneDigits(""); setClientEmail("");
       setSelectedServices([]);
+      setSelectedProducts([]);
+      setBookingMode("service");
+      setPaymentMethod("UPI");
       setSelectedStaff(null);
       setDate(defaultDate ?? getLocalDateStr());
-      setTime(""); 
+      setTime("");
       setEndTime(currentTime || getCurrentTimeHHMM());
       setNotes("");
       setSalePrice(""); setDiscountPct("0");
@@ -546,7 +606,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
       const apptServiceIds = editingGroup.appointments.map((a: any) => a.service.id);
       const matches = services.filter(s => apptServiceIds.includes(s.id));
       setSelectedServices(matches);
-      
+
       const actualTotalPrice = editingGroup.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0);
       const listPriceSum = matches.reduce((sum, s) => sum + Number(s.price), 0);
       if (actualTotalPrice < listPriceSum && listPriceSum > 0) {
@@ -574,17 +634,102 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
     }, {});
   }, [services, serviceSearch]);
 
+  const groupedProducts = useMemo(() => {
+    const filtered = productsList.filter(p =>
+      p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+      (p.category && p.category.some(cat => cat.toLowerCase().includes(productSearch.toLowerCase())))
+    );
+    return filtered.reduce<Record<string, Product[]>>((acc, p) => {
+      const cat = p.category && p.category.length > 0 ? p.category[0] : "Uncategorized";
+      acc[cat] = acc[cat] ?? [];
+      acc[cat].push(p);
+      return acc;
+    }, {});
+  }, [productsList, productSearch]);
+
+  const modalTabs = useMemo(() => [
+    { id: "client" as Tab, label: "Client", icon: User },
+    { id: "service" as Tab, label: bookingMode === "product" ? "Product" : "Service", icon: bookingMode === "product" ? Package : Scissors },
+    { id: "schedule" as Tab, label: "Schedule", icon: CalendarDays },
+    { id: "pricing" as Tab, label: "Pricing", icon: Tag },
+  ], [bookingMode]);
+
+  const validateTab = (tabId: Tab, showToast = true): boolean => {
+    if (tabId === "client") {
+      if (!clientName.trim()) {
+        if (showToast) error("Client name is required.");
+        return false;
+      }
+      if (phoneDigits.length !== 10) {
+        if (showToast) error("Phone number is required and must be exactly 10 digits.");
+        return false;
+      }
+      return true;
+    }
+    if (tabId === "service") {
+      if (bookingMode === "service") {
+        if (selectedServices.length === 0) {
+          if (showToast) error("Please select at least one service.");
+          return false;
+        }
+      } else {
+        if (selectedProducts.length === 0) {
+          if (showToast) error("Please select at least one product.");
+          return false;
+        }
+      }
+      return true;
+    }
+    if (tabId === "schedule") {
+      if (!selectedStaff) {
+        if (showToast) error("Please select a staff member.");
+        return false;
+      }
+      if (!date) {
+        if (showToast) error("Please choose a date.");
+        return false;
+      }
+      let finalTime = time;
+      let finalEndTime = endTime;
+      if (timeHH) {
+        const combined = (timeHH || "12") + ":" + (timeMM || "00").padStart(2, "0") + " " + timeAmPm;
+        const parsed = format12to24(combined);
+        if (parsed) finalEndTime = parsed;
+      }
+      if (!finalEndTime && !finalTime) {
+        if (showToast) error("Time is required.");
+        return false;
+      }
+      return true;
+    }
+    return true;
+  };
+
+  const handleTabChange = (targetTab: Tab) => {
+    const targetIdx = modalTabs.findIndex(t => t.id === targetTab);
+    const activeIdx = modalTabs.findIndex(t => t.id === activeTab);
+    if (targetIdx > activeIdx) {
+      for (let i = activeIdx; i < targetIdx; i++) {
+        if (!validateTab(modalTabs[i].id)) {
+          setActiveTab(modalTabs[i].id);
+          return;
+        }
+      }
+    }
+    setActiveTab(targetTab);
+  };
+
   const existingCategories = useMemo(() => {
     const cats = services.map(s => s.category);
     return Array.from(new Set(cats)).filter(Boolean).sort();
   }, [services]);
 
-  const salePriceNum  = parseFloat(salePrice)  || 0;
-  const discountNum   = parseFloat(discountPct) || 0;
-  const discountAmt   = Math.round(salePriceNum * discountNum / 100);
+  const salePriceNum = parseFloat(salePrice) || 0;
+  const discountNum = parseFloat(discountPct) || 0;
+  const discountAmt = Math.round(salePriceNum * discountNum / 100);
   const priceAfterDiscount = Math.max(0, salePriceNum - discountAmt);
-  const taxAmt        = Math.round(priceAfterDiscount * taxPct / 100);
-  const finalPrice    = priceAfterDiscount + taxAmt;
+  const taxAmt = Math.round(priceAfterDiscount * taxPct / 100);
+  const finalPrice = priceAfterDiscount + taxAmt;
 
   const displayTimeSummary = (timeHH && timeMM)
     ? `${timeHH}:${timeMM} ${timeAmPm.toLowerCase()}`
@@ -625,9 +770,9 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name:     newSvcName,
+          name: newSvcName,
           category: newSvcCategory,
-          price:    parseFloat(newSvcPrice),
+          price: parseFloat(newSvcPrice),
         }),
       });
       const data = await res.json();
@@ -666,12 +811,21 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
       return;
     }
 
-    const servicesHtml = bookingDetails.services.map(s => `
-      <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-        <span>${s.name}</span>
-        <span>₹${Number(s.price).toFixed(2)}</span>
-      </div>
-    `).join("");
+    const isProductSale = bookingDetails.products && bookingDetails.products.length > 0;
+
+    const itemsHtml = isProductSale
+      ? bookingDetails.products!.map(p => `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>${p.name} (x${p.quantity})</span>
+            <span>₹${(Number(p.price) * p.quantity).toFixed(2)}</span>
+          </div>
+        `).join("")
+      : bookingDetails.services.map(s => `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>${s.name}</span>
+            <span>₹${Number(s.price).toFixed(2)}</span>
+          </div>
+        `).join("");
 
     const discountHtml = bookingDetails.discountPct > 0 ? `
       <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
@@ -689,6 +843,10 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
     ` : "";
 
     const timeStr = bookingDetails.endTime ? format24to12(bookingDetails.endTime).toLowerCase().replace(/\s+/g, "") : "";
+
+    const paymentFormatted = bookingDetails.paymentMethod === "UPI" ? "Online (UPI)" :
+      bookingDetails.paymentMethod === "CARD" ? "Online (Card)" :
+        bookingDetails.paymentMethod === "BANK_TRANSFER" ? "Bank Transfer" : "Cash";
 
     printWindow.document.write(`
       <html>
@@ -740,10 +898,11 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
           <div><strong>Customer:</strong> ${bookingDetails.clientName}</div>
           ${bookingDetails.clientPhone ? `<div><strong>Phone:</strong> ${bookingDetails.clientPhone}</div>` : ""}
           <div><strong>Staff:</strong> ${bookingDetails.staffName}</div>
+          <div><strong>Payment:</strong> ${paymentFormatted}</div>
           
           <div class="divider"></div>
-          <div class="bold" style="margin-bottom: 5px;">SERVICES</div>
-          ${servicesHtml}
+          <div class="bold" style="margin-bottom: 5px;">${isProductSale ? "PRODUCTS" : "SERVICES"}</div>
+          ${itemsHtml}
           
           <div class="divider"></div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
@@ -777,9 +936,23 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
   const handleSubmit = async () => {
     const isFutureDate = date > getLocalDateStr();
     if (!clientName.trim()) { error("Client name is required."); setActiveTab("client"); return; }
-    if (selectedServices.length === 0) { error("Please select at least one service.");  setActiveTab("service"); return; }
-    if (!selectedStaff)     { error("Please select a staff member."); setActiveTab("schedule"); return; }
-    if (!date)              { error("Please choose a date."); setActiveTab("schedule"); return; }
+    if (phoneDigits.length !== 10) {
+      error("Phone number is required and must be exactly 10 digits.");
+      setActiveTab("client");
+      return;
+    }
+    if (bookingMode === "service" && selectedServices.length === 0) {
+      error("Please select at least one service.");
+      setActiveTab("service");
+      return;
+    }
+    if (bookingMode === "product" && selectedProducts.length === 0) {
+      error("Please select at least one product.");
+      setActiveTab("service");
+      return;
+    }
+    if (!selectedStaff) { error("Please select a staff member."); setActiveTab("schedule"); return; }
+    if (!date) { error("Please choose a date."); setActiveTab("schedule"); return; }
 
     let finalTime = time;
     let finalEndTime = endTime;
@@ -794,7 +967,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
       setActiveTab("schedule");
       return;
     }
-    if (finalPrice <= 0)    { error("Sale price must be greater than 0."); setActiveTab("pricing"); return; }
+    if (finalPrice <= 0) { error("Sale price must be greater than 0."); setActiveTab("pricing"); return; }
 
     let formattedPhone = "";
     if (clientPhone.trim()) {
@@ -830,7 +1003,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
         if (!foundClient && formattedPhone) {
           const cleanDigits = formattedPhone.replace(/[^\d]/g, "");
           const searchPhone = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : cleanDigits;
-          
+
           const searchRes = await fetch(`/api/clients?search=${encodeURIComponent(searchPhone)}&limit=10`);
           const searchData = await searchRes.json();
           if (searchData.data?.length > 0) {
@@ -852,10 +1025,10 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
         const updateBody: any = {
           name: clientName.trim(),
         };
-        
+
         // Update phone (allows clearing phone as well)
         updateBody.phone = formattedPhone || "";
-        
+
         // Only update email if specified to avoid validation/unique constraints on empty emails
         if (clientEmail.trim()) {
           updateBody.email = clientEmail.trim();
@@ -874,7 +1047,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name:  clientName.trim(),
+            name: clientName.trim(),
             phone: formattedPhone || undefined,
             email: clientEmail.trim() || `walkin_${Date.now()}@wyapar.local`,
           }),
@@ -890,30 +1063,35 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId,
-          serviceIds: selectedServices.map(s => s.id),
-          staffId:   selectedStaff.id,
+          serviceIds: bookingMode === "service" ? selectedServices.map(s => s.id) : undefined,
+          productIds: bookingMode === "product"
+            ? selectedProducts.flatMap(p => Array(p.quantity).fill(p.id))
+            : undefined,
+          staffId: selectedStaff.id,
           date,
           startTime: finalTime || undefined,
-          endTime:   isFutureDate ? undefined : finalEndTime,
-          price:     finalPrice,
-          notes:     notes.trim() || undefined,
-          status:    status || undefined,
+          endTime: isFutureDate ? undefined : finalEndTime,
+          price: finalPrice,
+          notes: notes.trim() || undefined,
+          status: bookingMode === "product" ? "COMPLETED" : (status || undefined),
           taxPct,
           discountPct: discountNum,
+          paymentMethod,
           ...(editingGroup && { deleteAppointmentIds: editingGroup.appointments.map((a: any) => a.id) }),
         }),
       });
       const apptData = await apptRes.json();
       if (!apptRes.ok) throw new Error(apptData.error ?? (editingGroup ? "Could not update booking" : "Could not create booking"));
 
-      success(editingGroup ? "Booking updated successfully!" : "Booking created successfully!");
+      success(editingGroup ? "Booking updated successfully!" : bookingMode === "product" ? "Product sale completed!" : "Booking created successfully!");
       window.dispatchEvent(new CustomEvent("booking-created"));
       onCreated?.();
-      
+
       setCreatedBooking({
         clientName: clientName.trim(),
         clientPhone: formattedPhone,
         services: selectedServices,
+        products: selectedProducts,
         staffName: selectedStaff.name,
         date,
         time: finalTime || apptData.data.startTime,
@@ -923,6 +1101,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
         taxPct,
         taxAmt,
         finalPrice,
+        paymentMethod,
       });
     } catch (e: any) {
       error(e.message ?? "Something went wrong.");
@@ -936,10 +1115,13 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
   const handleClose = () => {
     setClientName(""); setClientPhone(""); setPhoneDigits(""); setClientEmail("");
     setSelectedServices([]); setServiceSearch("");
+    setSelectedProducts([]); setProductSearch("");
+    setBookingMode("service");
+    setPaymentMethod("UPI");
     setShowNewService(false);
     setSelectedStaff(null);
     setDate(defaultDate ?? getLocalDateStr());
-    setTime(""); 
+    setTime("");
     setEndTime(getCurrentTimeHHMM());
     setNotes("");
     setSalePrice(""); setDiscountPct("0");
@@ -954,10 +1136,10 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
   const isFutureDate = date > getLocalDateStr();
   const tabComplete: Record<Tab, boolean> = {
-    client:   !!clientName.trim(),
-    service:  selectedServices.length > 0,
+    client: !!clientName.trim() && phoneDigits.length === 10,
+    service: bookingMode === "product" ? selectedProducts.length > 0 : selectedServices.length > 0,
     schedule: !!selectedStaff && !!date && (isFutureDate ? !!time : !!endTime),
-    pricing:  finalPrice > 0,
+    pricing: finalPrice > 0,
   };
 
   if (!open) return null;
@@ -994,14 +1176,22 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
               </div>
 
               <h3 className="text-xl font-bold mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-playfair)" }}>
-                {editingGroup ? "Booking Updated!" : status === "COMPLETED" ? "Booking Completed!" : "Booking Scheduled!"}
+                {editingGroup
+                  ? "Booking Updated!"
+                  : createdBooking.products && createdBooking.products.length > 0
+                    ? "Sale Completed!"
+                    : status === "COMPLETED"
+                      ? "Booking Completed!"
+                      : "Booking Scheduled!"}
               </h3>
               <p className="text-xs mb-6" style={{ color: "var(--text-muted)" }}>
-                {editingGroup 
-                  ? "The appointment has been updated successfully." 
-                  : status === "COMPLETED"
-                  ? "The appointment has been completed and recorded successfully."
-                  : "The appointment has been scheduled successfully."}
+                {editingGroup
+                  ? "The appointment has been updated successfully."
+                  : createdBooking.products && createdBooking.products.length > 0
+                    ? "The product sale has been recorded successfully."
+                    : status === "COMPLETED"
+                      ? "The appointment has been completed and recorded successfully."
+                      : "The appointment has been scheduled successfully."}
               </p>
 
               <div className="rounded-xl p-4 mb-6 text-left space-y-3" style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}>
@@ -1023,6 +1213,14 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                     <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{displayTimeConfirm}</span>
                   </div>
                 )}
+                <div className="flex justify-between text-xs">
+                  <span style={{ color: "var(--text-muted)" }}>Payment Method:</span>
+                  <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                    {createdBooking.paymentMethod === "UPI" ? "Online (UPI)" :
+                      createdBooking.paymentMethod === "CARD" ? "Online (Card)" :
+                        createdBooking.paymentMethod === "BANK_TRANSFER" ? "Bank Transfer" : "Cash"}
+                  </span>
+                </div>
                 <div className="border-t border-dashed border-gray-700 my-2"></div>
                 <div className="flex justify-between text-sm font-bold">
                   <span style={{ color: "var(--text-secondary)" }}>Total Price:</span>
@@ -1081,20 +1279,54 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                 </button>
               </div>
 
+              {/* ── Mode Toggle Segmented Control ── */}
+              {!editingGroup && (
+                <div className="px-6 py-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                  <div className="flex p-1 rounded-xl bg-black/[0.15] dark:bg-white/[0.05] border border-white/[0.03]">
+                    <button
+                      type="button"
+                      onClick={() => setBookingMode("service")}
+                      className="flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all"
+                      style={{
+                        background: bookingMode === "service" ? "var(--bg-secondary)" : "transparent",
+                        color: bookingMode === "service" ? "#f43f5e" : "var(--text-muted)",
+                        boxShadow: bookingMode === "service" ? "0 4px 12px rgba(0,0,0,0.15), 0 0 0 1px var(--border-subtle)" : "none",
+                      }}
+                    >
+                      <Scissors className="w-3.5 h-3.5" />
+                      Service Appointment
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBookingMode("product")}
+                      className="flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all"
+                      style={{
+                        background: bookingMode === "product" ? "var(--bg-secondary)" : "transparent",
+                        color: bookingMode === "product" ? "#f43f5e" : "var(--text-muted)",
+                        boxShadow: bookingMode === "product" ? "0 4px 12px rgba(0,0,0,0.15), 0 0 0 1px var(--border-subtle)" : "none",
+                      }}
+                    >
+                      <Package className="w-3.5 h-3.5" />
+                      Product Sale
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* ── Tab Navigation ── */}
               <div
                 className="flex gap-0 px-6 flex-shrink-0"
                 style={{ borderBottom: "1px solid var(--border-subtle)" }}
               >
-                {TABS.map(tab => {
-                  const Icon    = tab.icon;
+                {modalTabs.map(tab => {
+                  const Icon = tab.icon;
                   const isActive = activeTab === tab.id;
-                  const isDone   = tabComplete[tab.id];
+                  const isDone = tabComplete[tab.id];
                   return (
                     <button
                       type="button"
                       key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
+                      onClick={() => handleTabChange(tab.id)}
                       className="relative flex items-center gap-1.5 px-4 py-3 text-xs font-semibold transition-colors"
                       style={{ color: isActive ? "#f43f5e" : isDone ? "var(--text-secondary)" : "var(--text-muted)" }}
                     >
@@ -1159,11 +1391,10 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                                     handleSelectSuggestion(client);
                                   }}
                                   onClick={() => handleSelectSuggestion(client)}
-                                  className={`w-full text-left px-4 py-2 transition-colors flex flex-col py-2 ${
-                                    index === focusedSuggestionIndex
+                                  className={`w-full text-left px-4 py-2 transition-colors flex flex-col py-2 ${index === focusedSuggestionIndex
                                       ? "bg-black/[0.05] dark:bg-white/[0.08]"
                                       : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
-                                  }`}
+                                    }`}
                                   style={{ borderBottom: "1px solid var(--border-subtle)" }}
                                 >
                                   <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>{client.name}</span>
@@ -1179,8 +1410,8 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
                       <div className="space-y-1.5">
                         <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                          Phone Number{" "}
-                          <span className="text-[10px] font-normal" style={{ color: "var(--text-muted)" }}>(10 digits)</span>
+                          Phone Number <span className="text-rose-500">*</span>{" "}
+                          <span className="text-[10px] font-normal" style={{ color: "var(--text-muted)" }}>(10 digits, required)</span>
                         </label>
                         {/* Split input: fixed +91 badge + 10-digit only field */}
                         <div className="relative flex items-stretch rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-default)", background: "var(--bg-card)" }}>
@@ -1252,11 +1483,10 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                                     handleSelectSuggestion(client);
                                   }}
                                   onClick={() => handleSelectSuggestion(client)}
-                                  className={`w-full text-left px-4 py-2 transition-colors flex flex-col py-2 ${
-                                    index === focusedSuggestionIndex
+                                  className={`w-full text-left px-4 py-2 transition-colors flex flex-col py-2 ${index === focusedSuggestionIndex
                                       ? "bg-black/[0.05] dark:bg-white/[0.08]"
                                       : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
-                                  }`}
+                                    }`}
                                   style={{ borderBottom: "1px solid var(--border-subtle)" }}
                                 >
                                   <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>{client.name}</span>
@@ -1296,183 +1526,300 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                   </div>
                 )}
 
-                {/* ─── SERVICE TAB ─────────────────────────────────── */}
+                {/* ─── SERVICE/PRODUCT TAB ─────────────────────────── */}
                 {activeTab === "service" && (
-                  <div className="space-y-3">
-                    {/* Search */}
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-muted)" }} />
-                      <input
-                        type="text"
-                        placeholder="Search service name or category…"
-                        className="input-field pl-9"
-                        value={serviceSearch}
-                        onChange={e => setServiceSearch(e.target.value)}
-                      />
-                    </div>
-
-                    {/* Service list grouped by category */}
-                    {servicesLoading ? (
-                      <div className="flex items-center justify-center py-10">
-                        <Loader2 className="w-5 h-5 animate-spin text-rose-400" />
+                  bookingMode === "service" ? (
+                    <div className="space-y-3">
+                      {/* Search */}
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                        <input
+                          type="text"
+                          placeholder="Search service name or category…"
+                          className="input-field pl-9"
+                          value={serviceSearch}
+                          onChange={e => setServiceSearch(e.target.value)}
+                        />
                       </div>
-                    ) : (
-                      <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
-                        {Object.entries(groupedServices).length === 0 && (
-                          <p className="text-center text-xs py-6" style={{ color: "var(--text-muted)" }}>No services found</p>
-                        )}
-                        {Object.entries(groupedServices).map(([cat, svcs]) => (
-                          <div key={cat}>
-                            <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "var(--text-muted)" }}>
-                              {cat}
-                            </p>
-                            <div className="space-y-1">
-                              {svcs.map(svc => {
-                                const isSelected = selectedServices.some(s => s.id === svc.id);
-                                const handleToggleService = () => {
-                                  let nextServices;
-                                  if (isSelected) {
-                                    nextServices = selectedServices.filter(s => s.id !== svc.id);
-                                  } else {
-                                    nextServices = [...selectedServices, svc];
-                                  }
-                                  setSelectedServices(nextServices);
-                                  const sumPrice = nextServices.reduce((sum, s) => sum + Number(s.price), 0);
-                                  setSalePrice(String(sumPrice));
-                                  setDiscountPct("0");
-                                };
-                                return (
-                                  <button
-                                    type="button"
-                                    key={svc.id}
-                                    onClick={handleToggleService}
-                                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-left"
-                                    style={{
-                                      background: isSelected ? "rgba(244,63,94,0.1)" : "var(--bg-card)",
-                                      border: `1px solid ${isSelected ? "rgba(244,63,94,0.35)" : "var(--border-subtle)"}`,
+
+                      {/* Service list grouped by category */}
+                      {servicesLoading ? (
+                        <div className="flex items-center justify-center py-10">
+                          <Loader2 className="w-5 h-5 animate-spin text-rose-400" />
+                        </div>
+                      ) : (
+                        <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+                          {Object.entries(groupedServices).length === 0 && (
+                            <p className="text-center text-xs py-6" style={{ color: "var(--text-muted)" }}>No services found</p>
+                          )}
+                          {Object.entries(groupedServices).map(([cat, svcs]) => (
+                            <div key={cat}>
+                              <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "var(--text-muted)" }}>
+                                {cat}
+                              </p>
+                              <div className="space-y-1">
+                                {svcs.map(svc => {
+                                  const isSelected = selectedServices.some(s => s.id === svc.id);
+                                  const handleToggleService = () => {
+                                    let nextServices;
+                                    if (isSelected) {
+                                      nextServices = selectedServices.filter(s => s.id !== svc.id);
+                                    } else {
+                                      nextServices = [...selectedServices, svc];
+                                    }
+                                    setSelectedServices(nextServices);
+                                    const sumPrice = nextServices.reduce((sum, s) => sum + Number(s.price), 0);
+                                    setSalePrice(String(sumPrice));
+                                    setDiscountPct("0");
+                                  };
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={svc.id}
+                                      onClick={handleToggleService}
+                                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-left"
+                                      style={{
+                                        background: isSelected ? "rgba(244,63,94,0.1)" : "var(--bg-card)",
+                                        border: `1px solid ${isSelected ? "rgba(244,63,94,0.35)" : "var(--border-subtle)"}`,
+                                      }}
+                                    >
+                                      <div className="flex items-center gap-2.5">
+                                        <div
+                                          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                                          style={{ background: isSelected ? "rgba(244,63,94,0.15)" : "rgba(255,255,255,0.04)" }}
+                                        >
+                                          <Scissors className="w-3.5 h-3.5" style={{ color: isSelected ? "#f43f5e" : "var(--text-muted)" }} />
+                                        </div>
+                                        <div>
+                                          <p className="text-xs font-semibold" style={{ color: isSelected ? "#f43f5e" : "var(--text-primary)" }}>
+                                            {svc.name}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-xs font-bold" style={{ color: isSelected ? "#f43f5e" : "var(--text-primary)" }}>
+                                          ₹{Number(svc.price).toLocaleString("en-IN")}
+                                        </p>
+                                        {isSelected && <Check className="w-3.5 h-3.5 text-rose-400 ml-auto mt-0.5" />}
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Create new service toggle */}
+                      <button
+                        type="button"
+                        onClick={() => setShowNewService(v => !v)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all"
+                        style={{
+                          background: showNewService ? "rgba(244,63,94,0.08)" : "rgba(255,255,255,0.02)",
+                          border: `1px dashed ${showNewService ? "rgba(244,63,94,0.35)" : "var(--border-subtle)"}`,
+                          color: showNewService ? "#f43f5e" : "var(--text-muted)",
+                        }}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        {showNewService ? "Cancel new service" : "Create a new service"}
+                        <ChevronDown className={`w-3.5 h-3.5 ml-auto transition-transform ${showNewService ? "rotate-180" : ""}`} />
+                      </button>
+
+                      {/* Inline new service form */}
+                      <AnimatePresence>
+                        {showNewService && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <div
+                              className="p-4 rounded-xl space-y-3"
+                              style={{ background: "var(--bg-card)", border: "1px solid var(--border-default)" }}
+                            >
+                              <p className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>New Service Details</p>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Service Name *</label>
+                                  <input type="text" placeholder="e.g. Brazilian Blowout" className="input-field text-xs py-2"
+                                    value={newSvcName} onChange={e => setNewSvcName(e.target.value)} />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Category *</label>
+                                  <select
+                                    className="input-field text-xs py-2"
+                                    value={selectedCategoryOption}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      setSelectedCategoryOption(val);
+                                      if (val !== "__new__") {
+                                        setNewSvcCategory(val);
+                                      } else {
+                                        setNewSvcCategory("");
+                                      }
                                     }}
                                   >
-                                    <div className="flex items-center gap-2.5">
-                                      <div
-                                        className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                                        style={{ background: isSelected ? "rgba(244,63,94,0.15)" : "rgba(255,255,255,0.04)" }}
-                                      >
-                                        <Scissors className="w-3.5 h-3.5" style={{ color: isSelected ? "#f43f5e" : "var(--text-muted)" }} />
-                                      </div>
-                                      <div>
-                                        <p className="text-xs font-semibold" style={{ color: isSelected ? "#f43f5e" : "var(--text-primary)" }}>
-                                          {svc.name}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="text-right">
-                                      <p className="text-xs font-bold" style={{ color: isSelected ? "#f43f5e" : "var(--text-primary)" }}>
-                                        ₹{Number(svc.price).toLocaleString("en-IN")}
-                                      </p>
-                                      {isSelected && <Check className="w-3.5 h-3.5 text-rose-400 ml-auto mt-0.5" />}
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Create new service toggle */}
-                    <button
-                      type="button"
-                      onClick={() => setShowNewService(v => !v)}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all"
-                      style={{
-                        background: showNewService ? "rgba(244,63,94,0.08)" : "rgba(255,255,255,0.02)",
-                        border: `1px dashed ${showNewService ? "rgba(244,63,94,0.35)" : "var(--border-subtle)"}`,
-                        color: showNewService ? "#f43f5e" : "var(--text-muted)",
-                      }}
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      {showNewService ? "Cancel new service" : "Create a new service"}
-                      <ChevronDown className={`w-3.5 h-3.5 ml-auto transition-transform ${showNewService ? "rotate-180" : ""}`} />
-                    </button>
-
-                    {/* Inline new service form */}
-                    <AnimatePresence>
-                      {showNewService && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="overflow-hidden"
-                        >
-                          <div
-                            className="p-4 rounded-xl space-y-3"
-                            style={{ background: "var(--bg-card)", border: "1px solid var(--border-default)" }}
-                          >
-                            <p className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>New Service Details</p>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div className="space-y-1">
-                                <label className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Service Name *</label>
-                                <input type="text" placeholder="e.g. Brazilian Blowout" className="input-field text-xs py-2"
-                                  value={newSvcName} onChange={e => setNewSvcName(e.target.value)} />
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Category *</label>
-                                <select
-                                  className="input-field text-xs py-2"
-                                  value={selectedCategoryOption}
-                                  onChange={e => {
-                                    const val = e.target.value;
-                                    setSelectedCategoryOption(val);
-                                    if (val !== "__new__") {
-                                      setNewSvcCategory(val);
-                                    } else {
-                                      setNewSvcCategory("");
-                                    }
-                                  }}
-                                >
-                                  <option value="" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>Select a category</option>
-                                  {existingCategories.map(cat => (
-                                    <option key={cat} value={cat} style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>{cat}</option>
-                                  ))}
-                                  <option value="__new__" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>+ Add New Category...</option>
-                                </select>
-                              </div>
-
-                              {selectedCategoryOption === "__new__" && (
-                                <div className="space-y-1 col-span-1 sm:col-span-2">
-                                  <label className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>New Category Name *</label>
-                                  <input
-                                    type="text"
-                                    placeholder="Enter new category name"
-                                    className="input-field text-xs py-2"
-                                    value={newSvcCategory}
-                                    onChange={e => setNewSvcCategory(e.target.value)}
-                                  />
+                                    <option value="" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>Select a category</option>
+                                    {existingCategories.map(cat => (
+                                      <option key={cat} value={cat} style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>{cat}</option>
+                                    ))}
+                                    <option value="__new__" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>+ Add New Category...</option>
+                                  </select>
                                 </div>
-                              )}
-                              <div className="space-y-1 col-span-1 sm:col-span-2">
-                                <label className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Price (₹) *</label>
-                                <input type="number" min="0" placeholder="0.00" className="input-field text-xs py-2"
-                                  value={newSvcPrice} onChange={e => setNewSvcPrice(e.target.value)} />
+
+                                {selectedCategoryOption === "__new__" && (
+                                  <div className="space-y-1 col-span-1 sm:col-span-2">
+                                    <label className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>New Category Name *</label>
+                                    <input
+                                      type="text"
+                                      placeholder="Enter new category name"
+                                      className="input-field text-xs py-2"
+                                      value={newSvcCategory}
+                                      onChange={e => setNewSvcCategory(e.target.value)}
+                                    />
+                                  </div>
+                                )}
+                                <div className="space-y-1 col-span-1 sm:col-span-2">
+                                  <label className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Price (₹) *</label>
+                                  <input type="number" min="0" placeholder="0.00" className="input-field text-xs py-2"
+                                    value={newSvcPrice} onChange={e => setNewSvcPrice(e.target.value)} />
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={handleCreateService}
+                                disabled={creatingService}
+                                className="btn-primary w-full py-2 text-xs font-semibold flex items-center justify-center gap-2"
+                              >
+                                {creatingService ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                                {creatingService ? "Creating…" : "Save & Select Service"}
+                              </button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Search */}
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                        <input
+                          type="text"
+                          placeholder="Search product name or category…"
+                          className="input-field pl-9"
+                          value={productSearch}
+                          onChange={e => setProductSearch(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Product list grouped by category */}
+                      {productsLoading ? (
+                        <div className="flex items-center justify-center py-10">
+                          <Loader2 className="w-5 h-5 animate-spin text-rose-400" />
+                        </div>
+                      ) : (
+                        <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                          {Object.entries(groupedProducts).length === 0 && (
+                            <p className="text-center text-xs py-6" style={{ color: "var(--text-muted)" }}>No products found</p>
+                          )}
+                          {Object.entries(groupedProducts).map(([cat, prods]) => (
+                            <div key={cat}>
+                              <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "var(--text-muted)" }}>
+                                {cat}
+                              </p>
+                              <div className="space-y-1">
+                                {prods.map(prod => {
+                                  const isSelected = selectedProducts.some(p => p.id === prod.id);
+                                  const handleToggleProduct = () => {
+                                    if (prod.stock <= 0 && !isSelected) return;
+                                    let nextProducts;
+                                    if (isSelected) {
+                                      nextProducts = selectedProducts.filter(p => p.id !== prod.id);
+                                    } else {
+                                      nextProducts = [...selectedProducts, { ...prod, quantity: 1 }];
+                                    }
+                                    setSelectedProducts(nextProducts);
+                                    const sumPrice = nextProducts.reduce((sum, p) => sum + Number(p.price) * p.quantity, 0);
+                                    setSalePrice(String(sumPrice));
+                                    setDiscountPct("0");
+                                  };
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={prod.id}
+                                      onClick={handleToggleProduct}
+                                      disabled={prod.stock <= 0 && !isSelected}
+                                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-left ${
+                                        prod.stock <= 0 && !isSelected ? "opacity-40 cursor-not-allowed" : ""
+                                      }`}
+                                      style={{
+                                        background: isSelected ? "rgba(244,63,94,0.1)" : "var(--bg-card)",
+                                        border: `1px solid ${isSelected ? "rgba(244,63,94,0.35)" : "var(--border-subtle)"}`,
+                                      }}
+                                    >
+                                      <div className="flex items-center gap-2.5">
+                                        <div
+                                          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                                          style={{ background: isSelected ? "rgba(244,63,94,0.15)" : "rgba(255,255,255,0.04)" }}
+                                        >
+                                          <Package className="w-3.5 h-3.5" style={{ color: isSelected ? "#f43f5e" : "var(--text-muted)" }} />
+                                        </div>
+                                        <div>
+                                          <p className="text-xs font-semibold" style={{ color: isSelected ? "#f43f5e" : "var(--text-primary)" }}>
+                                            {prod.name}
+                                          </p>
+                                          <p className="text-[10px]" style={{ color: prod.stock <= 0 ? "#ef4444" : "var(--text-muted)" }}>
+                                            Stock: {prod.stock} left
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-col items-end justify-center">
+                                        <p className="text-xs font-bold" style={{ color: isSelected ? "#f43f5e" : "var(--text-primary)" }}>
+                                          ₹{Number(prod.price).toLocaleString("en-IN")}
+                                        </p>
+                                        {isSelected ? (
+                                          <div className="mt-1" onClick={e => e.stopPropagation()}>
+                                            <div className="flex items-center gap-1.5 bg-black/10 dark:bg-white/5 rounded-lg p-0.5 border border-default">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleUpdateQty(prod.id, -1)}
+                                                className="w-5 h-5 flex items-center justify-center rounded text-[10px] font-bold hover:bg-black/10 dark:hover:bg-white/10"
+                                                style={{ color: "var(--text-secondary)" }}
+                                              >
+                                                -
+                                              </button>
+                                              <span className="text-[10px] font-bold tabular-nums px-0.5" style={{ color: "var(--text-primary)" }}>
+                                                {selectedProducts.find(p => p.id === prod.id)?.quantity || 1}
+                                              </span>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleUpdateQty(prod.id, 1)}
+                                                disabled={(selectedProducts.find(p => p.id === prod.id)?.quantity || 1) >= prod.stock}
+                                                className="w-5 h-5 flex items-center justify-center rounded text-[10px] font-bold hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                                                style={{ color: "var(--text-secondary)" }}
+                                              >
+                                                +
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    </button>
+                                  );
+                                })}
                               </div>
                             </div>
-
-                            <button
-                              onClick={handleCreateService}
-                              disabled={creatingService}
-                              className="btn-primary w-full py-2 text-xs font-semibold flex items-center justify-center gap-2"
-                            >
-                              {creatingService ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                              {creatingService ? "Creating…" : "Save & Select Service"}
-                            </button>
-                          </div>
-                        </motion.div>
+                          ))}
+                        </div>
                       )}
-                    </AnimatePresence>
-                  </div>
+                    </div>
+                  )
                 )}
 
                 {/* ─── SCHEDULE TAB ─────────────────────────────────── */}
@@ -1491,7 +1838,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
                           {staffList.map(s => {
                             const isSelected = selectedStaff?.id === s.id;
-                            const colors = ["#f43f5e","#a855f7","#06b6d4","#f59e0b","#10b981","#f97316"];
+                            const colors = ["#f43f5e", "#a855f7", "#06b6d4", "#f59e0b", "#10b981", "#f97316"];
                             const clr = colors[s.name.charCodeAt(0) % colors.length];
                             const initials = s.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
                             return (
@@ -1686,11 +2033,16 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                               readOnly
                             />
                           </div>
-                          {selectedServices.length > 0 && (
+                          {bookingMode === "service" && selectedServices.length > 0 && (
                             <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
                               Services list price sum: ₹{selectedServices.reduce((sum, s) => sum + Number(s.price), 0).toLocaleString("en-IN")}
                             </p>
                           )}
+                          {bookingMode === "product" && selectedProducts.length > 0 && (
+                                    <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                                      Products list price sum: ₹{selectedProducts.reduce((sum, p) => sum + Number(p.price) * p.quantity, 0).toLocaleString("en-IN")}
+                                    </p>
+                                  )}
                         </div>
 
                         <div className="space-y-1.5">
@@ -1744,6 +2096,24 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
                           </div>
                         </div>
+
+                        {/* Payment Method */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                            Payment Method
+                          </label>
+                          <div className="relative">
+                            <select
+                              className="input-field appearance-none pr-10 h-[42px]"
+                              value={paymentMethod === "CASH" ? "CASH" : "UPI"}
+                              onChange={e => setPaymentMethod(e.target.value as any)}
+                            >
+                              <option value="UPI">Online</option>
+                              <option value="CASH">Cash</option>
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -1791,24 +2161,24 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                     </div>
 
                     {/* Booking summary card */}
-                    {(selectedServices.length > 0 || selectedStaff) && (
+                    {((bookingMode === "service" ? selectedServices.length > 0 : selectedProducts.length > 0) || selectedStaff) && (
                       <div
                         className="rounded-xl p-4 space-y-2"
                         style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}
                       >
                         <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-                          Booking Summary
+                          {bookingMode === "product" ? "Sale Summary" : "Booking Summary"}
                         </p>
                         {clientName && (
                           <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-                            <User className="w-3.5 h-3.5 text-rose-400 shrink-0" /> 
+                            <User className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                             <span><strong>Customer:</strong> {clientName} {clientPhone && `· ${clientPhone}`}</span>
                           </div>
                         )}
-                        {selectedServices.length > 0 && (
+                        {bookingMode === "service" && selectedServices.length > 0 && (
                           <div className="flex items-start gap-2 text-xs flex-col" style={{ color: "var(--text-secondary)" }}>
                             <div className="flex items-center gap-2">
-                              <Scissors className="w-3.5 h-3.5 text-rose-400" /> 
+                              <Scissors className="w-3.5 h-3.5 text-rose-400" />
                               <span>Services ({selectedServices.length}):</span>
                             </div>
                             <ul className="pl-5 list-disc space-y-0.5">
@@ -1820,23 +2190,69 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                             </ul>
                           </div>
                         )}
+                        {bookingMode === "product" && selectedProducts.length > 0 && (
+                          <div className="flex items-start gap-2 text-xs flex-col" style={{ color: "var(--text-secondary)" }}>
+                            <div className="flex items-center gap-2">
+                              <Package className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                              <span>Products ({selectedProducts.reduce((sum, p) => sum + p.quantity, 0)}):</span>
+                            </div>
+                            <ul className="pl-5 list-disc space-y-0.5">
+                              {selectedProducts.map(p => (
+                                <li key={p.id}>
+                                  {p.name} (x{p.quantity}) · ₹{(Number(p.price) * p.quantity).toLocaleString("en-IN")}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                         {selectedStaff && (
                           <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-                            <User className="w-3.5 h-3.5 text-rose-400 shrink-0" /> 
+                            <User className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                             <span><strong>Staff:</strong> {selectedStaff.name}</span>
                           </div>
                         )}
                         {date && (
                           <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-                            <CalendarDays className="w-3.5 h-3.5 text-rose-400 shrink-0" /> 
+                            <CalendarDays className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                             <span><strong>Date:</strong> {date}</span>
                           </div>
                         )}
                         {displayTimeSummary && (
                           <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-                            <Clock className="w-3.5 h-3.5 text-rose-400 shrink-0" /> 
+                            <Clock className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                             <span><strong>Time:</strong> {displayTimeSummary}</span>
                           </div>
+                        )}
+                        <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+                          <Check className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                          <span><strong>Payment Method:</strong> {paymentMethod === "UPI" ? "Online" : paymentMethod === "CASH" ? "Cash" : paymentMethod}</span>
+                        </div>
+
+                        {/* Pricing breakdown */}
+                        {salePriceNum > 0 && (
+                          <>
+                            <div className="border-t border-dashed my-1" style={{ borderColor: "var(--border-subtle)" }} />
+                            <div className="flex items-center justify-between text-xs" style={{ color: "var(--text-secondary)" }}>
+                              <span>Subtotal</span>
+                              <span>₹{salePriceNum.toLocaleString("en-IN")}</span>
+                            </div>
+                            {discountNum > 0 && (
+                              <div className="flex items-center justify-between text-xs">
+                                <span style={{ color: "var(--text-secondary)" }}>Discount ({discountNum}%)</span>
+                                <span className="text-emerald-400 font-semibold">−₹{discountAmt.toLocaleString("en-IN")}</span>
+                              </div>
+                            )}
+                            {taxPct > 0 && (
+                              <div className="flex items-center justify-between text-xs">
+                                <span style={{ color: "var(--text-secondary)" }}>GST ({taxPct}%)</span>
+                                <span className="text-amber-400 font-semibold">+₹{taxAmt.toLocaleString("en-IN")}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between text-sm font-bold pt-1" style={{ borderTop: "1px solid rgba(244,63,94,0.2)" }}>
+                              <span style={{ color: "var(--text-primary)" }}>Total</span>
+                              <span className="text-rose-400">₹{finalPrice.toLocaleString("en-IN")}</span>
+                            </div>
+                          </>
                         )}
                       </div>
                     )}
@@ -1855,8 +2271,8 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                     <button
                       type="button"
                       onClick={() => {
-                        const idx = TABS.findIndex(t => t.id === activeTab);
-                        if (idx > 0) setActiveTab(TABS[idx - 1].id);
+                        const idx = modalTabs.findIndex(t => t.id === activeTab);
+                        if (idx > 0) setActiveTab(modalTabs[idx - 1].id);
                       }}
                       className="btn-secondary py-2 px-4 text-xs font-semibold"
                     >
@@ -1874,8 +2290,8 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                     <button
                       type="button"
                       onClick={() => {
-                        const idx = TABS.findIndex(t => t.id === activeTab);
-                        if (idx < TABS.length - 1) setActiveTab(TABS[idx + 1].id);
+                        const idx = modalTabs.findIndex(t => t.id === activeTab);
+                        if (idx < modalTabs.length - 1) handleTabChange(modalTabs[idx + 1].id);
                       }}
                       className="btn-primary py-2 px-4 text-xs font-semibold flex items-center gap-1.5"
                     >

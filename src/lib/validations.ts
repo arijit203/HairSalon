@@ -79,10 +79,13 @@ export const AppointmentStatusEnum = z.enum([
   "PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED", "NO_SHOW",
 ]);
 
+export const PaymentMethodEnum = z.enum(["CASH", "CARD", "UPI", "BANK_TRANSFER"]);
+
 const CreateAppointmentBaseSchema = z.object({
   clientId:   z.string().min(1),
   serviceId:  z.string().min(1).optional(),
   serviceIds: z.array(z.string()).optional(),
+  productIds: z.array(z.string()).optional(),
   staffId:    z.string().min(1),
   date:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
   startTime:  z.union([z.string().regex(/^\d{2}:\d{2}$/), z.literal("")]).optional(),
@@ -93,12 +96,13 @@ const CreateAppointmentBaseSchema = z.object({
   status:     AppointmentStatusEnum.optional(),
   taxPct:      z.number().optional(),
   discountPct: z.number().optional(),
+  paymentMethod: PaymentMethodEnum.optional().default("CASH"),
 });
 
 export const CreateAppointmentSchema = CreateAppointmentBaseSchema.refine(
-  data => data.serviceId || (data.serviceIds && data.serviceIds.length > 0),
+  data => data.serviceId || (data.serviceIds && data.serviceIds.length > 0) || (data.productIds && data.productIds.length > 0),
   {
-    message: "Either serviceId or serviceIds must be provided",
+    message: "Either serviceId, serviceIds, or productIds must be provided",
     path: ["serviceId"],
   }
 ).refine(
@@ -114,8 +118,6 @@ export const UpdateAppointmentSchema = CreateAppointmentBaseSchema.partial().mer
 );
 
 // ─── TRANSACTION ──────────────────────────────────────────────────────────────
-
-export const PaymentMethodEnum = z.enum(["CASH", "CARD", "UPI", "BANK_TRANSFER"]);
 
 export const TransactionItemSchema = z.object({
   productId: z.string().optional(),

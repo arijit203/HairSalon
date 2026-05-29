@@ -96,7 +96,11 @@ const getCachedDashboardData = unstable_cache(
           client:  { select: { id: true, name: true, phone: true, email: true } },
           service: { select: { id: true, name: true, price: true } },
           staff:   { select: { id: true, name: true } },
-          transaction: true,
+          transaction: {
+            include: {
+              items: true,
+            }
+          },
         },
       }),
     ]);

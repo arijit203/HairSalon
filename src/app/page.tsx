@@ -3,7 +3,7 @@
 import {
   TrendingUp, TrendingDown, Users, ShoppingBag,
   CalendarCheck, Plus, ArrowRight, Clock,
-  Scissors, AlertTriangle, Printer,
+  Scissors, AlertTriangle, Printer, Package,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -148,12 +148,22 @@ export default function DashboardPage() {
       return;
     }
 
-    const servicesHtml = group.appointments.map((a: any) => `
-      <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-        <span>${a.service?.name ?? "Service"}</span>
-        <span>₹${Number(a.service?.price ?? a.price).toFixed(2)}</span>
-      </div>
-    `).join("");
+    const transaction = group.appointments[0]?.transaction;
+    const isProductSale = group.appointments.some((a: any) => a.service?.name === "Product Sale");
+
+    const servicesHtml = isProductSale && transaction?.items && transaction.items.length > 0
+      ? transaction.items.map((item: any) => `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>${item.name} (x${item.quantity})</span>
+            <span>₹${Number(item.lineTotal).toFixed(2)}</span>
+          </div>
+        `).join("")
+      : group.appointments.map((a: any) => `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>${a.service?.name ?? "Service"}</span>
+            <span>₹${Number(a.service?.price ?? a.price).toFixed(2)}</span>
+          </div>
+        `).join("");
 
     const format24to12 = (time24: string) => {
       if (!time24) return "";
@@ -167,7 +177,6 @@ export default function DashboardPage() {
       return `${String(hours).padStart(2, "0")}:${minutesStr}${ampm}`;
     };
 
-    const transaction = group.appointments[0]?.transaction;
     const originalSubtotal = transaction ? Number(transaction.subtotal) : group.appointments.reduce((sum: number, a: any) => sum + Number(a.service?.price ?? a.price), 0);
     const paidTotal = transaction ? Number(transaction.total) : group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0);
     const discountAmt = transaction ? Number(transaction.discountAmt) : Math.max(0, originalSubtotal - paidTotal);
@@ -245,8 +254,8 @@ export default function DashboardPage() {
           <div><strong>Staff:</strong> ${staffNames}</div>
           
           <div class="divider"></div>
-          <div class="bold" style="margin-bottom: 5px;">SERVICES</div>
-          ${servicesHtml}
+          <div class="bold" style="margin-bottom: 5px;">\${isProductSale ? "PRODUCTS" : "SERVICES"}</div>
+          \${servicesHtml}
           
           <div class="divider"></div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
@@ -531,7 +540,14 @@ export default function DashboardPage() {
                 <div className="space-y-2">
                   {scheduledPending.map((group: any) => {
                     const initials = group.client?.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2) ?? "??";
-                    const servicesStr = group.appointments.map((a: any) => a.service?.name).join(", ");
+                    const servicesStr = group.appointments.map((a: any) => {
+                      const isProductSale = a.service?.name === "Product Sale";
+                      if (isProductSale && a.transaction?.items && a.transaction.items.length > 0) {
+                        return a.transaction.items.map((item: any) => `${item.name} (x${item.quantity})`).join(", ");
+                      }
+                      return a.service?.name;
+                    }).join(", ");
+                    const hasProductSale = group.appointments.some((a: any) => a.service?.name === "Product Sale");
                     const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
                     return (
                       <div key={group.id} className="flex items-center justify-between gap-4 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all bg-amber-500/[0.01]"
@@ -539,9 +555,21 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-4 flex-1 min-w-0">
                           <div className="avatar w-9 h-9 text-xs flex-shrink-0">{initials}</div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{group.client?.name}</p>
-                            <p className="text-xs truncate flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
-                              <Scissors className="w-3 h-3 flex-shrink-0" />
+                            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                              <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{group.client?.name}</p>
+                              {hasProductSale ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                  style={{ background: "rgba(6,182,212,0.12)", color: "#06b6d4", border: "1px solid rgba(6,182,212,0.25)" }}>
+                                  <Package className="w-2.5 h-2.5" /> Product Sale
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                  style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.25)" }}>
+                                  <Scissors className="w-2.5 h-2.5" /> Service
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
                               {servicesStr} · {staffNames}
                             </p>
                           </div>
@@ -549,7 +577,10 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-3 flex-shrink-0">
                           <div className="text-right">
                             <span className="text-xs font-bold tabular-nums block" style={{ color: "var(--text-secondary)" }}>
-                              {new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · {group.startTime} - {group.endTime}
+                              {new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · {group.endTime}
+                            </span>
+                            <span className="text-xs font-black text-rose-400 block mt-0.5">
+                              ₹{group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0).toLocaleString("en-IN")}
                             </span>
                           </div>
                           <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
@@ -588,7 +619,14 @@ export default function DashboardPage() {
                 <div className="space-y-2">
                   {otherAppointments.map((group: any) => {
                     const initials = group.client?.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2) ?? "??";
-                    const servicesStr = group.appointments.map((a: any) => a.service?.name).join(", ");
+                    const servicesStr = group.appointments.map((a: any) => {
+                      const isProductSale = a.service?.name === "Product Sale";
+                      if (isProductSale && a.transaction?.items && a.transaction.items.length > 0) {
+                        return a.transaction.items.map((item: any) => `${item.name} (x${item.quantity})`).join(", ");
+                      }
+                      return a.service?.name;
+                    }).join(", ");
+                    const hasProductSale = group.appointments.some((a: any) => a.service?.name === "Product Sale");
                     const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
                     return (
                       <div key={group.id} className="flex items-center justify-between gap-4 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all"
@@ -596,9 +634,21 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-4 flex-1 min-w-0">
                           <div className="avatar w-9 h-9 text-xs flex-shrink-0">{initials}</div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{group.client?.name}</p>
-                            <p className="text-xs truncate flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
-                              <Scissors className="w-3 h-3 flex-shrink-0" />
+                            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                              <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{group.client?.name}</p>
+                              {hasProductSale ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                  style={{ background: "rgba(6,182,212,0.12)", color: "#06b6d4", border: "1px solid rgba(6,182,212,0.25)" }}>
+                                  <Package className="w-2.5 h-2.5" /> Product Sale
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                  style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.25)" }}>
+                                  <Scissors className="w-2.5 h-2.5" /> Service
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
                               {servicesStr} · {staffNames}
                             </p>
                           </div>
@@ -606,7 +656,10 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-3 flex-shrink-0">
                           <div className="text-right">
                             <span className="text-xs font-semibold tabular-nums block" style={{ color: "var(--text-secondary)" }}>
-                              {new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · {group.startTime} - {group.endTime}
+                              {new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · {group.endTime}
+                            </span>
+                            <span className="text-xs font-black text-rose-400 block mt-0.5">
+                              ₹{group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0).toLocaleString("en-IN")}
                             </span>
                           </div>
                           <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"

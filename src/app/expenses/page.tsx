@@ -15,6 +15,7 @@ import {
   Coins,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   X,
   AlertTriangle,
   Eye,
@@ -70,9 +71,9 @@ const getTypeBadgeClass = (type: string) => {
 const getTypeLabel = (type: string) => {
   switch (type) {
     case "BILL":
-      return "Bill";
+      return "Product Purchase";
     case "PAYMENT_OUT":
-      return "Payment-Out";
+      return "Staff Payment";
     case "MISC":
     default:
       return "Miscellaneous";
@@ -97,7 +98,8 @@ function ExpensesPageContent() {
 
   // Filters & State
   const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [page, setPage] = useState(1);
   
   // Aggregate stats
@@ -162,18 +164,25 @@ function ExpensesPageContent() {
     params.set("type", "MISC");
   }
 
-  if (categoryFilter !== "All") {
-    params.set("category", categoryFilter);
-  }
   if (search) {
     params.set("search", search);
+  }
+  if (startDate) {
+    params.set("startDate", startDate);
+  }
+  if (endDate) {
+    params.set("endDate", endDate);
   }
 
   const { data: expenses, pagination, loading, refetch } = usePaginatedApi<any>(`/api/expenses?${params.toString()}`);
 
-  // Fetch all for stats aggregation
+  // Fetch all for stats aggregation (filtered by selected date ranges too)
   useEffect(() => {
-    fetch("/api/expenses?limit=5000")
+    const statsParams = new URLSearchParams({ limit: "5000" });
+    if (startDate) statsParams.set("startDate", startDate);
+    if (endDate) statsParams.set("endDate", endDate);
+
+    fetch(`/api/expenses?${statsParams.toString()}`)
       .then((res) => res.json())
       .then((d) => {
         if (d.data) {
@@ -192,7 +201,7 @@ function ExpensesPageContent() {
         }
       })
       .catch((e) => console.error("Error loading stats:", e));
-  }, [expenses]);
+  }, [expenses, startDate, endDate]);
 
   // Open modal if create parameter is present
   useEffect(() => {
@@ -293,9 +302,9 @@ function ExpensesPageContent() {
   };
 
   const tabs = [
-    { id: "all", label: "All Expenses" },
-    { id: "bills", label: "Purchase Bills" },
-    { id: "payment-out", label: "Payment-Out" },
+    { id: "all", label: "All" },
+    { id: "bills", label: "Product Purchase" },
+    { id: "payment-out", label: "Staff Payment" },
     { id: "misc", label: "Miscellaneous" },
   ];
 
@@ -332,7 +341,7 @@ function ExpensesPageContent() {
         <div className="glass-card p-5 relative overflow-hidden flex flex-col justify-between" style={{ minHeight: "120px" }}>
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Purchase Bills</p>
+              <p className="text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Product Purchase</p>
               <h3 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
                 ₹{stats.bills.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </h3>
@@ -348,7 +357,7 @@ function ExpensesPageContent() {
         <div className="glass-card p-5 relative overflow-hidden flex flex-col justify-between" style={{ minHeight: "120px" }}>
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Payment-Out</p>
+              <p className="text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Staff Payment</p>
               <h3 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
                 ₹{stats.payments.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </h3>
@@ -390,7 +399,7 @@ function ExpensesPageContent() {
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                 tab === t.id
                   ? "bg-rose-500 text-white shadow-sm"
-                  : "text-muted hover:text-white hover:bg-[rgba(255,255,255,0.03)]"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[rgba(244,63,94,0.08)]"
               }`}
             >
               {t.label}
@@ -399,8 +408,8 @@ function ExpensesPageContent() {
         </div>
 
         {/* Search, Filter & Action button */}
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-          <div className="relative w-full sm:max-w-xs">
+        <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+          <div className="relative w-full lg:max-w-xs">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-muted)" }} />
             <input
               type="text"
@@ -411,22 +420,36 @@ function ExpensesPageContent() {
             />
           </div>
 
-          <div className="flex gap-2 w-full sm:w-auto justify-end">
-            <div className="relative">
-              <select
-                value={categoryFilter}
-                onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-                className="select-field pr-10 py-2.5"
-                style={{ minWidth: "160px" }}
-              >
-                <option value="All">All Categories</option>
-                <option value="PRODUCT_PURCHASE">Product Purchase</option>
-                <option value="STAFF_PAYMENT">Staff Payment</option>
-                <option value="INFRASTRUCTURE">Infrastructure</option>
-                <option value="MISCELLANEOUS">Miscellaneous</option>
-              </select>
-              <Filter className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+          <div className="flex flex-wrap gap-3 items-center w-full lg:w-auto justify-end">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold text-[var(--text-muted)]">From:</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
+                className="input-field text-xs py-1.5 px-2.5 w-32"
+                style={{ background: "var(--bg-card)" }}
+              />
             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold text-[var(--text-muted)]">To:</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
+                className="input-field text-xs py-1.5 px-2.5 w-32"
+                style={{ background: "var(--bg-card)" }}
+              />
+            </div>
+            {(startDate || endDate) && (
+              <button
+                onClick={() => { setStartDate(""); setEndDate(""); setPage(1); }}
+                className="text-xs font-semibold px-2 py-1.5 rounded-lg hover:bg-[var(--bg-tertiary)]"
+                style={{ color: "var(--accent-rose-light)" }}
+              >
+                Clear Dates
+              </button>
+            )}
 
             <button
               onClick={() => {
@@ -449,8 +472,7 @@ function ExpensesPageContent() {
                 <tr>
                   <th style={{ width: "120px" }}>Date</th>
                   <th>Title / Notes</th>
-                  <th style={{ width: "120px" }}>Type</th>
-                  <th style={{ width: "160px" }}>Category</th>
+                  <th style={{ width: "160px" }}>Expense Type</th>
                   <th style={{ width: "150px" }} className="text-right">Amount</th>
                   <th style={{ width: "60px" }}>Actions</th>
                 </tr>
@@ -458,7 +480,7 @@ function ExpensesPageContent() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-8">
+                    <td colSpan={5} className="text-center py-8">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <Loader2 className="w-6 h-6 animate-spin text-[var(--accent-rose)]" />
                         <span className="text-xs" style={{ color: "var(--text-muted)" }}>Loading records...</span>
@@ -467,7 +489,7 @@ function ExpensesPageContent() {
                   </tr>
                 ) : expenses.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-12 text-sm" style={{ color: "var(--text-muted)" }}>
+                    <td colSpan={5} className="text-center py-12 text-sm" style={{ color: "var(--text-muted)" }}>
                       No expenses found matching the criteria.
                     </td>
                   </tr>
@@ -510,11 +532,6 @@ function ExpensesPageContent() {
                               {expense.notes}
                             </div>
                           )}
-                        </td>
-                        <td>
-                          <span className={`badge-success px-2 py-0.5 rounded-full text-[10px] font-semibold ${getTypeBadgeClass(expense.type)}`}>
-                            {getTypeLabel(expense.type)}
-                          </span>
                         </td>
                         <td>
                           <span className={`badge-purple px-2 py-0.5 rounded-full text-[10px] font-semibold ${getCategoryBadgeClass(expense.category)}`}>
@@ -661,45 +678,57 @@ function ExpensesPageContent() {
             </div>
           </div>
 
-          {/* Type and Category row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Type row */}
+          <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
                 Expense Type *
               </label>
-              <select
-                className="select-field w-full"
-                value={formType}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setFormType(val);
-                  // Automatically change category defaults
-                  if (val === "BILL") setFormCategory("PRODUCT_PURCHASE");
-                  else if (val === "PAYMENT_OUT") setFormCategory("STAFF_PAYMENT");
-                  else setFormCategory("MISCELLANEOUS");
-                }}
-              >
-                <option value="BILL">Purchase Bill</option>
-                <option value="PAYMENT_OUT">Payment-Out</option>
-                <option value="MISC">Miscellaneous</option>
-              </select>
+              <div className="relative">
+                <select
+                  className="select-field w-full pr-10"
+                  value={formType}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFormType(val);
+                    // Automatically change category defaults
+                    if (val === "BILL") setFormCategory("PRODUCT_PURCHASE");
+                    else if (val === "PAYMENT_OUT") setFormCategory("STAFF_PAYMENT");
+                    else setFormCategory("MISCELLANEOUS");
+                  }}
+                >
+                  <option value="BILL">Product Purchase</option>
+                  <option value="PAYMENT_OUT">Staff Payment</option>
+                  <option value="MISC">Miscellaneous</option>
+                </select>
+                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                Category *
-              </label>
-              <select
-                className="select-field w-full"
-                value={formCategory}
-                onChange={(e) => setFormCategory(e.target.value)}
-              >
-                <option value="PRODUCT_PURCHASE">Product Purchase</option>
-                <option value="STAFF_PAYMENT">Staff Payment</option>
-                <option value="INFRASTRUCTURE">Infrastructure</option>
-                <option value="MISCELLANEOUS">Miscellaneous</option>
-              </select>
-            </div>
+            {/* If Expense Type is Product Purchase, show options to add Product or Scan Invoice */}
+            {formType === "BILL" && (
+              <div className="p-3 rounded-xl flex flex-col gap-2 bg-[rgba(244,63,94,0.04)] border border-[rgba(244,63,94,0.12)]">
+                <p className="text-[11px] font-semibold" style={{ color: "var(--text-secondary)" }}>
+                  Need to add inventory items or scan a receipt?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => window.open("/products?openAddProduct=true", "_blank")}
+                    className="btn-secondary py-1.5 px-3 text-[11px] flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Single Product
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.open("/products?openScanner=true", "_blank")}
+                    className="btn-primary py-1.5 px-3 text-[11px] flex items-center gap-1.5"
+                  >
+                    <Receipt className="w-3.5 h-3.5" /> Scan Invoice Receipt
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Notes */}

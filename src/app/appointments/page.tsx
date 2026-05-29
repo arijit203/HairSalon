@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Plus, ChevronLeft, ChevronRight, Scissors, CheckCircle2, XCircle, AlertCircle, Loader2, Printer, Pencil, Trash2, X, Clock } from "lucide-react";
+import { CalendarDays, Plus, ChevronLeft, ChevronRight, Scissors, CheckCircle2, XCircle, AlertCircle, Loader2, Printer, Pencil, Trash2, X, Clock, Package } from "lucide-react";
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { usePaginatedApi } from "@/hooks/useApi";
@@ -13,6 +13,7 @@ interface Appointment {
   client:  { id: string; name: string; phone?: string };
   service: { id: string; name: string; category: string };
   staff:   { id: string; name: string; role: string };
+  transaction?: any;
 }
 
 const DAYS   = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -136,12 +137,22 @@ export default function AppointmentsPage() {
       return;
     }
 
-    const servicesHtml = group.appointments.map((a: any) => `
-      <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-        <span>${a.service?.name ?? "Service"}</span>
-        <span>₹${Number(a.service?.price ?? a.price).toFixed(2)}</span>
-      </div>
-    `).join("");
+    const transaction = group.appointments[0]?.transaction;
+    const isProductSale = group.appointments.some((a: any) => a.service?.name === "Product Sale");
+
+    const servicesHtml = isProductSale && transaction?.items && transaction.items.length > 0
+      ? transaction.items.map((item: any) => `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>${item.name} (x${item.quantity})</span>
+            <span>₹${Number(item.lineTotal).toFixed(2)}</span>
+          </div>
+        `).join("")
+      : group.appointments.map((a: any) => `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>${a.service?.name ?? "Service"}</span>
+            <span>₹${Number(a.service?.price ?? a.price).toFixed(2)}</span>
+          </div>
+        `).join("");
 
     const format24to12 = (time24: string) => {
       if (!time24) return "";
@@ -155,7 +166,6 @@ export default function AppointmentsPage() {
       return `${String(hours).padStart(2, "0")}:${minutesStr}${ampm}`;
     };
 
-    const transaction = group.appointments[0]?.transaction;
     const originalSubtotal = transaction ? Number(transaction.subtotal) : group.appointments.reduce((sum: number, a: any) => sum + Number(a.service?.price ?? a.price), 0);
     const paidTotal = transaction ? Number(transaction.total) : group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0);
     const discountAmt = transaction ? Number(transaction.discountAmt) : Math.max(0, originalSubtotal - paidTotal);
@@ -233,8 +243,8 @@ export default function AppointmentsPage() {
           <div><strong>Staff:</strong> ${staffNames}</div>
           
           <div class="divider"></div>
-          <div class="bold" style="margin-bottom: 5px;">SERVICES</div>
-          ${servicesHtml}
+          <div class="bold" style="margin-bottom: 5px;">\${isProductSale ? "PRODUCTS" : "SERVICES"}</div>
+          \${servicesHtml}
           
           <div class="divider"></div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
@@ -399,31 +409,51 @@ export default function AppointmentsPage() {
                 const clr = colors[group.client.name.charCodeAt(0) % colors.length];
                 const totalPrice = group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0);
 
+                const hasProductSale = group.appointments.some((a: any) => a.service?.name === "Product Sale");
+
                 return (
                   <div key={group.id} className="flex items-start gap-4 p-4 rounded-xl hover:bg-[var(--bg-card)] transition-all"
                     style={{ border: `1px solid ${clr}20`, background: `${clr}06` }}>
-                    <div className="text-center flex-shrink-0 w-14">
-                      <p className="text-sm font-bold" style={{ color: clr }}>{group.startTime}</p>
+                    <div className="flex flex-col items-center flex-shrink-0 w-16">
+                      <p className="text-sm font-bold" style={{ color: clr }}>{group.endTime}</p>
+                      <div className="mt-4 w-full">
+                        {hasProductSale ? (
+                          <span className="flex items-center justify-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg w-full"
+                            style={{ background: "rgba(6,182,212,0.14)", color: "#06b6d4", border: "1px solid rgba(6,182,212,0.3)" }}>
+                            <Package className="w-3 h-3 flex-shrink-0" /> Product
+                          </span>
+                        ) : (
+                          <span className="flex items-center justify-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg w-full"
+                            style={{ background: "rgba(168,85,247,0.14)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.3)" }}>
+                            <Scissors className="w-3 h-3 flex-shrink-0" /> Service
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="w-px self-stretch" style={{ background: `${clr}40` }} />
                     <div className="flex-1 min-w-0">
                       <div>
                         <p className="text-sm font-semibold text-[var(--text-primary)]">{group.client.name}</p>
                         <div className="mt-2 space-y-1.5">
-                          {group.appointments.map((appt: any) => (
-                            <div key={appt.id} className="flex items-center justify-between text-xs p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <Scissors className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                                <div className="truncate">
-                                  <span className="font-medium text-[var(--text-primary)]">{appt.service?.name}</span>
-                                  <span className="text-[var(--text-muted)]"> · {appt.staff?.name}</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2.5 shrink-0 ml-2">
-                                <span className="font-semibold text-[var(--text-primary)]">₹{Number(appt.price).toLocaleString("en-IN")}</span>
-                              </div>
-                            </div>
-                          ))}
+                           {group.appointments.map((appt: any) => {
+                             const isProductSale = appt.service?.name === "Product Sale";
+                             const itemsToShow = isProductSale && appt.transaction?.items && appt.transaction.items.length > 0
+                               ? appt.transaction.items.map((item: any) => `${item.name} (x${item.quantity})`).join(", ")
+                               : appt.service?.name;
+                             return (
+                               <div key={appt.id} className="flex items-center justify-between text-xs p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                                 <div className="flex items-center gap-2 min-w-0">
+                                   <div className="truncate">
+                                     <span className="font-medium text-[var(--text-primary)]">{itemsToShow}</span>
+                                     <span className="text-[var(--text-muted)]"> · {appt.staff?.name}</span>
+                                   </div>
+                                 </div>
+                                 <div className="flex items-center gap-2.5 shrink-0 ml-2">
+                                   <span className="font-semibold text-[var(--text-primary)]">₹{Number(appt.price).toLocaleString("en-IN")}</span>
+                                 </div>
+                               </div>
+                             );
+                           })}
                         </div>
                       </div>
                       <p className="text-xs font-semibold mt-2.5" style={{ color: clr }}>Total: ₹{totalPrice.toLocaleString("en-IN")}</p>

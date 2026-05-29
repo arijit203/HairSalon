@@ -437,7 +437,11 @@ export default function ServicesPage() {
                         e.stopPropagation();
                         handleTriggerDeleteCategory(cat);
                       }}
-                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-zinc-900 flex items-center justify-center opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-gray-500 transition-all duration-200 shadow-[0_2px_4px_rgba(0,0,0,0.05)]"
+                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-gray-500 transition-all duration-200 shadow-[0_2px_4px_rgba(0,0,0,0.05)]"
+                      style={{
+                        background: "var(--bg-card)",
+                        border: "1px solid var(--border-default)",
+                      }}
                       title="Delete category"
                     >
                       <X className="w-2.5 h-2.5" />

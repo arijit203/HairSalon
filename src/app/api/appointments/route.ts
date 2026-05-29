@@ -47,7 +47,11 @@ export async function GET(req: NextRequest) {
           client:  { select: { id: true, name: true, phone: true, email: true } },
           service: { select: { id: true, name: true, category: true, price: true } },
           staff:   { select: { id: true, name: true, role: true } },
-          transaction: true,
+          transaction: {
+            include: {
+              items: true,
+            }
+          },
         },
       }),
       prisma.appointment.count({ where }),
@@ -64,6 +68,173 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { deleteAppointmentIds, ...data } = CreateAppointmentSchema.parse(body);
+
+    const isProductSale = data.productIds && data.productIds.length > 0;
+
+    if (isProductSale) {
+      const productIds = data.productIds!;
+      const uniqueProductIds = Array.from(new Set(productIds));
+      const products = await prisma.product.findMany({
+        where: { id: { in: uniqueProductIds } },
+        select: { id: true, name: true, price: true, stock: true },
+      });
+
+      if (products.length !== uniqueProductIds.length) {
+        return handleApiError(new Error("Some products not found"));
+      }
+
+      // Count quantity requested for each product ID
+      const productCounts: Record<string, number> = {};
+      productIds.forEach(id => {
+        productCounts[id] = (productCounts[id] || 0) + 1;
+      });
+
+      // Verify stock availability
+      for (const prod of products) {
+        const reqQty = productCounts[prod.id] || 0;
+        if (prod.stock < reqQty) {
+          return handleApiError(new Error(`Product "${prod.name}" is out of stock (available: ${prod.stock}, requested: ${reqQty})`));
+        }
+      }
+
+      // Resolve/upsert the "Product Sale" dummy service
+      let productSaleService = await prisma.service.findFirst({
+        where: { name: "Product Sale", category: "Retail" },
+      });
+      if (!productSaleService) {
+        productSaleService = await prisma.service.create({
+          data: {
+            name: "Product Sale",
+            category: "Retail",
+            price: 0,
+            isPopular: false,
+            isActive: true,
+          },
+        });
+      }
+
+      const productMap = new Map(products.map(p => [p.id, p]));
+      // Build a deduplicated list of items with correct quantities
+      const productItems = uniqueProductIds.map(id => {
+        const prod = productMap.get(id)!;
+        const qty = productCounts[id] || 1;
+        return { ...prod, quantity: qty };
+      });
+      // Total list price = sum of (unitPrice × qty) for each unique product
+      const totalListPrice = productItems.reduce((sum, p) => sum + Number(p.price) * p.quantity, 0);
+
+      const discountPct = data.discountPct ?? (totalListPrice > data.price ? Math.round(((totalListPrice - data.price) / totalListPrice) * 100) : 0);
+      const discountAmt = data.discountPct !== undefined ? Math.round((totalListPrice * data.discountPct) / 100) : (totalListPrice > data.price ? totalListPrice - data.price : 0);
+      const taxPct = data.taxPct ?? 0;
+      const priceAfterDiscount = Math.max(0, totalListPrice - discountAmt);
+      const taxAmt = Math.round((priceAfterDiscount * taxPct) / 100);
+
+      let overallEndTime = data.endTime || "";
+      if (!overallEndTime && data.startTime) overallEndTime = data.startTime;
+      if (!overallEndTime) overallEndTime = "12:00";
+
+      // Decrement product stock and create transaction & appointment inside a prisma transaction
+      const transactionRecord = await prisma.$transaction(async (tx) => {
+        // Decrement product stock
+        await Promise.all(
+          Object.entries(productCounts).map(([id, qty]) =>
+            tx.product.update({
+              where: { id },
+              data: {
+                stock: {
+                  decrement: qty
+                }
+              }
+            })
+          )
+        );
+
+        // Update product statuses based on new stock levels
+        await Promise.all(
+          uniqueProductIds.map(async (id) => {
+            const prod = await tx.product.findUnique({
+              where: { id },
+              select: { stock: true, lowStockAt: true }
+            });
+            if (prod) {
+              let status = "IN_STOCK";
+              if (prod.stock <= 0) {
+                status = "OUT_OF_STOCK";
+              } else if (prod.stock <= prod.lowStockAt) {
+                status = "LOW_STOCK";
+              }
+              await tx.product.update({
+                where: { id },
+                data: { status: status as any }
+              });
+            }
+          })
+        );
+
+        return await tx.transaction.create({
+          data: {
+            invoiceNumber: generateInvoiceNumber(),
+            clientId:      data.clientId,
+            subtotal:      totalListPrice,
+            discountPct,
+            discountAmt,
+            taxPct,
+            taxAmt,
+            total:         data.price,
+            paymentMethod: data.paymentMethod || "CASH",
+            notes:         data.notes,
+            createdAt:     new Date(`${data.date}T${overallEndTime}:00+05:30`),
+            items: {
+              create: productItems.map((prod) => {
+                const lineTotal = totalListPrice > 0
+                  ? Math.round((Number(prod.price) * prod.quantity / totalListPrice) * data.price * 100) / 100
+                  : Math.round((data.price / productItems.length) * 100) / 100;
+                return {
+                  productId: prod.id,
+                  name:      prod.name,
+                  unitPrice: prod.price,
+                  quantity:  prod.quantity,
+                  lineTotal,
+                };
+              }),
+            },
+            appointments: {
+              create: {
+                clientId:  data.clientId,
+                serviceId: productSaleService!.id,
+                staffId:   data.staffId,
+                date:      new Date(data.date),
+                startTime: data.startTime || "12:00",
+                endTime:   overallEndTime,
+                status:    "COMPLETED",
+                price:     data.price,
+                notes:     data.notes,
+              }
+            }
+          },
+          include: {
+            items: true,
+            appointments: {
+              include: {
+                client:  { select: { id: true, name: true, phone: true } },
+                service: { select: { id: true, name: true, price: true } },
+                staff:   { select: { id: true, name: true } },
+              }
+            }
+          }
+        });
+      });
+
+      revalidateDashboardAndAnalytics();
+
+      const createdAppt = transactionRecord.appointments[0];
+      const responseData = {
+        ...createdAppt,
+        transaction: transactionRecord,
+      };
+
+      return createdResponse(responseData);
+    }
 
     const serviceIds = data.serviceIds && data.serviceIds.length > 0
       ? data.serviceIds
@@ -184,7 +355,7 @@ export async function POST(req: NextRequest) {
             taxPct,
             taxAmt,
             total:         data.price,
-            paymentMethod: "CASH",
+            paymentMethod: data.paymentMethod || "CASH",
             notes:         data.notes,
             createdAt:     new Date(`${data.date}T${overallEndTime || "12:00"}:00+05:30`),
             items: {
