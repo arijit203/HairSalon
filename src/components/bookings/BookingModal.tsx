@@ -815,30 +815,30 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
     const itemsHtml = isProductSale
       ? bookingDetails.products!.map(p => `
-          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span>${p.name} (x${p.quantity})</span>
-            <span>₹${(Number(p.price) * p.quantity).toFixed(2)}</span>
+          <div class="item-row">
+            <span class="item-label">${p.name} (x${p.quantity})</span>
+            <span class="item-value">₹${(Number(p.price) * p.quantity).toFixed(2)}</span>
           </div>
         `).join("")
       : bookingDetails.services.map(s => `
-          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span>${s.name}</span>
-            <span>₹${Number(s.price).toFixed(2)}</span>
+          <div class="item-row">
+            <span class="item-label">${s.name}</span>
+            <span class="item-value">₹${Number(s.price).toFixed(2)}</span>
           </div>
         `).join("");
 
     const discountHtml = bookingDetails.discountPct > 0 ? `
-      <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-        <span>Discount(${bookingDetails.discountPct} %)</span>
-        <span>-₹${(bookingDetails.salePrice * bookingDetails.discountPct / 100).toFixed(2)}</span>
+      <div class="item-row">
+        <span class="item-label">Discount(${bookingDetails.discountPct}%)</span>
+        <span class="item-value">-₹${(bookingDetails.salePrice * bookingDetails.discountPct / 100).toFixed(2)}</span>
       </div>
     ` : "";
 
     const taxAmt = bookingDetails.taxAmt !== undefined ? bookingDetails.taxAmt : (bookingDetails.taxPct > 0 ? Math.round((bookingDetails.salePrice - (bookingDetails.salePrice * bookingDetails.discountPct / 100)) * bookingDetails.taxPct / 100) : 0);
     const taxHtml = taxAmt > 0 ? `
-      <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-        <span>GST (${bookingDetails.taxPct}%)</span>
-        <span>₹${Number(taxAmt).toFixed(2)}</span>
+      <div class="item-row">
+        <span class="item-label">GST (${bookingDetails.taxPct}%)</span>
+        <span class="item-value">₹${Number(taxAmt).toFixed(2)}</span>
       </div>
     ` : "";
 
@@ -860,13 +860,15 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
             }
             body {
               font-family: 'Courier New', Courier, monospace;
-              font-size: 11px;
+              font-size: 12px;
+              font-weight: normal;
               width: 48mm;
               margin: 0 auto;
               padding: 10px 5px;
               color: #000;
               background: #fff;
-              line-height: 1.2;
+              line-height: 1.3;
+              letter-spacing: 0.5px;
             }
             .center {
               text-align: center;
@@ -875,52 +877,114 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
               font-weight: bold;
             }
             .divider {
-              border-top: 1px dashed #000;
-              margin: 8px 0;
+              border-top: 1px solid #000;
+              margin: 5px 0;
+              padding: 0;
+              height: 0;
             }
-            .totals {
-              font-size: 12px;
+            .dashed-divider {
+              border-top: 1px dashed #000;
+              margin: 5px 0;
+              padding: 0;
+              height: 0;
+            }
+            .header {
+              font-size: 13px;
+              font-weight: bold;
+              margin-bottom: 2px;
+            }
+            .subheader {
+              font-size: 10px;
+              margin-bottom: 8px;
+            }
+            .section-header {
+              font-weight: bold;
               margin-top: 5px;
+              margin-bottom: 5px;
+            }
+            .item-row {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 2px;
+              font-size: 12px;
+            }
+            .item-label {
+              flex: 1;
+              overflow: hidden;
+              text-overflow: clip;
+            }
+            .item-value {
+              text-align: right;
+              margin-left: 5px;
+              white-space: nowrap;
+            }
+            .total-row {
+              font-weight: bold;
+              font-size: 13px;
+              display: flex;
+              justify-content: space-between;
+              margin-top: 5px;
+              margin-bottom: 5px;
             }
             .footer {
-              margin-top: 15px;
-              font-size: 9px;
+              margin-top: 10px;
+              font-size: 11px;
+              text-align: center;
             }
           </style>
         </head>
         <body>
-          <div class="center bold" style="font-size: 14px; margin-bottom: 2px;">MADOE SALON</div>
-          <div class="center" style="font-size: 9px;">CE/1/B/122 Newtown Kolkata-157</div>
-          <div class="center" style="font-size: 9px; margin-bottom: 5px;">+919836867607(M) </div>
-          <div class="divider"></div>
+          <div class="center header">MADOE SALON</div>
+          <div class="center subheader">CE/1/B/122 Newtown Kolkata-157<br>+919836867607(M)</div>
           
-          <div><strong>Date:</strong> ${bookingDetails.date}</div>
-          <div><strong>Time:</strong> ${timeStr}</div>
-          <div><strong>Customer:</strong> ${bookingDetails.clientName}</div>
-          ${bookingDetails.clientPhone ? `<div><strong>Phone:</strong> ${bookingDetails.clientPhone}</div>` : ""}
-          <div><strong>Staff:</strong> ${bookingDetails.staffName}</div>
-          <div><strong>Payment:</strong> ${paymentFormatted}</div>
+          <div class="dashed-divider"></div>
           
-          <div class="divider"></div>
-          <div class="bold" style="margin-bottom: 5px;">${isProductSale ? "PRODUCTS" : "SERVICES"}</div>
+          <div class="item-row">
+            <span class="item-label bold">Date:</span>
+            <span class="item-value">${bookingDetails.date}</span>
+          </div>
+          <div class="item-row">
+            <span class="item-label bold">Time:</span>
+            <span class="item-value">${timeStr}</span>
+          </div>
+          <div class="item-row">
+            <span class="item-label bold">Customer:</span>
+            <span class="item-value">${bookingDetails.clientName}</span>
+          </div>
+          ${bookingDetails.clientPhone ? `
+          <div class="item-row">
+            <span class="item-label bold">Phone:</span>
+            <span class="item-value">${bookingDetails.clientPhone}</span>
+          </div>
+          ` : ""}
+          <div class="item-row">
+            <span class="item-label bold">Staff:</span>
+            <span class="item-value">${bookingDetails.staffName}</span>
+          </div>
+          <div class="item-row">
+            <span class="item-label bold">Payment:</span>
+            <span class="item-value">${paymentFormatted}</span>
+          </div>
+          
+          <div class="dashed-divider"></div>
+          <div class="section-header">${isProductSale ? "PRODUCTS" : "SERVICES"}</div>
           ${itemsHtml}
           
-          <div class="divider"></div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span>Subtotal</span>
-            <span>₹${bookingDetails.salePrice.toFixed(2)}</span>
+          <div class="dashed-divider"></div>
+          <div class="item-row">
+            <span class="item-label">Subtotal</span>
+            <span class="item-value">₹${bookingDetails.salePrice.toFixed(2)}</span>
           </div>
           ${discountHtml}
           ${taxHtml}
-          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 12px; margin-top: 3px;">
-            <span>TOTAL</span>
+          <div class="divider"></div>
+          <div class="total-row">
+            <span>TOTAL (INR)</span>
             <span>₹${bookingDetails.finalPrice.toFixed(2)}</span>
           </div>
-          
           <div class="divider"></div>
-          <div class="center footer">
-            Thank you for visiting!
-          </div>
+          
+          <div class="footer">Thank you for dining with us!</div>
           
           <script>
             window.onload = function() {
