@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Calendar,
@@ -48,7 +48,7 @@ interface Staff {
   role: string;
 }
 
-export default function PortalBookingsPage() {
+function PortalBookingsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { success, error } = useToast();
@@ -497,5 +497,19 @@ export default function PortalBookingsPage() {
         </form>
       </Modal>
     </div>
+  );
+}
+
+export default function PortalBookingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-full border-4 border-rose-500/30 border-t-rose-500 animate-spin" />
+        </div>
+      </div>
+    }>
+      <PortalBookingsPageContent />
+    </Suspense>
   );
 }

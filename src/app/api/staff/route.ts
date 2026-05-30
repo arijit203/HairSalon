@@ -6,6 +6,7 @@ import {
 } from "@/lib/api";
 import { CreateStaffSchema } from "@/lib/validations";
 import bcrypt from "bcryptjs";
+import { encrypt } from "@/lib/encryption";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export async function GET(req: NextRequest) {
         select: {
           id: true, name: true, email: true, phone: true,
           role: true, status: true, bio: true, imageUrl: true,
+          salary: true,
           joinDate: true, createdAt: true,
           staffServices: {
             include: { service: { select: { id: true, name: true } } },
@@ -61,12 +63,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { serviceIds, password, ...data } = CreateStaffSchema.parse(body);
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = password ? await bcrypt.hash(password, 12) : null;
+
+    let encryptedProof = null;
+    if (data.identityProof) {
+      encryptedProof = encrypt(data.identityProof);
+    }
 
     const staff = await prisma.staff.create({
       data: {
         ...data,
         passwordHash,
+        identityProof: encryptedProof,
         ...(serviceIds?.length && {
           staffServices: {
             create: serviceIds.map((serviceId) => ({ serviceId })),

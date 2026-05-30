@@ -44,6 +44,9 @@ export async function GET(req: NextRequest) {
         skip,
         take:    limit,
         orderBy: { date: "desc" },
+        include: {
+          staff: { select: { id: true, name: true } }
+        }
       }),
       prisma.expense.count({ where }),
     ]);
@@ -68,7 +71,11 @@ export async function POST(req: NextRequest) {
         type:     data.type,
         date:     data.date ? new Date(data.date) : new Date(),
         notes:    data.notes,
+        staffId:  data.staffId,
       },
+      include: {
+        staff: { select: { id: true, name: true } }
+      }
     });
 
     revalidateDashboardAndAnalytics();

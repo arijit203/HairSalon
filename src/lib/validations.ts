@@ -43,11 +43,11 @@ export const UpdateServiceSchema = CreateServiceSchema.partial();
 
 export const CreateClientSchema = z.object({
   name:        z.string().min(1).max(200),
-  email:       z.string().email("Invalid email"),
-  phone:       z.string().regex(/^\+(\d{1,4})\s?\d{10}$/, "Phone number must be strictly 10 digits prefixed with a country code (by default +91 for India)").nullable().optional().or(z.literal("")),
-  dateOfBirth: z.string().datetime().optional(),
-  address:     z.string().optional(),
-  notes:       z.string().optional(),
+  email:       z.string().email("Invalid email").optional().nullable().or(z.literal("")),
+  phone:       z.string().regex(/^\+(\d{1,4})\s?\d{10}$/, "Phone number must be strictly 10 digits prefixed with a country code (by default +91 for India)"),
+  dateOfBirth: z.string().datetime().optional().nullable(),
+  address:     z.string().optional().nullable(),
+  notes:       z.string().optional().nullable(),
 });
 
 export const UpdateClientSchema = CreateClientSchema.partial();
@@ -63,10 +63,13 @@ export const CreateStaffSchema = z.object({
   email:      z.string().email(),
   phone:      z.string().regex(/^\+(\d{1,4})\s?\d{10}$/, "Phone number must be strictly 10 digits prefixed with a country code (by default +91 for India)").nullable().optional().or(z.literal("")),
   role:       StaffRoleEnum.default("STYLIST"),
-  bio:        z.string().optional(),
-  imageUrl:   z.string().url().optional(),
+  bio:        z.string().optional().nullable(),
+  imageUrl:   z.string().url().optional().nullable().or(z.literal("")),
   serviceIds: z.array(z.string()).optional(),
-  password:   z.string().min(8, "Password must be at least 8 characters"),
+  password:   z.string().min(8, "Password must be at least 8 characters").optional().nullable(),
+  salary:     z.coerce.number().min(0, "Salary cannot be negative").default(0),
+  identityProof:     z.string().optional().nullable(),
+  identityProofName: z.string().optional().nullable(),
 });
 
 export const UpdateStaffSchema = CreateStaffSchema.omit({ password: true }).partial().merge(
@@ -150,8 +153,6 @@ export const DateRangeSchema = z.object({
   to:   z.string().datetime().optional(),
 });
 
-// ─── EXPENSE ──────────────────────────────────────────────────────────────────
-
 export const CreateExpenseSchema = z.object({
   title:    z.string().min(1, "Title is required").max(200),
   amount:   z.number().positive("Amount must be positive"),
@@ -159,5 +160,6 @@ export const CreateExpenseSchema = z.object({
   type:     z.enum(["BILL", "PAYMENT_OUT", "MISC"]),
   date:     z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
   notes:    z.string().optional(),
+  staffId:  z.string().optional().nullable(),
 });
 

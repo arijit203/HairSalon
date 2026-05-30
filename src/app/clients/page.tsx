@@ -1,10 +1,12 @@
 "use client";
 
-import { Users, Plus, Search, ChevronLeft, ChevronRight, Star, Phone, Mail, X, Loader2, Calendar } from "lucide-react";
+import { Users, Plus, Search, ChevronLeft, ChevronRight, Star, Phone, Mail, X, Loader2, Calendar, ChevronDown, Edit, Trash, FileText } from "lucide-react";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { usePaginatedApi, useApi } from "@/hooks/useApi";
 import { AnimatePresence, motion } from "framer-motion";
+import Modal from "@/components/ui/Modal";
+import { useToast } from "@/context/ToastContext";
 
 interface Client {
   id: string; name: string; email: string; phone?: string;
@@ -25,6 +27,8 @@ const TIERS = ["All", "PLATINUM", "GOLD", "SILVER", "BRONZE"];
 export default function ClientsPage() {
   const [activeTab, setActiveTab] = useState<"clients" | "staff">("clients");
 
+  const { success: successToast, error: errorToast } = useToast();
+
   // Client states
   const [search, setSearch] = useState("");
   const [tier,   setTier]   = useState("All");
@@ -36,6 +40,64 @@ export default function ClientsPage() {
   const [staffPage,   setStaffPage]   = useState(1);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
 
+  // Add Client Modal states
+  const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [clientForm, setClientForm] = useState({
+    name: "",
+    email: "",
+    phone: "+91",
+    dateOfBirth: "",
+    address: "",
+    notes: "",
+  });
+  const [clientSubmitting, setClientSubmitting] = useState(false);
+
+  // Edit Client Modal states
+  const [isEditClientModalOpen, setIsEditClientModalOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState<any>(null);
+  const [clientEditForm, setClientEditForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    dateOfBirth: "",
+    address: "",
+    notes: "",
+  });
+  const [clientEditSubmitting, setClientEditSubmitting] = useState(false);
+
+  // Add Staff Modal states
+  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
+  const [staffForm, setStaffForm] = useState({
+    name: "",
+    email: "",
+    phone: "+91",
+    role: "STYLIST",
+    salary: "",
+    bio: "",
+    imageUrl: "",
+    serviceIds: [] as string[],
+  });
+  const [staffFile, setStaffFile] = useState<File | null>(null);
+  const [staffFileBase64, setStaffFileBase64] = useState<string | null>(null);
+  const [staffSubmitting, setStaffSubmitting] = useState(false);
+
+  // Edit Staff Modal states
+  const [isEditStaffModalOpen, setIsEditStaffModalOpen] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<any>(null);
+  const [staffEditForm, setStaffEditForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    role: "STYLIST",
+    salary: "",
+    bio: "",
+    imageUrl: "",
+    serviceIds: [] as string[],
+  });
+  const [staffEditFile, setStaffEditFile] = useState<File | null>(null);
+  const [staffEditFileBase64, setStaffEditFileBase64] = useState<string | null>(null);
+  const [staffEditSubmitting, setStaffEditSubmitting] = useState(false);
+
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
@@ -46,7 +108,7 @@ export default function ClientsPage() {
   if (tier !== "All") clientParams.set("tier", tier);
   if (search)         clientParams.set("search", search);
 
-  const { data: clients, pagination: clientPagination, loading: clientsLoading } = usePaginatedApi<Client>(
+  const { data: clients, pagination: clientPagination, loading: clientsLoading, refetch: refetchClients } = usePaginatedApi<Client>(
     `/api/clients?${clientParams}`
   );
 
@@ -54,9 +116,13 @@ export default function ClientsPage() {
   const staffParams = new URLSearchParams({ page: String(staffPage), limit: "12" });
   if (staffSearch) staffParams.set("search", staffSearch);
 
-  const { data: staffList, pagination: staffPagination, loading: staffLoading } = usePaginatedApi<any>(
+  const { data: staffList, pagination: staffPagination, loading: staffLoading, refetch: refetchStaff } = usePaginatedApi<any>(
     `/api/staff?${staffParams}`
   );
+
+  // Fetch active services for checklist
+  const { data: servicesData } = usePaginatedApi<any>("/api/services?limit=100");
+  const allServices = servicesData || [];
 
   // Detail queries
   const { data: clientDetail, loading: clientDetailLoading } = useApi<any>(
@@ -66,6 +132,329 @@ export default function ClientsPage() {
   const { data: staffDetail, loading: staffDetailLoading } = useApi<any>(
     selectedStaffId ? `/api/staff/${selectedStaffId}` : null
   );
+
+  // Handlers
+  const handleStaffFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setStaffFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setStaffFileBase64(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setStaffFile(null);
+      setStaffFileBase64(null);
+    }
+  };
+
+  const handleStaffEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setStaffEditFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setStaffEditFileBase64(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setStaffEditFile(null);
+      setStaffEditFileBase64(null);
+    }
+  };
+
+  const handleViewIdentityProof = (base64Data: string, fileName: string) => {
+    const newWindow = window.open();
+    if (newWindow) {
+      newWindow.document.title = fileName || "Identity Proof";
+      const isPdf = base64Data.startsWith("data:application/pdf");
+      const style = "margin:0;width:100%;height:100%;border:none;background:#1e1e2e;display:flex;align-items:center;justify-content:center;";
+      if (isPdf) {
+        newWindow.document.body.innerHTML = `
+          <iframe src="${base64Data}" style="${style}"></iframe>
+        `;
+      } else {
+        newWindow.document.body.innerHTML = `
+          <div style="${style}">
+            <img src="${base64Data}" style="max-width:100%;max-height:100%;object-fit:contain;box-shadow:0 10px 30px rgba(0,0,0,0.5);border-radius:8px;" />
+          </div>
+        `;
+      }
+    } else {
+      errorToast("Failed to open a new window. Please check your popup blocker.");
+    }
+  };
+
+  const handleAddClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientForm.name.trim()) {
+      errorToast("Name is required");
+      return;
+    }
+    if (!clientForm.phone.trim() || clientForm.phone.trim() === "+91") {
+      errorToast("Phone number is required");
+      return;
+    }
+    setClientSubmitting(true);
+    try {
+      const payload: any = {
+        name: clientForm.name.trim(),
+        email: clientForm.email.trim() || undefined,
+        phone: clientForm.phone.trim(),
+        address: clientForm.address.trim() || undefined,
+        notes: clientForm.notes.trim() || undefined,
+      };
+      if (clientForm.dateOfBirth) {
+        payload.dateOfBirth = new Date(clientForm.dateOfBirth).toISOString();
+      }
+      const res = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        successToast("Client added successfully");
+        setIsClientModalOpen(false);
+        setClientForm({
+          name: "",
+          email: "",
+          phone: "+91",
+          dateOfBirth: "",
+          address: "",
+          notes: "",
+        });
+        refetchClients();
+      } else {
+        errorToast(data.error || "Failed to add client");
+      }
+    } catch (err: any) {
+      errorToast(err.message || "An error occurred");
+    } finally {
+      setClientSubmitting(false);
+    }
+  };
+
+  const handleAddStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!staffForm.name.trim()) {
+      errorToast("Name is required");
+      return;
+    }
+    if (!staffForm.email.trim()) {
+      errorToast("Email is required");
+      return;
+    }
+    setStaffSubmitting(true);
+    try {
+      const payload: any = {
+        name: staffForm.name.trim(),
+        email: staffForm.email.trim(),
+        phone: (staffForm.phone.trim() === "+91" || !staffForm.phone.trim()) ? undefined : staffForm.phone.trim(),
+        role: staffForm.role,
+        salary: staffForm.salary ? Number(staffForm.salary) : 0,
+        bio: staffForm.bio.trim() || undefined,
+        imageUrl: staffForm.imageUrl.trim() || undefined,
+        serviceIds: staffForm.serviceIds,
+        identityProof: staffFileBase64 || undefined,
+        identityProofName: staffFile?.name || undefined,
+      };
+      const res = await fetch("/api/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        successToast("Staff member added successfully");
+        setIsStaffModalOpen(false);
+        setStaffForm({
+          name: "",
+          email: "",
+          phone: "+91",
+          role: "STYLIST",
+          salary: "",
+          bio: "",
+          imageUrl: "",
+          serviceIds: [],
+        });
+        setStaffFile(null);
+        setStaffFileBase64(null);
+        refetchStaff();
+      } else {
+        errorToast(data.error || "Failed to add staff member");
+      }
+    } catch (err: any) {
+      errorToast(err.message || "An error occurred");
+    } finally {
+      setStaffSubmitting(false);
+    }
+  };
+
+  const openEditClient = (client: any) => {
+    setEditingClient(client);
+    setClientEditForm({
+      name: client.name,
+      email: client.email || "",
+      phone: client.phone || "+91",
+      dateOfBirth: client.dateOfBirth ? new Date(client.dateOfBirth).toISOString().split("T")[0] : "",
+      address: client.address || "",
+      notes: client.notes || "",
+    });
+    setIsEditClientModalOpen(true);
+  };
+
+  const handleEditClientSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientEditForm.name.trim()) {
+      errorToast("Name is required");
+      return;
+    }
+    if (!clientEditForm.phone.trim() || clientEditForm.phone.trim() === "+91") {
+      errorToast("Phone number is required");
+      return;
+    }
+    setClientEditSubmitting(true);
+    try {
+      const payload: any = {
+        name: clientEditForm.name.trim(),
+        email: clientEditForm.email.trim() || null,
+        phone: clientEditForm.phone.trim(),
+        address: clientEditForm.address.trim() || null,
+        notes: clientEditForm.notes.trim() || null,
+      };
+      if (clientEditForm.dateOfBirth) {
+        payload.dateOfBirth = new Date(clientEditForm.dateOfBirth).toISOString();
+      } else {
+        payload.dateOfBirth = null;
+      }
+      const res = await fetch(`/api/clients/${editingClient.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        successToast("Client updated successfully");
+        setIsEditClientModalOpen(false);
+        setSelectedClientId(null);
+        refetchClients();
+      } else {
+        errorToast(data.error || "Failed to update client");
+      }
+    } catch (err: any) {
+      errorToast(err.message || "An error occurred");
+    } finally {
+      setClientEditSubmitting(false);
+    }
+  };
+
+  const handleRemoveClient = async (id: string) => {
+    if (!window.confirm("Are you sure you want to remove this client? This action cannot be undone.")) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/clients/${id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        successToast("Client removed successfully");
+        setSelectedClientId(null);
+        refetchClients();
+      } else {
+        errorToast(data.error || "Failed to remove client");
+      }
+    } catch (err: any) {
+      errorToast(err.message || "An error occurred");
+    }
+  };
+
+  const openEditStaff = (staff: any) => {
+    setEditingStaff(staff);
+    setStaffEditForm({
+      name: staff.name,
+      email: staff.email,
+      phone: staff.phone || "+91",
+      role: staff.role,
+      salary: String(staff.salary || ""),
+      bio: staff.bio || "",
+      imageUrl: staff.imageUrl || "",
+      serviceIds: (staff.staffServices ?? []).map((ss: any) => ss.serviceId),
+    });
+    setStaffEditFile(null);
+    setStaffEditFileBase64(null);
+    setIsEditStaffModalOpen(true);
+  };
+
+  const handleEditStaffSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!staffEditForm.name.trim()) {
+      errorToast("Name is required");
+      return;
+    }
+    if (!staffEditForm.email.trim()) {
+      errorToast("Email is required");
+      return;
+    }
+    setStaffEditSubmitting(true);
+    try {
+      const payload: any = {
+        name: staffEditForm.name.trim(),
+        email: staffEditForm.email.trim(),
+        phone: (staffEditForm.phone.trim() === "+91" || !staffEditForm.phone.trim()) ? null : staffEditForm.phone.trim(),
+        role: staffEditForm.role,
+        salary: staffEditForm.salary ? Number(staffEditForm.salary) : 0,
+        bio: staffEditForm.bio.trim() || null,
+        imageUrl: staffEditForm.imageUrl.trim() || null,
+        serviceIds: staffEditForm.serviceIds,
+      };
+      if (staffEditFileBase64) {
+        payload.identityProof = staffEditFileBase64;
+        payload.identityProofName = staffEditFile?.name;
+      }
+      const res = await fetch(`/api/staff/${editingStaff.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        successToast("Staff member updated successfully");
+        setIsEditStaffModalOpen(false);
+        setSelectedStaffId(null);
+        refetchStaff();
+      } else {
+        errorToast(data.error || "Failed to update staff member");
+      }
+    } catch (err: any) {
+      errorToast(err.message || "An error occurred");
+    } finally {
+      setStaffEditSubmitting(false);
+    }
+  };
+
+  const handleRemoveStaff = async (id: string) => {
+    if (!window.confirm("Are you sure you want to remove this staff member? This action cannot be undone.")) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/staff/${id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        successToast("Staff member removed successfully");
+        setSelectedStaffId(null);
+        refetchStaff();
+      } else {
+        errorToast(data.error || "Failed to remove staff member");
+      }
+    } catch (err: any) {
+      errorToast(err.message || "An error occurred");
+    }
+  };
 
   const staffCompletedAppts = (staffDetail?.appointments ?? []).filter((a: any) => a.status === "COMPLETED");
   const staffTotalRevenue = staffCompletedAppts.reduce((sum: number, a: any) => sum + Number(a.price), 0);
@@ -104,9 +493,9 @@ export default function ClientsPage() {
             </button>
           </div>
           {activeTab === "clients" ? (
-            <button className="btn-primary"><Plus className="w-4 h-4" /> Add Client</button>
+            <button onClick={() => setIsClientModalOpen(true)} className="btn-primary"><Plus className="w-4 h-4" /> Add Client</button>
           ) : (
-            <button className="btn-primary"><Plus className="w-4 h-4" /> Add Staff</button>
+            <button onClick={() => setIsStaffModalOpen(true)} className="btn-primary"><Plus className="w-4 h-4" /> Add Staff</button>
           )}
         </div>
       </div>
@@ -376,14 +765,15 @@ export default function ClientsPage() {
       )}
       
       {/* Client details modal */}
-      <AnimatePresence>
-        {mounted && selectedClientId && createPortal(
-          <>
-            {/* Backdrop Overlay */}
-            <motion.div
-              className="fixed inset-0 z-[9980]"
-              style={{ background: "rgba(0, 0, 0, 0.65)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      {mounted && createPortal(
+        <AnimatePresence>
+          {selectedClientId && (
+            <>
+              {/* Backdrop Overlay */}
+              <motion.div
+                className="fixed inset-0 z-[9980]"
+                style={{ background: "rgba(0, 0, 0, 0.65)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setSelectedClientId(null)}
             />
 
@@ -403,7 +793,7 @@ export default function ClientsPage() {
                 transition={{ duration: 0.2 }}
               >
                 {/* Header */}
-                <div className="flex items-start justify-between mb-5">
+                <div className="flex items-start justify-between mb-5 flex-wrap gap-4">
                 {clientDetailLoading ? (
                   <div className="h-10 w-48 rounded bg-white/[0.04] animate-pulse" />
                 ) : (
@@ -415,10 +805,12 @@ export default function ClientsPage() {
                     <div>
                       <h3 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>{clientDetail?.name}</h3>
                       <div className="text-sm flex flex-wrap items-center gap-3 mt-1" style={{ color: "var(--text-muted)" }}>
-                        <span className="flex items-center gap-1.5"><Mail className="w-4 h-4 text-rose-400" /> {clientDetail?.email}</span>
+                        {clientDetail?.email && (
+                          <span className="flex items-center gap-1.5"><Mail className="w-4 h-4 text-rose-400" /> {clientDetail?.email}</span>
+                        )}
                         {clientDetail?.phone && (
                           <>
-                            <span className="hidden sm:inline opacity-45">·</span>
+                            {clientDetail?.email && <span className="hidden sm:inline opacity-45">·</span>}
                             <span className="flex items-center gap-1.5"><Phone className="w-4 h-4 text-rose-400" /> {clientDetail?.phone}</span>
                           </>
                         )}
@@ -426,9 +818,21 @@ export default function ClientsPage() {
                     </div>
                   </div>
                 )}
-                <button onClick={() => setSelectedClientId(null)} className="btn-icon w-8 h-8">
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {!clientDetailLoading && clientDetail && (
+                    <>
+                      <button onClick={() => openEditClient(clientDetail)} className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1">
+                        <Edit className="w-3.5 h-3.5" /> Edit
+                      </button>
+                      <button onClick={() => handleRemoveClient(clientDetail.id)} className="btn-secondary border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs px-3 py-1.5 flex items-center gap-1">
+                        <Trash className="w-3.5 h-3.5" /> Remove
+                      </button>
+                    </>
+                  )}
+                  <button onClick={() => setSelectedClientId(null)} className="btn-icon w-8 h-8">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {clientDetailLoading ? (
@@ -500,21 +904,23 @@ export default function ClientsPage() {
                   </div>
                 );
               })()}
-            </motion.div>
-          </div>
-        </>
-        , document.body)}
-      </AnimatePresence>
+                </motion.div>
+              </div>
+            </>
+          )}
+        </AnimatePresence>
+      , document.body)}
 
       {/* Staff details modal */}
-      <AnimatePresence>
-        {mounted && selectedStaffId && createPortal(
-          <>
-            {/* Backdrop Overlay */}
-            <motion.div
-              className="fixed inset-0 z-[9980]"
-              style={{ background: "rgba(0, 0, 0, 0.65)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      {mounted && createPortal(
+        <AnimatePresence>
+          {selectedStaffId && (
+            <>
+              {/* Backdrop Overlay */}
+              <motion.div
+                className="fixed inset-0 z-[9980]"
+                style={{ background: "rgba(0, 0, 0, 0.65)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setSelectedStaffId(null)}
             />
 
@@ -534,7 +940,7 @@ export default function ClientsPage() {
                 transition={{ duration: 0.2 }}
               >
                 {/* Header */}
-                <div className="flex items-start justify-between mb-5">
+                <div className="flex items-start justify-between mb-5 flex-wrap gap-4">
                 {staffDetailLoading ? (
                   <div className="h-10 w-48 rounded bg-white/[0.04] animate-pulse" />
                 ) : (
@@ -557,9 +963,21 @@ export default function ClientsPage() {
                     </div>
                   </div>
                 )}
-                <button onClick={() => setSelectedStaffId(null)} className="btn-icon w-8 h-8">
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {!staffDetailLoading && staffDetail && (
+                    <>
+                      <button onClick={() => openEditStaff(staffDetail)} className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1">
+                        <Edit className="w-3.5 h-3.5" /> Edit
+                      </button>
+                      <button onClick={() => handleRemoveStaff(staffDetail.id)} className="btn-secondary border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs px-3 py-1.5 flex items-center gap-1">
+                        <Trash className="w-3.5 h-3.5" /> Remove
+                      </button>
+                    </>
+                  )}
+                  <button onClick={() => setSelectedStaffId(null)} className="btn-icon w-8 h-8">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {staffDetailLoading ? (
@@ -583,7 +1001,7 @@ export default function ClientsPage() {
                 return (
                   <div className="space-y-6 overflow-y-auto pr-1 flex-1">
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                       <div className="text-center p-3 rounded-2xl" style={{ background: "var(--bg-card)" }}>
                         <p className="text-lg font-bold text-gradient">₹{staffTotalRevenue.toLocaleString("en-IN")}</p>
                         <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Revenue Generated</p>
@@ -592,8 +1010,33 @@ export default function ClientsPage() {
                         <p className="text-lg font-bold text-gradient">{staffCompletedAppts.length}</p>
                         <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Completed Services</p>
                       </div>
+                      <div className="text-center p-3 rounded-2xl" style={{ background: "var(--bg-card)" }}>
+                        <p className="text-lg font-bold text-gradient">₹{Number(staffDetail?.salary || 0).toLocaleString("en-IN")}</p>
+                        <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Salary</p>
+                      </div>
                     </div>
 
+                    {/* Identity Proof Section */}
+                    {staffDetail?.identityProof && (
+                      <div className="p-4 rounded-xl border border-[var(--border-subtle)] flex items-center justify-between" style={{ background: "var(--bg-card)" }}>
+                        <div className="flex items-center gap-3">
+                          <FileText className="w-5 h-5 text-cyan-400" />
+                          <div>
+                            <p className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>Identity Proof</p>
+                            <p className="text-sm font-bold truncate max-w-[250px]" style={{ color: "var(--text-primary)" }}>
+                              {staffDetail?.identityProofName || "Uploaded Document"}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleViewIdentityProof(staffDetail.identityProof, staffDetail.identityProofName)}
+                          className="btn-primary text-xs px-3 py-1.5"
+                        >
+                          View Identity Proof
+                        </button>
+                      </div>
+                    )}
+ 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Services rendered list */}
                       <div className="space-y-3">
@@ -664,11 +1107,666 @@ export default function ClientsPage() {
                   </div>
                 );
               })()}
-            </motion.div>
+                </motion.div>
+              </div>
+            </>
+          )}
+        </AnimatePresence>
+      , document.body)}
+
+      {/* Add Client Modal */}
+      <Modal
+        open={isClientModalOpen}
+        onClose={() => setIsClientModalOpen(false)}
+        title="Add New Client"
+        subtitle="Create a new client profile in the salon database."
+        size="md"
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setIsClientModalOpen(false)}
+              disabled={clientSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleAddClient}
+              disabled={clientSubmitting}
+            >
+              {clientSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-1" /> Adding...
+                </>
+              ) : (
+                "Add Client"
+              )}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleAddClient} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+              Full Name *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. John Doe"
+              className="input-field"
+              value={clientForm.name}
+              onChange={e => setClientForm(prev => ({ ...prev, name: e.target.value }))}
+              required
+            />
           </div>
-        </>
-        , document.body)}
-      </AnimatePresence>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Email Address (optional)
+              </label>
+              <input
+                type="email"
+                placeholder="e.g. john@example.com"
+                className="input-field"
+                value={clientForm.email}
+                onChange={e => setClientForm(prev => ({ ...prev, email: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Phone Number *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. +91 9876543210"
+                className="input-field"
+                value={clientForm.phone}
+                onChange={e => setClientForm(prev => ({ ...prev, phone: e.target.value }))}
+                required
+              />
+              <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                Format: +[country_code] [10 digits], e.g. +91 9876543210
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+              Date of Birth (optional)
+            </label>
+            <input
+              type="date"
+              className="input-field"
+              value={clientForm.dateOfBirth}
+              onChange={e => setClientForm(prev => ({ ...prev, dateOfBirth: e.target.value }))}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+              Address (optional)
+            </label>
+            <input
+              type="text"
+              placeholder="Street address, City"
+              className="input-field"
+              value={clientForm.address}
+              onChange={e => setClientForm(prev => ({ ...prev, address: e.target.value }))}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+              Notes (optional)
+            </label>
+            <textarea
+              placeholder="Any specific preferences or medical notes..."
+              rows={2}
+              className="input-field py-2"
+              value={clientForm.notes}
+              onChange={e => setClientForm(prev => ({ ...prev, notes: e.target.value }))}
+            />
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add Staff Modal */}
+      <Modal
+        open={isStaffModalOpen}
+        onClose={() => setIsStaffModalOpen(false)}
+        title="Add New Staff Member"
+        subtitle="Register a new salon employee and set their role and salary."
+        size="lg"
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setIsStaffModalOpen(false)}
+              disabled={staffSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleAddStaff}
+              disabled={staffSubmitting}
+            >
+              {staffSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-1" /> Adding...
+                </>
+              ) : (
+                "Add Staff"
+              )}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleAddStaff} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Full Name *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Jane Smith"
+                className="input-field"
+                value={staffForm.name}
+                onChange={e => setStaffForm(prev => ({ ...prev, name: e.target.value }))}
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Email Address *
+              </label>
+              <input
+                type="email"
+                placeholder="e.g. jane@salon.com"
+                className="input-field"
+                value={staffForm.email}
+                onChange={e => setStaffForm(prev => ({ ...prev, email: e.target.value }))}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Phone Number (optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. +91 9876543210"
+                className="input-field"
+                value={staffForm.phone}
+                onChange={e => setStaffForm(prev => ({ ...prev, phone: e.target.value }))}
+              />
+              <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                Format: +[country_code] [10 digits], e.g. +91 9876543210
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Identity Proof (optional, PDF or Image)
+              </label>
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                className="input-field"
+                onChange={handleStaffFileChange}
+              />
+              {staffFile && (
+                <p className="text-[10px] text-emerald-400">
+                  Selected: {staffFile.name} ({(staffFile.size / 1024).toFixed(1)} KB)
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Role *
+              </label>
+              <div className="relative">
+                <select
+                  className="select-field w-full pr-10"
+                  value={staffForm.role}
+                  onChange={e => setStaffForm(prev => ({ ...prev, role: e.target.value }))}
+                >
+                  <option value="STYLIST">Stylist</option>
+                  <option value="SENIOR_STYLIST">Senior Stylist</option>
+                  <option value="ESTHETICIAN">Esthetician</option>
+                  <option value="NAIL_TECHNICIAN">Nail Technician</option>
+                  <option value="RECEPTIONIST">Receptionist</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
+                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Salary (₹/month) *
+              </label>
+              <input
+                type="number"
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                className="input-field"
+                value={staffForm.salary}
+                onChange={e => setStaffForm(prev => ({ ...prev, salary: e.target.value }))}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Staff Bio (optional)
+              </label>
+              <textarea
+                placeholder="Brief professional bio..."
+                rows={2}
+                className="input-field py-2"
+                value={staffForm.bio}
+                onChange={e => setStaffForm(prev => ({ ...prev, bio: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Avatar Image URL (optional)
+              </label>
+              <input
+                type="url"
+                placeholder="e.g. https://images.unsplash.com/..."
+                className="input-field"
+                value={staffForm.imageUrl}
+                onChange={e => setStaffForm(prev => ({ ...prev, imageUrl: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          {/* Service checklist */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+              Assigned Services
+            </label>
+            {allServices.length === 0 ? (
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>No services available in the system.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-[160px] overflow-y-auto p-3 rounded-xl border border-[var(--border-subtle)]" style={{ background: "var(--bg-card)" }}>
+                {allServices.map((service: any) => {
+                  const isChecked = staffForm.serviceIds.includes(service.id);
+                  return (
+                    <label key={service.id} className="flex items-start gap-2.5 p-2 rounded-lg cursor-pointer hover:bg-white/[0.02] transition-colors">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 rounded border-[var(--border-default)] text-rose-500 focus:ring-rose-500"
+                        checked={isChecked}
+                        onChange={() => {
+                          const newIds = isChecked
+                            ? staffForm.serviceIds.filter(id => id !== service.id)
+                            : [...staffForm.serviceIds, service.id];
+                          setStaffForm(prev => ({ ...prev, serviceIds: newIds }));
+                        }}
+                      />
+                      <div className="text-xs">
+                        <p className="font-medium" style={{ color: "var(--text-primary)" }}>{service.name}</p>
+                        <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>{service.category}</p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Client Modal */}
+      <Modal
+        open={isEditClientModalOpen}
+        onClose={() => setIsEditClientModalOpen(false)}
+        title="Edit Client"
+        subtitle="Update client profile details."
+        size="md"
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setIsEditClientModalOpen(false)}
+              disabled={clientEditSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleEditClientSubmit}
+              disabled={clientEditSubmitting}
+            >
+              {clientEditSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-1" /> Updating...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleEditClientSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+              Full Name *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. John Doe"
+              className="input-field"
+              value={clientEditForm.name}
+              onChange={e => setClientEditForm(prev => ({ ...prev, name: e.target.value }))}
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Email Address (optional)
+              </label>
+              <input
+                type="email"
+                placeholder="e.g. john@example.com"
+                className="input-field"
+                value={clientEditForm.email}
+                onChange={e => setClientEditForm(prev => ({ ...prev, email: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Phone Number *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. +91 9876543210"
+                className="input-field"
+                value={clientEditForm.phone}
+                onChange={e => setClientEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                required
+              />
+              <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                Format: +[country_code] [10 digits], e.g. +91 9876543210
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+              Date of Birth (optional)
+            </label>
+            <input
+              type="date"
+              className="input-field"
+              value={clientEditForm.dateOfBirth}
+              onChange={e => setClientEditForm(prev => ({ ...prev, dateOfBirth: e.target.value }))}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+              Address (optional)
+            </label>
+            <input
+              type="text"
+              placeholder="Street address, City"
+              className="input-field"
+              value={clientEditForm.address}
+              onChange={e => setClientEditForm(prev => ({ ...prev, address: e.target.value }))}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+              Notes (optional)
+            </label>
+            <textarea
+              placeholder="Any specific preferences or medical notes..."
+              rows={2}
+              className="input-field py-2"
+              value={clientEditForm.notes}
+              onChange={e => setClientEditForm(prev => ({ ...prev, notes: e.target.value }))}
+            />
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Staff Modal */}
+      <Modal
+        open={isEditStaffModalOpen}
+        onClose={() => setIsEditStaffModalOpen(false)}
+        title="Edit Staff Member"
+        subtitle="Update salon employee details, role, salary, and services."
+        size="lg"
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setIsEditStaffModalOpen(false)}
+              disabled={staffEditSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleEditStaffSubmit}
+              disabled={staffEditSubmitting}
+            >
+              {staffEditSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-1" /> Updating...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleEditStaffSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Full Name *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Jane Smith"
+                className="input-field"
+                value={staffEditForm.name}
+                onChange={e => setStaffEditForm(prev => ({ ...prev, name: e.target.value }))}
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Email Address *
+              </label>
+              <input
+                type="email"
+                placeholder="e.g. jane@salon.com"
+                className="input-field"
+                value={staffEditForm.email}
+                onChange={e => setStaffEditForm(prev => ({ ...prev, email: e.target.value }))}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Phone Number (optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. +91 9876543210"
+                className="input-field"
+                value={staffEditForm.phone}
+                onChange={e => setStaffEditForm(prev => ({ ...prev, phone: e.target.value }))}
+              />
+              <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                Format: +[country_code] [10 digits], e.g. +91 9876543210
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Identity Proof (optional, PDF or Image)
+              </label>
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                className="input-field"
+                onChange={handleStaffEditFileChange}
+              />
+              {staffEditFile ? (
+                <p className="text-[10px] text-emerald-400">
+                  Selected: {staffEditFile.name} ({(staffEditFile.size / 1024).toFixed(1)} KB)
+                </p>
+              ) : editingStaff?.identityProofName ? (
+                <p className="text-[10px] text-cyan-400">
+                  Current file: {editingStaff.identityProofName}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Role *
+              </label>
+              <div className="relative">
+                <select
+                  className="select-field w-full pr-10"
+                  value={staffEditForm.role}
+                  onChange={e => setStaffEditForm(prev => ({ ...prev, role: e.target.value }))}
+                >
+                  <option value="STYLIST">Stylist</option>
+                  <option value="SENIOR_STYLIST">Senior Stylist</option>
+                  <option value="ESTHETICIAN">Esthetician</option>
+                  <option value="NAIL_TECHNICIAN">Nail Technician</option>
+                  <option value="RECEPTIONIST">Receptionist</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
+                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Salary (₹/month) *
+              </label>
+              <input
+                type="number"
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                className="input-field"
+                value={staffEditForm.salary}
+                onChange={e => setStaffEditForm(prev => ({ ...prev, salary: e.target.value }))}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Staff Bio (optional)
+              </label>
+              <textarea
+                placeholder="Brief professional bio..."
+                rows={2}
+                className="input-field py-2"
+                value={staffEditForm.bio}
+                onChange={e => setStaffEditForm(prev => ({ ...prev, bio: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Avatar Image URL (optional)
+              </label>
+              <input
+                type="url"
+                placeholder="e.g. https://images.unsplash.com/..."
+                className="input-field"
+                value={staffEditForm.imageUrl}
+                onChange={e => setStaffEditForm(prev => ({ ...prev, imageUrl: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          {/* Service checklist */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+              Assigned Services
+            </label>
+            {allServices.length === 0 ? (
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>No services available in the system.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-[160px] overflow-y-auto p-3 rounded-xl border border-[var(--border-subtle)]" style={{ background: "var(--bg-card)" }}>
+                {allServices.map((service: any) => {
+                  const isChecked = staffEditForm.serviceIds.includes(service.id);
+                  return (
+                    <label key={service.id} className="flex items-start gap-2.5 p-2 rounded-lg cursor-pointer hover:bg-white/[0.02] transition-colors">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 rounded border-[var(--border-default)] text-rose-500 focus:ring-rose-500"
+                        checked={isChecked}
+                        onChange={() => {
+                          const newIds = isChecked
+                            ? staffEditForm.serviceIds.filter(id => id !== service.id)
+                            : [...staffEditForm.serviceIds, service.id];
+                          setStaffEditForm(prev => ({ ...prev, serviceIds: newIds }));
+                        }}
+                      />
+                      <div className="text-xs">
+                        <p className="font-medium" style={{ color: "var(--text-primary)" }}>{service.name}</p>
+                        <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>{service.category}</p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

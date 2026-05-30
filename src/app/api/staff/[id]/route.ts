@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { successResponse, notFoundResponse, handleApiError } from "@/lib/api";
 import { UpdateStaffSchema } from "@/lib/validations";
 import bcrypt from "bcryptjs";
+import { encrypt, decrypt } from "@/lib/encryption";
 
 type Params = { params: { id: string } };
 
@@ -14,6 +15,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
       select: {
         id: true, name: true, email: true, phone: true,
         role: true, status: true, bio: true, imageUrl: true,
+        salary: true,
+        identityProof: true,
+        identityProofName: true,
         joinDate: true, createdAt: true,
         staffServices: {
           include: { service: { select: { id: true, name: true, category: true } } },
@@ -31,6 +35,16 @@ export async function GET(_req: NextRequest, { params }: Params) {
     });
 
     if (!staff) return notFoundResponse("Staff member");
+
+    // Decrypt identityProof if present
+    if (staff.identityProof) {
+      try {
+        staff.identityProof = decrypt(staff.identityProof);
+      } catch (err) {
+        console.error("Failed to decrypt identity proof:", err);
+      }
+    }
+
     return successResponse(staff);
   } catch (error) {
     return handleApiError(error);
@@ -47,6 +61,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (password) {
       updateData.passwordHash = await bcrypt.hash(password, 12);
+    }
+
+    if (data.identityProof) {
+      updateData.identityProof = encrypt(data.identityProof);
     }
 
     const staff = await prisma.staff.update({

@@ -119,6 +119,11 @@ function ExpensesPageContent() {
   const [formType, setFormType] = useState("BILL");
   const [formCategory, setFormCategory] = useState("PRODUCT_PURCHASE");
   const [formNotes, setFormNotes] = useState("");
+  const [formStaffId, setFormStaffId] = useState("");
+
+  // Fetch all staff members for the dropdown
+  const { data: staffData } = usePaginatedApi<any>("/api/staff?limit=100");
+  const allStaff = staffData || [];
 
   // Deletion confirmation
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -227,6 +232,7 @@ function ExpensesPageContent() {
     setFormType(tab === "bills" ? "BILL" : tab === "payment-out" ? "PAYMENT_OUT" : "MISC");
     setFormCategory(tab === "bills" ? "PRODUCT_PURCHASE" : tab === "payment-out" ? "STAFF_PAYMENT" : "MISCELLANEOUS");
     setFormNotes("");
+    setFormStaffId("");
   };
 
   const handleSubmit = async () => {
@@ -252,6 +258,7 @@ function ExpensesPageContent() {
           category: formCategory,
           date: formDate ? new Date(formDate).toISOString() : new Date().toISOString(),
           notes: formNotes.trim() || undefined,
+          staffId: formType === "PAYMENT_OUT" && formStaffId ? formStaffId : undefined,
         }),
       });
 
@@ -518,6 +525,11 @@ function ExpensesPageContent() {
                             <div className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
                               {expense.title}
                             </div>
+                            {expense.staff && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold" style={{ background: "rgba(16,185,129,0.1)", color: "#10b981" }}>
+                                Paid to: {expense.staff.name}
+                              </span>
+                            )}
                             {isReceipt && (
                               <span
                                 className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold"
@@ -704,6 +716,41 @@ function ExpensesPageContent() {
                 <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
               </div>
             </div>
+
+            {/* If Expense Type is Staff Payment, show option to select staff member */}
+            {formType === "PAYMENT_OUT" && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                  Select Staff Member *
+                </label>
+                <div className="relative">
+                  <select
+                    className="select-field w-full pr-10"
+                    value={formStaffId}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      setFormStaffId(selectedId);
+                      const selectedStaff = allStaff.find((s: any) => s.id === selectedId);
+                      if (selectedStaff) {
+                        setFormAmount(String(selectedStaff.salary || "0"));
+                        if (!formTitle.trim() || allStaff.some((s: any) => formTitle.includes(s.name) || formTitle.startsWith("Staff Payment"))) {
+                          setFormTitle(`Staff Payment - ${selectedStaff.name}`);
+                        }
+                      }
+                    }}
+                    required
+                  >
+                    <option value="">-- Choose Staff --</option>
+                    {allStaff.map((s: any) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.role.replace("_", " ")}) - Salary: ₹{Number(s.salary || 0).toLocaleString("en-IN")}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+                </div>
+              </div>
+            )}
 
             {/* If Expense Type is Product Purchase, show options to add Product or Scan Invoice */}
             {formType === "BILL" && (

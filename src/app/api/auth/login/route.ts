@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     // Sign token
     const token = await signJWT({
       userId: user.id,
-      email: user.email,
+      email: user.email || "",
       name: user.name,
       roleType: roleType,
       ...(roleType === "staff" && { staffRole: (user as any).role }),
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
       success: true,
       data: {
         userId: user.id,
-        email: user.email,
+        email: user.email || "",
         name: user.name,
         roleType,
         ...(roleType === "staff" && { staffRole: (user as any).role }),

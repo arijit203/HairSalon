@@ -3,7 +3,8 @@
 import { Bell, Search, Plus, Sun, Moon } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import { useBooking } from "@/context/BookingContext";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 
 const notifications = [
   { id: 1, text: "3 new bookings completed", time: "2m ago", dot: "glow-dot-green" },
@@ -24,6 +25,12 @@ export default function Topbar() {
   const { openBooking } = useBooking();
   const [user, setUser] = useState<UserSession | null>(null);
 
+  // Notification states
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [activeNotifications, setActiveNotifications] = useState(notifications);
+  const [unreadCount, setUnreadCount] = useState(notifications.length);
+  const notificationRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => res.json())
@@ -33,6 +40,22 @@ export default function Topbar() {
         }
       })
       .catch(() => {});
+  }, []);
+
+  // Click outside to close notifications popover
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(event.target as Node)
+      ) {
+        setShowNotifications(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
 
   const isClient = user?.roleType === "client";
@@ -120,14 +143,82 @@ export default function Topbar() {
 
         {/* Notifications - Hide for customers for simplicity */}
         {!isClient && (
-          <div className="relative">
-            <button className="btn-icon relative">
+          <div className="relative" ref={notificationRef}>
+            <button
+              onClick={() => {
+                setShowNotifications(!showNotifications);
+                setUnreadCount(0); // clear red dot once opened
+              }}
+              className="btn-icon relative"
+              title="Notifications"
+            >
               <Bell className="w-4 h-4" style={{ color: "var(--text-secondary)" }} />
-              <span
-                className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full"
-                style={{ background: "#f43f5e", boxShadow: "0 0 5px rgba(244,63,94,0.9)" }}
-              />
+              {unreadCount > 0 && (
+                <span
+                  className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full"
+                  style={{ background: "#f43f5e", boxShadow: "0 0 5px rgba(244,63,94,0.9)" }}
+                />
+              )}
             </button>
+
+            <AnimatePresence>
+              {showNotifications && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 mt-2 w-80 rounded-2xl p-4 overflow-hidden z-[999]"
+                  style={{
+                    background: "var(--bg-dropdown)",
+                    border: "1px solid var(--border-default)",
+                    boxShadow: "var(--shadow-dropdown)",
+                    backdropFilter: "blur(12px)",
+                  }}
+                >
+                  {/* Dropdown Header */}
+                  <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-[var(--border-subtle)]">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)]">
+                      Notifications
+                    </h3>
+                    {activeNotifications.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setActiveNotifications([]);
+                          setUnreadCount(0);
+                        }}
+                        className="text-[10px] font-bold text-rose-400 hover:text-rose-300 transition-colors"
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Dropdown Content */}
+                  {activeNotifications.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-[var(--text-muted)]">
+                      No new notifications
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
+                      {activeNotifications.map((n) => (
+                        <div key={n.id} className="flex gap-2.5 items-start text-xs leading-relaxed text-left">
+                          <span className={`mt-1.5 ${n.dot}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-[var(--text-secondary)] break-words">
+                              {n.text}
+                            </p>
+                            <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                              {n.time}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 

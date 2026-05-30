@@ -122,8 +122,8 @@ model Service {
 model Client {
   id             String     @id @default(cuid())
   name           String
-  email          String     @unique
-  phone          String?
+  email          String?    @unique
+  phone          String
   dateOfBirth    DateTime?
   address        String?
   tier           ClientTier @default(BRONZE)
@@ -157,13 +157,17 @@ model Staff {
   imageUrl  String?
   joinDate  DateTime    @default(now())
   isActive  Boolean     @default(true)
+  salary    Decimal     @default(0.00) @db.Decimal(10, 2)
 
   // Auth
   passwordHash String?
+  identityProof     String?
+  identityProofName String?
 
   // Relations
   appointments  Appointment[]
   staffServices StaffService[]
+  expenses      Expense[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -276,6 +280,10 @@ model Expense {
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Relations
+  staffId     String?
+  staff       Staff?   @relation(fields: [staffId], references: [id])
 
   @@index([category])
   @@index([type])
