@@ -813,41 +813,62 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
     const isProductSale = bookingDetails.products && bookingDetails.products.length > 0;
 
-    const itemsHtml = isProductSale
-      ? bookingDetails.products!.map(p => `
-          <div class="item-row">
-            <span class="item-label">${p.name} (x${p.quantity})</span>
-            <span class="item-value">₹${(Number(p.price) * p.quantity).toFixed(2)}</span>
-          </div>
-        `).join("")
-      : bookingDetails.services.map(s => `
-          <div class="item-row">
-            <span class="item-label">${s.name}</span>
-            <span class="item-value">₹${Number(s.price).toFixed(2)}</span>
-          </div>
-        `).join("");
-
-    const discountHtml = bookingDetails.discountPct > 0 ? `
-      <div class="item-row">
-        <span class="item-label">Discount(${bookingDetails.discountPct}%)</span>
-        <span class="item-value">-₹${(bookingDetails.salePrice * bookingDetails.discountPct / 100).toFixed(2)}</span>
-      </div>
-    ` : "";
-
-    const taxAmt = bookingDetails.taxAmt !== undefined ? bookingDetails.taxAmt : (bookingDetails.taxPct > 0 ? Math.round((bookingDetails.salePrice - (bookingDetails.salePrice * bookingDetails.discountPct / 100)) * bookingDetails.taxPct / 100) : 0);
-    const taxHtml = taxAmt > 0 ? `
-      <div class="item-row">
-        <span class="item-label">GST (${bookingDetails.taxPct}%)</span>
-        <span class="item-value">₹${Number(taxAmt).toFixed(2)}</span>
-      </div>
-    ` : "";
-
     const timeStr = bookingDetails.endTime ? format24to12(bookingDetails.endTime).toLowerCase().replace(/\s+/g, "") : "";
 
-    const paymentFormatted = bookingDetails.paymentMethod === "ONLINE" ? "Online" :
-      bookingDetails.paymentMethod === "UPI" ? "Online (UPI)" :
-        bookingDetails.paymentMethod === "CARD" ? "Online (Card)" :
-          bookingDetails.paymentMethod === "BANK_TRANSFER" ? "Bank Transfer" : "Cash";
+    const paymentFormatted = (bookingDetails.paymentMethod === "ONLINE" ? "ONLINE" :
+      bookingDetails.paymentMethod === "UPI" ? "ONLINE (UPI)" :
+        bookingDetails.paymentMethod === "CARD" ? "ONLINE (CARD)" :
+          bookingDetails.paymentMethod === "BANK_TRANSFER" ? "BANK TRANSFER" : "CASH").toUpperCase();
+
+    const taxAmt = bookingDetails.taxAmt !== undefined ? bookingDetails.taxAmt : (bookingDetails.taxPct > 0 ? Math.round((bookingDetails.salePrice - (bookingDetails.salePrice * bookingDetails.discountPct / 100)) * bookingDetails.taxPct / 100) : 0);
+
+    const generateItemsText = () => {
+      if (isProductSale) {
+        return bookingDetails.products!.map(p => {
+          const name = (p.name + " (X" + p.quantity + ")").toUpperCase();
+          const amount = "₹" + (Number(p.price) * p.quantity).toFixed(2);
+          const spacing = " ".repeat(Math.max(0, 48 - name.length - amount.length));
+          return name + spacing + amount;
+        }).join("\n");
+      } else {
+        return bookingDetails.services.map(s => {
+          const name = s.name.toUpperCase();
+          const amount = "₹" + Number(s.price).toFixed(2);
+          const spacing = " ".repeat(Math.max(0, 48 - name.length - amount.length));
+          return name + spacing + amount;
+        }).join("\n");
+      }
+    };
+
+    const discountLine = bookingDetails.discountPct > 0 ? 
+      (() => {
+        const label = "DISCOUNT(" + bookingDetails.discountPct + "%)";
+        const amount = "-₹" + (bookingDetails.salePrice * bookingDetails.discountPct / 100).toFixed(2);
+        const spacing = " ".repeat(Math.max(0, 48 - label.length - amount.length));
+        return label + spacing + amount + "\n";
+      })() : "";
+
+    const taxLine = taxAmt > 0 ?
+      (() => {
+        const label = ("GST (" + bookingDetails.taxPct + "%)").toUpperCase();
+        const amount = "₹" + Number(taxAmt).toFixed(2);
+        const spacing = " ".repeat(Math.max(0, 48 - label.length - amount.length));
+        return label + spacing + amount + "\n";
+      })() : "";
+
+    const subtotalRow = (() => {
+      const label = "SUBTOTAL";
+      const amount = "₹" + bookingDetails.salePrice.toFixed(2);
+      const spacing = " ".repeat(Math.max(0, 48 - label.length - amount.length));
+      return label + spacing + amount;
+    })();
+
+    const totalRow = (() => {
+      const label = "TOTAL (INR)";
+      const amount = "₹" + bookingDetails.finalPrice.toFixed(2);
+      const spacing = " ".repeat(Math.max(0, 48 - label.length - amount.length));
+      return label + spacing + amount;
+    })();
 
     printWindow.document.write(`
       <html>
@@ -861,130 +882,58 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
             body {
               font-family: 'Courier New', Courier, monospace;
               font-size: 12px;
-              font-weight: normal;
-              width: 48mm;
+              font-weight: bold;
+              width: 52mm;
               margin: 0 auto;
-              padding: 10px 5px;
+              padding: 8px 4px;
               color: #000;
               background: #fff;
-              line-height: 1.3;
-              letter-spacing: 0.5px;
+              line-height: 1.4;
+              text-transform: uppercase;
             }
-            .center {
-              text-align: center;
+            /* Enforce uniform font size, weight, and capitalization across all elements */
+            body * {
+              font-family: 'Courier New', Courier, monospace !important;
+              font-size: 12px !important;
+              font-weight: bold !important;
+              text-transform: uppercase !important;
             }
-            .bold {
-              font-weight: bold;
+            /* Override for the header title */
+            .header-title, .header-title * {
+              font-size: 16px !important;
+              font-weight: 900 !important;
             }
-            .divider {
-              border-top: 1px solid #000;
-              margin: 5px 0;
+            pre {
+              margin: 0;
               padding: 0;
-              height: 0;
-            }
-            .dashed-divider {
-              border-top: 1px dashed #000;
-              margin: 5px 0;
-              padding: 0;
-              height: 0;
-            }
-            .header {
-              font-size: 13px;
-              font-weight: bold;
-              margin-bottom: 2px;
-            }
-            .subheader {
-              font-size: 10px;
-              margin-bottom: 8px;
-            }
-            .section-header {
-              font-weight: bold;
-              margin-top: 5px;
-              margin-bottom: 5px;
-            }
-            .item-row {
-              display: flex;
-              justify-content: space-between;
-              margin-bottom: 2px;
-              font-size: 12px;
-            }
-            .item-label {
-              flex: 1;
-              overflow: hidden;
-              text-overflow: clip;
-            }
-            .item-value {
-              text-align: right;
-              margin-left: 5px;
-              white-space: nowrap;
-            }
-            .total-row {
-              font-weight: bold;
-              font-size: 13px;
-              display: flex;
-              justify-content: space-between;
-              margin-top: 5px;
-              margin-bottom: 5px;
-            }
-            .footer {
-              margin-top: 10px;
-              font-size: 11px;
-              text-align: center;
+              white-space: pre-wrap;
+              word-wrap: break-word;
+              line-height: 1.4;
             }
           </style>
         </head>
         <body>
-          <div class="center header">MADOE SALON</div>
-          <div class="center subheader">CE/1/B/122 Newtown Kolkata-157<br>+919836867607(M)</div>
-          
-          <div class="dashed-divider"></div>
-          
-          <div class="item-row">
-            <span class="item-label bold">Date:</span>
-            <span class="item-value">${bookingDetails.date}</span>
-          </div>
-          <div class="item-row">
-            <span class="item-label bold">Time:</span>
-            <span class="item-value">${timeStr}</span>
-          </div>
-          <div class="item-row">
-            <span class="item-label bold">Customer:</span>
-            <span class="item-value">${bookingDetails.clientName}</span>
-          </div>
-          ${bookingDetails.clientPhone ? `
-          <div class="item-row">
-            <span class="item-label bold">Phone:</span>
-            <span class="item-value">${bookingDetails.clientPhone}</span>
-          </div>
-          ` : ""}
-          <div class="item-row">
-            <span class="item-label bold">Staff:</span>
-            <span class="item-value">${bookingDetails.staffName}</span>
-          </div>
-          <div class="item-row">
-            <span class="item-label bold">Payment:</span>
-            <span class="item-value">${paymentFormatted}</span>
-          </div>
-          
-          <div class="dashed-divider"></div>
-          <div class="section-header">${isProductSale ? "PRODUCTS" : "SERVICES"}</div>
-          ${itemsHtml}
-          
-          <div class="dashed-divider"></div>
-          <div class="item-row">
-            <span class="item-label">Subtotal</span>
-            <span class="item-value">₹${bookingDetails.salePrice.toFixed(2)}</span>
-          </div>
-          ${discountHtml}
-          ${taxHtml}
-          <div class="divider"></div>
-          <div class="total-row">
-            <span>TOTAL (INR)</span>
-            <span>₹${bookingDetails.finalPrice.toFixed(2)}</span>
-          </div>
-          <div class="divider"></div>
-          
-          <div class="footer">Thank you for dining with us!</div>
+          <pre><span class="header-title">MADOE SALON</span>
+CE/1/B/122 NEWTOWN KOLKATA-157
++919836867607(M)
+----------------------------------------------
+
+DATE: ${bookingDetails.date.toUpperCase()}
+TIME: ${timeStr.toUpperCase()}
+CUSTOMER: ${bookingDetails.clientName.toUpperCase()}
+${bookingDetails.clientPhone ? `PHONE: ${bookingDetails.clientPhone.toUpperCase()}\n` : ""}STAFF: ${bookingDetails.staffName.toUpperCase()}
+PAYMENT: ${paymentFormatted}
+----------------------------------------------
+${isProductSale ? "PRODUCTS" : "SERVICES"}
+${generateItemsText()}
+
+----------------------------------------------
+${subtotalRow}
+${discountLine}${taxLine}=============================================
+${totalRow}
+=============================================
+
+THANK YOU FOR VISITING!</pre>
           
           <script>
             window.onload = function() {

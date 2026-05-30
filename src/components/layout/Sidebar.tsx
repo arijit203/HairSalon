@@ -33,6 +33,11 @@ export default function Sidebar() {
   const [user, setUser] = useState<UserSession | null>(null);
   const [salonName, setSalonName] = useState("Madoe Beauty Salon");
   const [logoUrl, setLogoUrl] = useState("");
+  const [status, setStatus] = useState({
+    isOpen: true,
+    title: "Open Now",
+    subtitle: "Closes at 9:00 PM",
+  });
 
   const fetchSettings = () => {
     fetch("/api/settings", { cache: "no-store" })
@@ -59,6 +64,39 @@ export default function Sidebar() {
     fetchSettings();
     window.addEventListener("settings-updated", fetchSettings);
     return () => window.removeEventListener("settings-updated", fetchSettings);
+  }, []);
+
+  useEffect(() => {
+    const updateStatus = () => {
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const currentMinutes = hours * 60 + minutes;
+
+      const openMinutes = 9 * 60; // 9:00 AM
+      const closeMinutes = 21 * 60; // 9:00 PM
+
+      if (currentMinutes >= openMinutes && currentMinutes < closeMinutes) {
+        setStatus({
+          isOpen: true,
+          title: "Open Now",
+          subtitle: "Closes at 9:00 PM",
+        });
+      } else {
+        const subtitle = currentMinutes < openMinutes
+          ? "Opens today at 9:00 AM"
+          : "Opening tomorrow at 9:00 AM";
+        setStatus({
+          isOpen: false,
+          title: "Closed",
+          subtitle: subtitle,
+        });
+      }
+    };
+
+    updateStatus();
+    const interval = setInterval(updateStatus, 60000);
+    return () => clearInterval(interval);
   }, []);
 
 
@@ -180,15 +218,17 @@ export default function Sidebar() {
           <div
             className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
             style={{
-              background: "rgba(16,185,129,0.07)",
-              border: "1px solid rgba(16,185,129,0.15)",
+              background: status.isOpen ? "rgba(16,185,129,0.07)" : "rgba(244,63,94,0.07)",
+              border: status.isOpen ? "1px solid rgba(16,185,129,0.15)" : "1px solid rgba(244,63,94,0.15)",
             }}
           >
-            <div className="glow-dot-green" />
+            <div className={status.isOpen ? "glow-dot-green" : "glow-dot-rose"} />
             <div>
-              <p className="text-xs font-semibold text-emerald-500">Open Now</p>
+              <p className={clsx("text-xs font-semibold", status.isOpen ? "text-emerald-500" : "text-rose-500")}>
+                {status.isOpen ? "Open Now" : "Shop Closed"}
+              </p>
               <p className="text-[10px] mt-0" style={{ color: "var(--text-muted)" }}>
-                Closes at 8:00 PM
+                {status.subtitle}
               </p>
             </div>
           </div>

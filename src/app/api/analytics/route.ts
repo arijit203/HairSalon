@@ -147,13 +147,15 @@ const getCachedAnalytics = unstable_cache(
         else val.incomeService += amt;
         groupMap.set(label, val);
       }
-      if (!groupMap.has("21:00")) {
-        groupMap.set("21:00", emptyGroup());
+      if (!groupMap.has("21:30")) {
+        groupMap.set("21:30", emptyGroup());
       }
       const sortedEntries = Array.from(groupMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
       groupMap.clear();
       for (const [k, v] of sortedEntries) {
-        groupMap.set(k, v);
+        if (k >= "09:00" && k <= "21:30") {
+          groupMap.set(k, v);
+        }
       }
     } else if (period === "7D" || period === "1M") {
       const dayFormat = new Intl.DateTimeFormat("en-US", {
@@ -379,13 +381,13 @@ export async function GET(req: NextRequest) {
 
       if (isToday) {
         const currentKolkataTimeStr = `${String(nowKolkata.getHours()).padStart(2, "0")}:${String(nowKolkata.getMinutes()).padStart(2, "0")}`;
-        let endLabel = "21:00";
-        if (currentKolkataTimeStr < "21:00") {
-          endLabel = currentKolkataTimeStr;
+        let endLabel = "21:30";
+        if (currentKolkataTimeStr < "21:30") {
+          endLabel = currentKolkataTimeStr < "09:00" ? "09:00" : currentKolkataTimeStr;
         }
 
-        // Filter out any labels that are in the future (after endLabel)
-        data.revenueData = data.revenueData.filter((r) => r.month <= endLabel);
+        // Filter out any labels that are outside 09:00 to endLabel
+        data.revenueData = data.revenueData.filter((r) => r.month >= "09:00" && r.month <= endLabel);
 
         // Ensure the endLabel point is present to draw the line/area to the current time
         if (!data.revenueData.some((r) => r.month === endLabel)) {
@@ -405,6 +407,9 @@ export async function GET(req: NextRequest) {
 
         // Ensure chronological sorting of keys
         data.revenueData.sort((a, b) => a.month.localeCompare(b.month));
+      } else {
+        // For historical days, filter strictly within 09:00 and 21:30
+        data.revenueData = data.revenueData.filter((r) => r.month >= "09:00" && r.month <= "21:30");
       }
     }
 

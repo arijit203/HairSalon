@@ -150,6 +150,12 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
     setShowSuggestions(false);
   }, [open, editingProduct]);
 
+  useEffect(() => {
+    if (showWholesalePrice) {
+      setSalePriceDiscount("");
+    }
+  }, [showWholesalePrice]);
+
   // Filter autocomplete suggestions based on the typed product name
   const suggestions = useMemo(() => {
     if (!name.trim()) return [];
@@ -343,7 +349,7 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
         imageUrl: imageUrl.trim() || undefined,
         
         salePriceTaxType,
-        salePriceDiscount: parsedDiscount,
+        salePriceDiscount: (showWholesalePrice && parsedWholesalePrice !== undefined) ? 0 : parsedDiscount,
         salePriceDiscountType,
         purchasePriceTaxType,
         wholesalePrice: parsedWholesalePrice,
@@ -676,31 +682,33 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
                     </div>
 
                     {/* Sale Price discount on top */}
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          placeholder="Discount"
-                          className="input-field w-full"
-                          value={salePriceDiscount}
-                          onChange={(e) => setSalePriceDiscount(e.target.value)}
-                          disabled={submitting}
-                        />
+                    {!showWholesalePrice && (
+                      <div className="flex gap-2 animate-fade-in">
+                        <div className="relative flex-1">
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            placeholder="Discount"
+                            className="input-field w-full"
+                            value={salePriceDiscount}
+                            onChange={(e) => setSalePriceDiscount(e.target.value)}
+                            disabled={submitting}
+                          />
+                        </div>
+                        <div className="relative w-[135px] flex-shrink-0">
+                          <select
+                            className="input-field appearance-none pr-8 cursor-pointer w-full"
+                            value={salePriceDiscountType}
+                            onChange={(e) => setSalePriceDiscountType(e.target.value)}
+                          >
+                            <option value="PERCENTAGE" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>Percentage</option>
+                            <option value="AMOUNT" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>Value</option>
+                          </select>
+                          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-zinc-400" />
+                        </div>
                       </div>
-                      <div className="relative w-[135px] flex-shrink-0">
-                        <select
-                          className="input-field appearance-none pr-8 cursor-pointer w-full"
-                          value={salePriceDiscountType}
-                          onChange={(e) => setSalePriceDiscountType(e.target.value)}
-                        >
-                          <option value="PERCENTAGE" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>Percentage</option>
-                          <option value="AMOUNT" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>Value</option>
-                        </select>
-                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-zinc-400" />
-                      </div>
-                    </div>
+                    )}
 
                     {/* Wholesale Price toggle */}
                     {!showWholesalePrice ? (
@@ -789,14 +797,12 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
                           const salePrice = parseFloat(price);
                           if (isNaN(salePrice) || salePrice <= 0) return "0.00";
 
-                          // If wholesale price is provided, use min(wholesale, sale) as base
                           const wpVal = parseFloat(wholesalePrice);
-                          const basePrice = showWholesalePrice && !isNaN(wpVal) && wpVal > 0
-                            ? Math.min(wpVal, salePrice)
-                            : salePrice;
+                          const isWholesaleActive = showWholesalePrice && !isNaN(wpVal) && wpVal > 0;
+                          const basePrice = isWholesaleActive ? wpVal : salePrice;
 
                           const qty = parseInt(stock, 10) || 1;
-                          const discountAmt = parseFloat(salePriceDiscount) || 0;
+                          const discountAmt = isWholesaleActive ? 0 : (parseFloat(salePriceDiscount) || 0);
 
                           // Apply discount
                           let effectivePrice = basePrice;
@@ -809,7 +815,7 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
                           }
 
                           // Apply tax only if the base price is WITHOUT tax
-                          const baseTaxType = showWholesalePrice && !isNaN(wpVal) && wpVal > 0
+                          const baseTaxType = isWholesaleActive
                             ? wholesalePriceTaxType
                             : salePriceTaxType;
                           if (baseTaxType === "WITHOUT_TAX") {
@@ -825,13 +831,14 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
                       {(() => {
                         const wp = parseFloat(wholesalePrice);
                         const sp = parseFloat(price);
-                        const usingWholesale = showWholesalePrice && !isNaN(wp) && wp > 0 && !isNaN(sp) && sp > 0;
+                        const usingWholesale = showWholesalePrice && !isNaN(wp) && wp > 0;
                         const qty = parseInt(stock, 10);
                         const basis = usingWholesale
-                          ? `min(₹${Math.min(wp, sp).toFixed(2)} wholesale, ₹${sp.toFixed(2)} sale)`
+                          ? `₹${wp.toFixed(2)} wholesale`
                           : "sale price";
+                        const discountSuffix = usingWholesale ? "" : " after discount";
                         return qty > 0
-                          ? `${qty} unit(s) × ${basis} after discount`
+                          ? `${qty} unit(s) × ${basis}${discountSuffix}`
                           : `Per-unit total based on ${basis} (qty not set)`;
                       })()}
                     </p>

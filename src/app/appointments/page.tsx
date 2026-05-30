@@ -2,6 +2,7 @@
 
 import { CalendarDays, Plus, ChevronLeft, ChevronRight, Scissors, CheckCircle2, XCircle, AlertCircle, Loader2, Printer, Pencil, Trash2, X, Clock, Package } from "lucide-react";
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { usePaginatedApi } from "@/hooks/useApi";
 import { useBooking } from "@/context/BookingContext";
@@ -50,6 +51,7 @@ export default function AppointmentsPage() {
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [staffList, setStaffList] = useState<any[]>([]);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -69,6 +71,8 @@ export default function AppointmentsPage() {
         }
       })
       .catch(() => {});
+
+    setMounted(true);
   }, []);
 
   // Delete states
@@ -123,7 +127,11 @@ export default function AppointmentsPage() {
       }
       groups[key].appointments.push(appt);
     });
-    return Object.values(groups).sort((a: any, b: any) => b.startTime.localeCompare(a.startTime));
+    return Object.values(groups).sort((a: any, b: any) => {
+      const timeA = a.endTime || a.startTime || "";
+      const timeB = b.endTime || b.startTime || "";
+      return timeB.localeCompare(timeA);
+    });
   };
 
   const handlePrintReceipt = (group: any) => {
@@ -202,48 +210,54 @@ export default function AppointmentsPage() {
             }
             body {
               font-family: 'Courier New', Courier, monospace;
-              font-size: 11px;
+              font-size: 12px;
+              font-weight: bold;
               width: 48mm;
               margin: 0 auto;
               padding: 10px 5px;
               color: #000;
               background: #fff;
-              line-height: 1.2;
+              line-height: 1.3;
+              text-transform: uppercase;
+            }
+            /* Enforce uniform font size, weight, and capitalization across all elements */
+            body * {
+              font-family: 'Courier New', Courier, monospace !important;
+              font-size: 12px !important;
+              font-weight: bold !important;
+              text-transform: uppercase !important;
+            }
+            /* Override for the header title */
+            .header-title, .header-title * {
+              font-size: 16px !important;
+              font-weight: 900 !important;
             }
             .center {
               text-align: center;
-            }
-            .bold {
-              font-weight: bold;
             }
             .divider {
               border-top: 1px dashed #000;
               margin: 8px 0;
             }
-            .totals {
-              font-size: 12px;
-              margin-top: 5px;
-            }
             .footer {
               margin-top: 15px;
-              font-size: 9px;
             }
           </style>
         </head>
         <body>
-          <div class="center bold" style="font-size: 14px; margin-bottom: 2px;">MADOE SALON</div>
-          <div class="center" style="font-size: 9px;">CE/1/B/122 Newtown Kolkata-157</div>
-          <div class="center" style="font-size: 9px; margin-bottom: 5px;">+919836867607(M) </div>
+          <div class="center header-title">MADOE SALON</div>
+          <div class="center">CE/1/B/122 Newtown Kolkata-157</div>
+          <div class="center" style="margin-bottom: 5px;">+919836867607(M)</div>
           <div class="divider"></div>
           
-          <div><strong>Date:</strong> ${group.date}</div>
-          <div><strong>Time:</strong> ${timeStr}</div>
-          <div><strong>Customer:</strong> ${group.client?.name ?? "Walk-in"}</div>
-          ${group.client?.phone ? `<div><strong>Phone:</strong> ${group.client.phone}</div>` : ""}
-          <div><strong>Staff:</strong> ${staffNames}</div>
+          <div>Date: ${group.date}</div>
+          <div>Time: ${timeStr}</div>
+          <div>Customer: ${group.client?.name ?? "Walk-in"}</div>
+          ${group.client?.phone ? `<div>Phone: ${group.client.phone}</div>` : ""}
+          <div>Staff: ${staffNames}</div>
           
           <div class="divider"></div>
-          <div class="bold" style="margin-bottom: 5px;">${isProductSale ? "PRODUCTS" : "SERVICES"}</div>
+          <div style="margin-bottom: 5px;">${isProductSale ? "PRODUCTS" : "SERVICES"}</div>
           ${servicesHtml}
           
           <div class="divider"></div>
@@ -253,7 +267,7 @@ export default function AppointmentsPage() {
           </div>
           ${discountHtml}
           ${taxHtml}
-          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 12px; margin-top: 3px;">
+          <div style="display: flex; justify-content: space-between; margin-top: 3px;">
             <span>TOTAL</span>
             <span>₹${paidTotal.toFixed(2)}</span>
           </div>
@@ -528,65 +542,68 @@ export default function AppointmentsPage() {
       </div>
 
       {/* Delete Booking Modal */}
-      <AnimatePresence>
-        {deletingGroup && (
-          <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4">
-            <motion.div
-              className="absolute inset-0"
-              style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)" }}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => !deleting && setDeletingGroup(null)}
-            />
+      {mounted && typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {deletingGroup && (
+            <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4">
+              <motion.div
+                className="absolute inset-0"
+                style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)" }}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={() => !deleting && setDeletingGroup(null)}
+              />
 
-            <motion.div
-              className="relative w-full max-w-md flex flex-col rounded-2xl overflow-hidden p-6 text-center"
-              style={{
-                background: "var(--bg-secondary)",
-                border: "1px solid var(--border-default)",
-                boxShadow: "0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)",
-              }}
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
-            >
-              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4 border border-red-500/25">
-                <Trash2 className="w-6 h-6 text-red-400" />
-              </div>
+              <motion.div
+                className="relative w-full max-w-md flex flex-col rounded-2xl overflow-hidden p-6 text-center"
+                style={{
+                  background: "var(--bg-secondary)",
+                  border: "1px solid var(--border-default)",
+                  boxShadow: "0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)",
+                }}
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+              >
+                <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4 border border-red-500/25">
+                  <Trash2 className="w-6 h-6 text-red-400" />
+                </div>
 
-              <h3 className="text-lg font-bold mb-1" style={{ color: "var(--text-primary)" }}>
-                Delete Booking?
-              </h3>
-              <p className="text-xs mb-6" style={{ color: "var(--text-muted)" }}>
-                Are you sure you want to permanently delete the booking for <strong className="text-rose-400">{deletingGroup.client?.name}</strong> with <strong className="text-rose-400">{deletingGroup.appointments.length}</strong> service{deletingGroup.appointments.length > 1 ? "s" : ""}? This action cannot be undone.
-              </p>
+                <h3 className="text-lg font-bold mb-1" style={{ color: "var(--text-primary)" }}>
+                  Delete Booking?
+                </h3>
+                <p className="text-xs mb-6" style={{ color: "var(--text-muted)" }}>
+                  Are you sure you want to permanently delete the booking for <strong className="text-rose-400">{deletingGroup.client?.name}</strong> with <strong className="text-rose-400">{deletingGroup.appointments.length}</strong> service{deletingGroup.appointments.length > 1 ? "s" : ""}? This action cannot be undone.
+                </p>
 
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDeletingGroup(null)}
-                  disabled={deleting}
-                  className="btn-secondary py-2.5 px-4 text-xs font-semibold flex-1"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeleteConfirm}
-                  disabled={deleting}
-                  className="btn-primary py-2.5 px-4 text-xs font-semibold flex-1 bg-red-600 hover:bg-red-700 border-red-500/50 flex items-center justify-center gap-1.5"
-                >
-                  {deleting ? (
-                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Deleting…</>
-                  ) : (
-                    "Delete Booking"
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeletingGroup(null)}
+                    disabled={deleting}
+                    className="btn-secondary py-2.5 px-4 text-xs font-semibold flex-1"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteConfirm}
+                    disabled={deleting}
+                    className="btn-primary py-2.5 px-4 text-xs font-semibold flex-1 bg-red-600 hover:bg-red-700 border-red-500/50 flex items-center justify-center gap-1.5"
+                  >
+                    {deleting ? (
+                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Deleting…</>
+                    ) : (
+                      "Delete Booking"
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
     </div>
   );

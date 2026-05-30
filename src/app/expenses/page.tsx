@@ -761,14 +761,14 @@ function ExpensesPageContent() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => window.open("/products?openAddProduct=true", "_blank")}
+                    onClick={() => router.push("/products?openAddProduct=true")}
                     className="btn-secondary py-1.5 px-3 text-[11px] flex items-center gap-1.5"
                   >
                     <Plus className="w-3.5 h-3.5" /> Add Single Product
                   </button>
                   <button
                     type="button"
-                    onClick={() => window.open("/products?openScanner=true", "_blank")}
+                    onClick={() => router.push("/products?openScanner=true")}
                     className="btn-primary py-1.5 px-3 text-[11px] flex items-center gap-1.5"
                   >
                     <Receipt className="w-3.5 h-3.5" /> Scan Invoice Receipt

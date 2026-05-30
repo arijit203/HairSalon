@@ -134,7 +134,14 @@ export default function DashboardPage() {
       }
       groups[key].appointments.push(appt);
     });
-    return Object.values(groups);
+    return Object.values(groups).sort((a: any, b: any) => {
+      if (a.date !== b.date) {
+        return b.date.localeCompare(a.date);
+      }
+      const timeA = a.endTime || a.startTime || "";
+      const timeB = b.endTime || b.startTime || "";
+      return timeB.localeCompare(timeA);
+    });
   };
 
   const handlePrintReceipt = (group: any) => {
@@ -213,48 +220,54 @@ export default function DashboardPage() {
             }
             body {
               font-family: 'Courier New', Courier, monospace;
-              font-size: 11px;
+              font-size: 12px;
+              font-weight: bold;
               width: 48mm;
               margin: 0 auto;
               padding: 10px 5px;
               color: #000;
               background: #fff;
-              line-height: 1.2;
+              line-height: 1.3;
+              text-transform: uppercase;
+            }
+            /* Enforce uniform font size, weight, and capitalization across all elements */
+            body * {
+              font-family: 'Courier New', Courier, monospace !important;
+              font-size: 12px !important;
+              font-weight: bold !important;
+              text-transform: uppercase !important;
+            }
+            /* Override for the header title */
+            .header-title, .header-title * {
+              font-size: 16px !important;
+              font-weight: 900 !important;
             }
             .center {
               text-align: center;
-            }
-            .bold {
-              font-weight: bold;
             }
             .divider {
               border-top: 1px dashed #000;
               margin: 8px 0;
             }
-            .totals {
-              font-size: 12px;
-              margin-top: 5px;
-            }
             .footer {
               margin-top: 15px;
-              font-size: 9px;
             }
           </style>
         </head>
         <body>
-          <div class="center bold" style="font-size: 14px; margin-bottom: 2px;">MADOE SALON</div>
-          <div class="center" style="font-size: 9px;">CE/1/B/122 Newtown Kolkata-157</div>
-          <div class="center" style="font-size: 9px; margin-bottom: 5px;">+919836867607(M) </div>
+          <div class="center header-title">MADOE SALON</div>
+          <div class="center">CE/1/B/122 Newtown Kolkata-157</div>
+          <div class="center" style="margin-bottom: 5px;">+919836867607(M)</div>
           <div class="divider"></div>
           
-          <div><strong>Date:</strong> ${group.date}</div>
-          <div><strong>Time:</strong> ${timeStr}</div>
-          <div><strong>Customer:</strong> ${group.client?.name ?? "Walk-in"}</div>
-          ${group.client?.phone ? `<div><strong>Phone:</strong> ${group.client.phone}</div>` : ""}
-          <div><strong>Staff:</strong> ${staffNames}</div>
+          <div>Date: ${group.date}</div>
+          <div>Time: ${timeStr}</div>
+          <div>Customer: ${group.client?.name ?? "Walk-in"}</div>
+          ${group.client?.phone ? `<div>Phone: ${group.client.phone}</div>` : ""}
+          <div>Staff: ${staffNames}</div>
           
           <div class="divider"></div>
-          <div class="bold" style="margin-bottom: 5px;">${isProductSale ? "PRODUCTS" : "SERVICES"}</div>
+          <div style="margin-bottom: 5px;">${isProductSale ? "PRODUCTS" : "SERVICES"}</div>
           ${servicesHtml}
           
           <div class="divider"></div>
@@ -264,7 +277,7 @@ export default function DashboardPage() {
           </div>
           ${discountHtml}
           ${taxHtml}
-          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 12px; margin-top: 3px;">
+          <div style="display: flex; justify-content: space-between; margin-top: 3px;">
             <span>TOTAL</span>
             <span>₹${paidTotal.toFixed(2)}</span>
           </div>
@@ -313,10 +326,12 @@ export default function DashboardPage() {
     const isTodayFutureTime = group.date === todayDateStr && group.startTime > nowTime;
     const isFuture = isFutureDate || isTodayFutureTime;
     const isActiveOrPending = ["PENDING", "COMPLETED", "IN_PROGRESS"].includes(group.status);
+    if (group.date < todayDateStr) return false;
     return (isFuture && isActiveOrPending) || group.status === "PENDING";
   });
 
   const otherAppointments = groupedAppts.filter((group: any) => {
+    if (group.date < todayDateStr) return false;
     return !scheduledPending.some((s: any) => s.id === group.id);
   });
 
@@ -727,23 +742,59 @@ export default function DashboardPage() {
 function PastSchedules({ groupAppointments, handlePrintReceipt }: { groupAppointments: (appts: any[]) => any[]; handlePrintReceipt: (group: any) => void }) {
   const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
-  // Fetch last 50 completed appointments (most recent first), then filter out today's and take 5 groups
-  const { data: pastData, loading: pastLoading } = useApi<any[]>(
-    `/api/appointments?limit=50&page=1&sortOrder=desc&status=COMPLETED`
+  // Fetch last 100 appointments, pending and in-progress separately to avoid truncating due to database limits
+  const { data: pastData, loading: mainLoading } = useApi<any[]>(
+    `/api/appointments?limit=100&page=1&sortOrder=desc`
+  );
+  const { data: pendingData, loading: pendingLoading } = useApi<any[]>(
+    `/api/appointments?limit=100&page=1&status=PENDING`
+  );
+  const { data: inProgressData, loading: inProgressLoading } = useApi<any[]>(
+    `/api/appointments?limit=100&page=1&status=IN_PROGRESS`
   );
 
-  const allPast = (pastData ?? []).filter((a: any) => {
+  const pastLoading = mainLoading || pendingLoading || inProgressLoading;
+
+  const allData = [
+    ...(pastData ?? []),
+    ...(pendingData ?? []),
+    ...(inProgressData ?? [])
+  ];
+
+  // Remove duplicates by ID
+  const uniqueAppointmentsMap = new Map();
+  allData.forEach(appt => {
+    if (appt && appt.id) {
+      uniqueAppointmentsMap.set(appt.id, appt);
+    }
+  });
+  const allAppointments = Array.from(uniqueAppointmentsMap.values());
+
+  const allPast = allAppointments.filter((a: any) => {
     const d = typeof a.date === "string" ? a.date.split("T")[0] : new Date(a.date).toISOString().split("T")[0];
     return d < todayStr;
   });
 
-  const pastGroups = groupAppointments(allPast)
+  const pastCompletedGroups = groupAppointments(allPast.filter(a => a.status === "COMPLETED"))
     .sort((a: any, b: any) => {
-      const da = new Date(`${a.date}T${a.endTime}`);
-      const db = new Date(`${b.date}T${b.endTime}`);
-      return db.getTime() - da.getTime();
+      if (a.date !== b.date) {
+        return b.date.localeCompare(a.date);
+      }
+      const timeA = a.endTime || a.startTime || "";
+      const timeB = b.endTime || b.startTime || "";
+      return timeB.localeCompare(timeA);
     })
     .slice(0, 5);
+
+  const pastPendingGroups = groupAppointments(allPast.filter(a => a.status === "PENDING" || a.status === "IN_PROGRESS"))
+    .sort((a: any, b: any) => {
+      if (a.date !== b.date) {
+        return b.date.localeCompare(a.date);
+      }
+      const timeA = a.endTime || a.startTime || "";
+      const timeB = b.endTime || b.startTime || "";
+      return timeB.localeCompare(timeA);
+    });
 
   const statusColors: Record<string, string> = {
     IN_PROGRESS: "#a855f7",
@@ -757,7 +808,7 @@ function PastSchedules({ groupAppointments, handlePrintReceipt }: { groupAppoint
       <div className="flex items-center justify-between mb-5">
         <div>
           <h2 className="card-title">Past Schedules</h2>
-          <p className="card-subtitle">Last 5 completed transactions</p>
+          <p className="card-subtitle">Last 5 completed transactions & unresolved past bookings</p>
         </div>
         <a href="/appointments" className="btn-ghost text-sm flex items-center gap-1.5">
           View All <ArrowRight className="w-3.5 h-3.5" />
@@ -777,89 +828,178 @@ function PastSchedules({ groupAppointments, handlePrintReceipt }: { groupAppoint
             </div>
           ))}
         </div>
-      ) : pastGroups.length === 0 ? (
+      ) : pastCompletedGroups.length === 0 && pastPendingGroups.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-10" style={{ color: "var(--text-muted)" }}>
           <CalendarCheck className="w-9 h-9 mb-3 opacity-30" />
           <p className="text-sm">No past bookings yet</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {pastGroups.map((group: any) => {
-            const initials = group.client?.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2) ?? "??";
-            const hasProductSale = group.appointments.some((a: any) => a.service?.name === "Product Sale");
-            const servicesStr = group.appointments.map((a: any) => {
-              const isPs = a.service?.name === "Product Sale";
-              if (isPs && a.transaction?.items?.length > 0) {
-                return a.transaction.items.map((item: any) => `${item.name} (x${item.quantity})`).join(", ");
-              }
-              return a.service?.name;
-            }).join(", ");
-            const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
-            return (
-              <div key={group.id} className="flex items-center justify-between gap-4 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all"
-                style={{ border: "1px solid var(--border-subtle)" }}>
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                  <div className="avatar w-9 h-9 text-xs flex-shrink-0">{initials}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                      <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{group.client?.name}</p>
-                      {hasProductSale ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
-                          style={{ background: "rgba(6,182,212,0.12)", color: "#06b6d4", border: "1px solid rgba(6,182,212,0.25)" }}>
-                          <Package className="w-2.5 h-2.5" /> Product Sale
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
-                          style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.25)" }}>
-                          <Scissors className="w-2.5 h-2.5" /> Service
-                        </span>
-                      )}
-                      {(() => {
-                        const paymentMethod = group.appointments[0]?.transaction?.paymentMethod || "ONLINE";
-                        const isCash = paymentMethod === "CASH";
-                        return isCash ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
-                            style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)" }}>
-                            Cash
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
-                            style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
-                            Online
-                          </span>
-                        );
-                      })()}
-                    </div>
-                    <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
-                      {servicesStr} · {staffNames}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <div className="text-right">
-                    <span className="text-xs font-semibold tabular-nums block" style={{ color: "var(--text-secondary)" }}>
-                      {new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · {group.endTime}
-                    </span>
-                    <span className="text-xs font-black text-rose-400 block mt-0.5">
-                      ₹{group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0).toLocaleString("en-IN")}
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-                    style={{ background: `${statusColors[group.status] ?? "#6b7280"}15`, color: statusColors[group.status] ?? "#6b7280" }}>
-                    {group.status.replace("_", " ")}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); handlePrintReceipt(group); }}
-                    className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
-                    title="Print Receipt"
-                  >
-                    <Printer className="w-4 h-4" />
-                  </button>
-                </div>
+        <div className="space-y-6">
+          {/* Pending Section */}
+          {pastPendingGroups.length > 0 && (
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2 px-1">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500">
+                  Pending (Earlier Dates) ({pastPendingGroups.length})
+                </h3>
               </div>
-            );
-          })}
+              <div className="space-y-2">
+                {pastPendingGroups.map((group: any) => {
+                  const initials = group.client?.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2) ?? "??";
+                  const hasProductSale = group.appointments.some((a: any) => a.service?.name === "Product Sale");
+                  const servicesStr = group.appointments.map((a: any) => {
+                    const isPs = a.service?.name === "Product Sale";
+                    if (isPs && a.transaction?.items?.length > 0) {
+                      return a.transaction.items.map((item: any) => `${item.name} (x${item.quantity})`).join(", ");
+                    }
+                    return a.service?.name;
+                  }).join(", ");
+                  const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
+                  return (
+                    <div key={group.id} className="flex items-center justify-between gap-4 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all bg-amber-500/[0.01]"
+                      style={{ border: "1px solid rgba(245, 158, 11, 0.15)" }}>
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="avatar w-9 h-9 text-xs flex-shrink-0">{initials}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                            <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{group.client?.name}</p>
+                            {hasProductSale ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                style={{ background: "rgba(6,182,212,0.12)", color: "#06b6d4", border: "1px solid rgba(6,182,212,0.25)" }}>
+                                <Package className="w-2.5 h-2.5" /> Product Sale
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.25)" }}>
+                                <Scissors className="w-2.5 h-2.5" /> Service
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
+                            {servicesStr} · {staffNames}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <div className="text-right">
+                          <span className="text-xs font-semibold tabular-nums block" style={{ color: "var(--text-secondary)" }}>
+                            {new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · {group.endTime}
+                          </span>
+                          <span className="text-xs font-black text-rose-400 block mt-0.5">
+                            ₹{group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0).toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+                          style={{ background: `${statusColors[group.status] ?? "#6b7280"}15`, color: statusColors[group.status] ?? "#6b7280" }}>
+                          {group.status.replace("_", " ")}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handlePrintReceipt(group); }}
+                          className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
+                          title="Print Receipt"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Completed Section */}
+          {pastCompletedGroups.length > 0 && (
+            <div className="space-y-2.5">
+              {pastPendingGroups.length > 0 && <div className="border-t border-[var(--border-subtle)] my-4" />}
+              <div className="flex items-center gap-2 px-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-500">
+                  Completed (Earlier Dates) ({pastCompletedGroups.length})
+                </h3>
+              </div>
+              <div className="space-y-2">
+                {pastCompletedGroups.map((group: any) => {
+                  const initials = group.client?.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2) ?? "??";
+                  const hasProductSale = group.appointments.some((a: any) => a.service?.name === "Product Sale");
+                  const servicesStr = group.appointments.map((a: any) => {
+                    const isPs = a.service?.name === "Product Sale";
+                    if (isPs && a.transaction?.items?.length > 0) {
+                      return a.transaction.items.map((item: any) => `${item.name} (x${item.quantity})`).join(", ");
+                    }
+                    return a.service?.name;
+                  }).join(", ");
+                  const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
+                  return (
+                    <div key={group.id} className="flex items-center justify-between gap-4 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all"
+                      style={{ border: "1px solid var(--border-subtle)" }}>
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="avatar w-9 h-9 text-xs flex-shrink-0">{initials}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                            <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{group.client?.name}</p>
+                            {hasProductSale ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                style={{ background: "rgba(6,182,212,0.12)", color: "#06b6d4", border: "1px solid rgba(6,182,212,0.25)" }}>
+                                <Package className="w-2.5 h-2.5" /> Product Sale
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.25)" }}>
+                                <Scissors className="w-2.5 h-2.5" /> Service
+                              </span>
+                            )}
+                            {(() => {
+                              const paymentMethod = group.appointments[0]?.transaction?.paymentMethod || "ONLINE";
+                              const isCash = paymentMethod === "CASH";
+                              return isCash ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                  style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)" }}>
+                                  Cash
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                  style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
+                                  Online
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
+                            {servicesStr} · {staffNames}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <div className="text-right">
+                          <span className="text-xs font-semibold tabular-nums block" style={{ color: "var(--text-secondary)" }}>
+                            {new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · {group.endTime}
+                          </span>
+                          <span className="text-xs font-black text-rose-400 block mt-0.5">
+                            ₹{group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0).toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+                          style={{ background: `${statusColors[group.status] ?? "#6b7280"}15`, color: statusColors[group.status] ?? "#6b7280" }}>
+                          {group.status.replace("_", " ")}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handlePrintReceipt(group); }}
+                          className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
+                          title="Print Receipt"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
