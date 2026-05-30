@@ -26,7 +26,8 @@ import {
   Smile,
   type LucideIcon,
 } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { usePaginatedApi } from "@/hooks/useApi";
 import { useToast } from "@/context/ToastContext";
 import { useBooking } from "@/context/BookingContext";
@@ -85,7 +86,7 @@ const mapCategoryToColor = (cat: string) => {
   }
 };
 
-export default function ServicesPage() {
+function ServicesPageContent() {
   const { success, error: toastError } = useToast();
   const { openBooking } = useBooking();
 
@@ -94,7 +95,16 @@ export default function ServicesPage() {
   const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [isAddCategoryModalOpen, setIsAddCategoryModalOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const searchParams = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
+
+  useEffect(() => {
+    const s = searchParams.get("search");
+    if (s !== null) {
+      setSearchQuery(s);
+    }
+  }, [searchParams]);
+
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   // Modal states
@@ -754,5 +764,13 @@ export default function ServicesPage() {
         </div>
       </Modal>
     </div>
+  );
+}
+
+export default function ServicesPage() {
+  return (
+    <Suspense fallback={<div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-[var(--accent-rose)]" /></div>}>
+      <ServicesPageContent />
+    </Suspense>
   );
 }

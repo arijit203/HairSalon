@@ -25,7 +25,7 @@ interface DashboardStats {
 }
 interface AnalyticsData {
   revenueData:      { label: string; revenue: number }[];
-  serviceBreakdown: { name: string; category: string; revenue: number }[];
+  serviceRevenue: { name: string; revenue: number; growth: number }[];
 }
 
 const PERIOD_LABELS: Record<string, string> = {
@@ -107,8 +107,8 @@ export default function DashboardPage() {
     revenue: Math.round(r.revenue),
   }));
 
-  const pieData = (analytics?.serviceBreakdown ?? []).slice(0, 6).map(s => ({
-    name: s.category,
+  const pieData = (analytics?.serviceRevenue ?? []).slice(0, 6).map(s => ({
+    name: s.name,
     value: Math.round(s.revenue),
   }));
 
@@ -254,8 +254,8 @@ export default function DashboardPage() {
           <div><strong>Staff:</strong> ${staffNames}</div>
           
           <div class="divider"></div>
-          <div class="bold" style="margin-bottom: 5px;">\${isProductSale ? "PRODUCTS" : "SERVICES"}</div>
-          \${servicesHtml}
+          <div class="bold" style="margin-bottom: 5px;">${isProductSale ? "PRODUCTS" : "SERVICES"}</div>
+          ${servicesHtml}
           
           <div class="divider"></div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
@@ -568,6 +568,21 @@ export default function DashboardPage() {
                                   <Scissors className="w-2.5 h-2.5" /> Service
                                 </span>
                               )}
+                              {(() => {
+                                const paymentMethod = group.appointments[0]?.transaction?.paymentMethod || "ONLINE";
+                                const isCash = paymentMethod === "CASH";
+                                return isCash ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                    style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)" }}>
+                                    Cash
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                    style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
+                                    Online
+                                  </span>
+                                );
+                              })()}
                             </div>
                             <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
                               {servicesStr} · {staffNames}
@@ -606,10 +621,16 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Other / Past / Completed Section - no heading needed */}
+            {/* Other / Past / Completed Section */}
             {otherAppointments.length > 0 && (
               <div className="space-y-2.5">
                 {scheduledPending.length > 0 && <div className="border-t border-[var(--border-subtle)] my-4" />}
+                <div className="flex items-center gap-2 px-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-500">
+                    Completed ({otherAppointments.length})
+                  </h3>
+                </div>
                 <div className="space-y-2">
                   {otherAppointments.map((group: any) => {
                     const initials = group.client?.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2) ?? "??";
@@ -641,6 +662,21 @@ export default function DashboardPage() {
                                   <Scissors className="w-2.5 h-2.5" /> Service
                                 </span>
                               )}
+                              {(() => {
+                                const paymentMethod = group.appointments[0]?.transaction?.paymentMethod || "ONLINE";
+                                const isCash = paymentMethod === "CASH";
+                                return isCash ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                    style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)" }}>
+                                    Cash
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                    style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
+                                    Online
+                                  </span>
+                                );
+                              })()}
                             </div>
                             <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
                               {servicesStr} · {staffNames}
@@ -778,6 +814,21 @@ function PastSchedules({ groupAppointments, handlePrintReceipt }: { groupAppoint
                           <Scissors className="w-2.5 h-2.5" /> Service
                         </span>
                       )}
+                      {(() => {
+                        const paymentMethod = group.appointments[0]?.transaction?.paymentMethod || "ONLINE";
+                        const isCash = paymentMethod === "CASH";
+                        return isCash ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                            style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)" }}>
+                            Cash
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                            style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
+                            Online
+                          </span>
+                        );
+                      })()}
                     </div>
                     <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
                       {servicesStr} · {staffNames}

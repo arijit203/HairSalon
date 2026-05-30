@@ -82,7 +82,7 @@ export const AppointmentStatusEnum = z.enum([
   "PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED", "NO_SHOW",
 ]);
 
-export const PaymentMethodEnum = z.enum(["CASH", "CARD", "UPI", "BANK_TRANSFER"]);
+export const PaymentMethodEnum = z.enum(["CASH", "CARD", "UPI", "BANK_TRANSFER", "ONLINE"]);
 
 const CreateAppointmentBaseSchema = z.object({
   clientId:   z.string().min(1),
@@ -99,7 +99,7 @@ const CreateAppointmentBaseSchema = z.object({
   status:     AppointmentStatusEnum.optional(),
   taxPct:      z.number().optional(),
   discountPct: z.number().optional(),
-  paymentMethod: PaymentMethodEnum.optional().default("CASH"),
+  paymentMethod: PaymentMethodEnum.optional().default("ONLINE"),
 });
 
 export const CreateAppointmentSchema = CreateAppointmentBaseSchema.refine(
@@ -136,7 +136,7 @@ export const CreateTransactionSchema = z.object({
   clientId:       z.string().optional(),
   items:          z.array(TransactionItemSchema).min(1, "Cart cannot be empty"),
   discountPct:    z.number().min(0).max(100).default(0),
-  paymentMethod:  PaymentMethodEnum.default("CASH"),
+  paymentMethod:  PaymentMethodEnum.default("ONLINE"),
   appointmentIds: z.array(z.string()).optional(),
   notes:          z.string().optional(),
 });

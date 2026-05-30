@@ -31,7 +31,7 @@ export default function Sidebar() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [user, setUser] = useState<UserSession | null>(null);
-  const [salonName, setSalonName] = useState("Wyapar Beauty Studio");
+  const [salonName, setSalonName] = useState("Madoe Beauty Salon");
   const [logoUrl, setLogoUrl] = useState("");
 
   const fetchSettings = () => {
@@ -39,7 +39,7 @@ export default function Sidebar() {
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.data) {
-          setSalonName(data.data.salon_name || "Wyapar Beauty Studio");
+          setSalonName(data.data.salon_name || "Madoe Beauty Salon");
           setLogoUrl(data.data.logo_url || "");
         }
       })
@@ -116,7 +116,6 @@ export default function Sidebar() {
         items: [
           { label: "Purchase & Expense", href: "/expenses", icon: ShoppingCart, badge: null },
           { label: "Clients & Staff", href: "/clients", icon: Users, badge: null },
-          { label: "Point of Sale", href: "/pos", icon: ShoppingCart, badge: null },
         ],
       },
     ];

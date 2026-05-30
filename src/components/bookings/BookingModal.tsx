@@ -311,7 +311,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
       return next;
     });
   };
-  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "UPI" | "BANK_TRANSFER">("UPI");
+  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "UPI" | "BANK_TRANSFER" | "ONLINE">("ONLINE");
 
   // Inline new-service form
   const [showNewService, setShowNewService] = useState(false);
@@ -522,13 +522,13 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
       setStatus(editingGroup.status || "");
       setIsStatusManuallyChanged(!!editingGroup.status);
       setBookingMode("service");
-      setPaymentMethod(editingGroup.appointments?.[0]?.transaction?.paymentMethod || "UPI");
+      setPaymentMethod(editingGroup.appointments?.[0]?.transaction?.paymentMethod || "ONLINE");
     } else {
       setClientName(""); setClientPhone(""); setPhoneDigits(""); setClientEmail("");
       setSelectedServices([]);
       setSelectedProducts([]);
       setBookingMode("service");
-      setPaymentMethod("UPI");
+      setPaymentMethod("ONLINE");
       setSelectedStaff(null);
       setDate(defaultDate ?? getLocalDateStr());
       setTime("");
@@ -844,9 +844,10 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
     const timeStr = bookingDetails.endTime ? format24to12(bookingDetails.endTime).toLowerCase().replace(/\s+/g, "") : "";
 
-    const paymentFormatted = bookingDetails.paymentMethod === "UPI" ? "Online (UPI)" :
-      bookingDetails.paymentMethod === "CARD" ? "Online (Card)" :
-        bookingDetails.paymentMethod === "BANK_TRANSFER" ? "Bank Transfer" : "Cash";
+    const paymentFormatted = bookingDetails.paymentMethod === "ONLINE" ? "Online" :
+      bookingDetails.paymentMethod === "UPI" ? "Online (UPI)" :
+        bookingDetails.paymentMethod === "CARD" ? "Online (Card)" :
+          bookingDetails.paymentMethod === "BANK_TRANSFER" ? "Bank Transfer" : "Cash";
 
     printWindow.document.write(`
       <html>
@@ -1216,9 +1217,10 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                 <div className="flex justify-between text-xs">
                   <span style={{ color: "var(--text-muted)" }}>Payment Method:</span>
                   <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
-                    {createdBooking.paymentMethod === "UPI" ? "Online (UPI)" :
-                      createdBooking.paymentMethod === "CARD" ? "Online (Card)" :
-                        createdBooking.paymentMethod === "BANK_TRANSFER" ? "Bank Transfer" : "Cash"}
+                    {createdBooking.paymentMethod === "ONLINE" ? "Online" :
+                      createdBooking.paymentMethod === "UPI" ? "Online (UPI)" :
+                        createdBooking.paymentMethod === "CARD" ? "Online (Card)" :
+                          createdBooking.paymentMethod === "BANK_TRANSFER" ? "Bank Transfer" : "Cash"}
                   </span>
                 </div>
                 <div className="border-t border-dashed border-gray-700 my-2"></div>
@@ -2105,10 +2107,10 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                           <div className="relative">
                             <select
                               className="input-field appearance-none pr-10 h-[42px]"
-                              value={paymentMethod === "CASH" ? "CASH" : "UPI"}
+                              value={paymentMethod === "CASH" ? "CASH" : "ONLINE"}
                               onChange={e => setPaymentMethod(e.target.value as any)}
                             >
-                              <option value="UPI">Online</option>
+                              <option value="ONLINE">Online</option>
                               <option value="CASH">Cash</option>
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
@@ -2225,7 +2227,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                         )}
                         <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
                           <Check className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                          <span><strong>Payment Method:</strong> {paymentMethod === "UPI" ? "Online" : paymentMethod === "CASH" ? "Cash" : paymentMethod}</span>
+                          <span><strong>Payment Method:</strong> {paymentMethod === "ONLINE" || paymentMethod === "UPI" ? "Online" : paymentMethod === "CASH" ? "Cash" : paymentMethod}</span>
                         </div>
 
                         {/* Pricing breakdown */}

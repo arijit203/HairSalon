@@ -32,6 +32,7 @@ enum PaymentMethod {
   CARD
   UPI
   BANK_TRANSFER
+  ONLINE
 }
 
 enum TransactionStatus {
@@ -226,7 +227,7 @@ model Transaction {
   taxPct        Decimal           @default(18) @db.Decimal(5, 2)
   taxAmt        Decimal           @db.Decimal(10, 2)
   total         Decimal           @db.Decimal(10, 2)
-  paymentMethod PaymentMethod     @default(CASH)
+  paymentMethod PaymentMethod     @default(ONLINE)
   status        TransactionStatus @default(COMPLETED)
   notes         String?
 

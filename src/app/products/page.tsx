@@ -24,7 +24,15 @@ const STATUS_STYLES: Record<string, { color: string; bg: string; label: string }
 function ProductsPageContent() {
   const { success, error: toastError } = useToast();
   const searchParams = useSearchParams();
-  const [search,   setSearch]   = useState("");
+  const [search,   setSearch]   = useState(searchParams.get("search") || "");
+
+  useEffect(() => {
+    const s = searchParams.get("search");
+    if (s !== null) {
+      setSearch(s);
+    }
+  }, [searchParams]);
+
   const [category, setCategory] = useState("All");
   const [status,   setStatus]   = useState(searchParams.get("status") || "All");
   const [page,     setPage]     = useState(1);

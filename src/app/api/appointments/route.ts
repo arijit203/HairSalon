@@ -17,18 +17,18 @@ export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl;
     const { page, limit, skip } = getPaginationParams(searchParams);
 
-        const date     = searchParams.get("date")     ?? undefined; // YYYY-MM-DD
-    const staffId  = searchParams.get("staffId")  ?? undefined;
+    const date = searchParams.get("date") ?? undefined; // YYYY-MM-DD
+    const staffId = searchParams.get("staffId") ?? undefined;
     const clientId = searchParams.get("clientId") ?? undefined;
-    const status   = searchParams.get("status")   ?? undefined;
-    const from     = searchParams.get("from")     ?? undefined;
-    const to       = searchParams.get("to")       ?? undefined;
+    const status = searchParams.get("status") ?? undefined;
+    const from = searchParams.get("from") ?? undefined;
+    const to = searchParams.get("to") ?? undefined;
 
     const where = {
-      ...(status   && { status: status as any }),
-      ...(staffId  && { staffId }),
+      ...(status && { status: status as any }),
+      ...(staffId && { staffId }),
       ...(clientId && { clientId }),
-      ...(date     && { date: new Date(date) }),
+      ...(date && { date: new Date(date) }),
       ...(from && to && {
         date: {
           gte: new Date(from),
@@ -46,9 +46,9 @@ export async function GET(req: NextRequest) {
         take: limit,
         orderBy: [{ date: sortOrder }, { startTime: sortOrder }],
         include: {
-          client:  { select: { id: true, name: true, phone: true, email: true } },
+          client: { select: { id: true, name: true, phone: true, email: true } },
           service: { select: { id: true, name: true, category: true, price: true } },
-          staff:   { select: { id: true, name: true, role: true } },
+          staff: { select: { id: true, name: true, role: true } },
           transaction: {
             include: {
               items: true,
@@ -176,16 +176,16 @@ export async function POST(req: NextRequest) {
         return await tx.transaction.create({
           data: {
             invoiceNumber: generateInvoiceNumber(),
-            clientId:      data.clientId,
-            subtotal:      totalListPrice,
+            clientId: data.clientId,
+            subtotal: totalListPrice,
             discountPct,
             discountAmt,
             taxPct,
             taxAmt,
-            total:         data.price,
-            paymentMethod: data.paymentMethod || "CASH",
-            notes:         data.notes,
-            createdAt:     new Date(`${data.date}T${overallEndTime}:00+05:30`),
+            total: data.price,
+            paymentMethod: data.paymentMethod || "ONLINE",
+            notes: data.notes,
+            createdAt: new Date(`${data.date}T${overallEndTime}:00+05:30`),
             items: {
               create: productItems.map((prod) => {
                 const lineTotal = totalListPrice > 0
@@ -193,24 +193,24 @@ export async function POST(req: NextRequest) {
                   : Math.round((data.price / productItems.length) * 100) / 100;
                 return {
                   productId: prod.id,
-                  name:      prod.name,
+                  name: prod.name,
                   unitPrice: prod.price,
-                  quantity:  prod.quantity,
+                  quantity: prod.quantity,
                   lineTotal,
                 };
               }),
             },
             appointments: {
               create: {
-                clientId:  data.clientId,
+                clientId: data.clientId,
                 serviceId: productSaleService!.id,
-                staffId:   data.staffId,
-                date:      new Date(data.date),
+                staffId: data.staffId,
+                date: new Date(data.date),
                 startTime: data.startTime || "12:00",
-                endTime:   overallEndTime,
-                status:    "COMPLETED",
-                price:     data.price,
-                notes:     data.notes,
+                endTime: overallEndTime,
+                status: "COMPLETED",
+                price: data.price,
+                notes: data.notes,
               }
             }
           },
@@ -218,9 +218,9 @@ export async function POST(req: NextRequest) {
             items: true,
             appointments: {
               include: {
-                client:  { select: { id: true, name: true, phone: true } },
+                client: { select: { id: true, name: true, phone: true } },
                 service: { select: { id: true, name: true, price: true } },
-                staff:   { select: { id: true, name: true } },
+                staff: { select: { id: true, name: true } },
               }
             }
           }
@@ -295,14 +295,14 @@ export async function POST(req: NextRequest) {
 
     // Sum of list prices
     const totalListPrice = orderedServices.reduce((sum, s) => sum + Number(s.price), 0);
-    
+
     let overallStartTime = data.startTime || "";
     let overallEndTime = data.endTime || "";
 
     // Determine status first
     const localToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }); // YYYY-MM-DD in IST
     const isToday = data.date === localToday;
-    
+
     // We temp-check if overallEndTime is provided to auto-complete status
     let defaultStatus: "PENDING" | "COMPLETED" = "PENDING";
     if (isToday && overallEndTime) {
@@ -332,7 +332,7 @@ export async function POST(req: NextRequest) {
 
     for (let i = 0; i < orderedServices.length; i++) {
       const service = orderedServices[i];
-      
+
       // Proportional price calculation
       let allocatedPrice = 0;
       if (totalListPrice > 0) {
@@ -342,19 +342,20 @@ export async function POST(req: NextRequest) {
       }
 
       appointmentsData.push({
-        clientId:  data.clientId,
+        clientId: data.clientId,
         serviceId: service.id,
-        staffId:   data.staffId,
-        date:      new Date(data.date),
+        staffId: data.staffId,
+        date: new Date(data.date),
         startTime: overallStartTime,
-        endTime:   overallEndTime,
+        endTime: overallEndTime,
         status,
-        price:     allocatedPrice,
-        notes:     data.notes,
+        price: allocatedPrice,
+        notes: data.notes,
       });
     }
 
     const queries: any[] = [];
+    let deleteCount = 0;
     if (deleteAppointmentIds && deleteAppointmentIds.length > 0) {
       const appointmentsToDelete = await prisma.appointment.findMany({
         where: { id: { in: deleteAppointmentIds } },
@@ -367,6 +368,7 @@ export async function POST(req: NextRequest) {
           where: { id: { in: deleteAppointmentIds } },
         })
       );
+      deleteCount++;
 
       if (txIdsToDelete.length > 0) {
         queries.push(
@@ -374,6 +376,7 @@ export async function POST(req: NextRequest) {
             where: { id: { in: txIdsToDelete } },
           })
         );
+        deleteCount++;
       }
     }
 
@@ -383,21 +386,21 @@ export async function POST(req: NextRequest) {
       const taxPct = data.taxPct ?? 0;
       const priceAfterDiscount = Math.max(0, totalListPrice - discountAmt);
       const taxAmt = Math.round((priceAfterDiscount * taxPct) / 100);
-      
+
       queries.push(
         prisma.transaction.create({
           data: {
             invoiceNumber: generateInvoiceNumber(),
-            clientId:      data.clientId,
-            subtotal:      totalListPrice,
+            clientId: data.clientId,
+            subtotal: totalListPrice,
             discountPct,
             discountAmt,
             taxPct,
             taxAmt,
-            total:         data.price,
-            paymentMethod: data.paymentMethod || "CASH",
-            notes:         data.notes,
-            createdAt:     new Date(`${data.date}T${overallEndTime || "12:00"}:00+05:30`),
+            total: data.price,
+            paymentMethod: data.paymentMethod || "ONLINE",
+            notes: data.notes,
+            createdAt: new Date(`${data.date}T${overallEndTime || "12:00"}:00+05:30`),
             items: {
               create: orderedServices.map((service) => {
                 let allocatedPrice = 0;
@@ -408,33 +411,33 @@ export async function POST(req: NextRequest) {
                 }
                 return {
                   serviceId: service.id,
-                  name:      service.name,
+                  name: service.name,
                   unitPrice: service.price,
-                  quantity:  1,
+                  quantity: 1,
                   lineTotal: allocatedPrice,
                 };
               }),
             },
             appointments: {
               create: appointmentsData.map(appt => ({
-                clientId:  appt.clientId,
+                clientId: appt.clientId,
                 serviceId: appt.serviceId,
-                staffId:   appt.staffId,
-                date:      appt.date,
+                staffId: appt.staffId,
+                date: appt.date,
                 startTime: appt.startTime,
-                endTime:   appt.endTime,
-                status:    appt.status,
-                price:     appt.price,
-                notes:     appt.notes,
+                endTime: appt.endTime,
+                status: appt.status,
+                price: appt.price,
+                notes: appt.notes,
               })),
             },
           },
           include: {
             appointments: {
               include: {
-                client:  { select: { id: true, name: true, phone: true } },
+                client: { select: { id: true, name: true, phone: true } },
                 service: { select: { id: true, name: true, price: true } },
-                staff:   { select: { id: true, name: true } },
+                staff: { select: { id: true, name: true } },
               }
             }
           }
@@ -446,9 +449,9 @@ export async function POST(req: NextRequest) {
           prisma.appointment.create({
             data: appt,
             include: {
-              client:  { select: { id: true, name: true, phone: true } },
+              client: { select: { id: true, name: true, phone: true } },
               service: { select: { id: true, name: true, price: true } },
-              staff:   { select: { id: true, name: true } },
+              staff: { select: { id: true, name: true } },
               transaction: true,
             }
           })
@@ -458,9 +461,7 @@ export async function POST(req: NextRequest) {
 
     // Run in a prisma transaction to ensure atomic creation/deletion
     const transactionResult = await prisma.$transaction(queries);
-    const createdAppointments = deleteAppointmentIds && deleteAppointmentIds.length > 0
-      ? transactionResult.slice(1)
-      : transactionResult;
+    const createdAppointments = transactionResult.slice(deleteCount);
 
     // Return the first created appointment
     const responseData = status === "COMPLETED"

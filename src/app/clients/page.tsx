@@ -1,7 +1,8 @@
 "use client";
 
 import { Users, Plus, Search, ChevronLeft, ChevronRight, Star, Phone, Mail, X, Loader2, Calendar, ChevronDown, Edit, Trash, FileText } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import { usePaginatedApi, useApi } from "@/hooks/useApi";
 import { AnimatePresence, motion } from "framer-motion";
@@ -24,13 +25,22 @@ const TIER_STYLES: Record<string, { color: string; bg: string; icon: string }> =
 
 const TIERS = ["All", "PLATINUM", "GOLD", "SILVER", "BRONZE"];
 
-export default function ClientsPage() {
+function ClientsPageContent() {
   const [activeTab, setActiveTab] = useState<"clients" | "staff">("clients");
 
   const { success: successToast, error: errorToast } = useToast();
 
   // Client states
-  const [search, setSearch] = useState("");
+  const searchParams = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get("search") || "");
+
+  useEffect(() => {
+    const s = searchParams.get("search");
+    if (s !== null) {
+      setSearch(s);
+    }
+  }, [searchParams]);
+
   const [tier,   setTier]   = useState("All");
   const [page,   setPage]   = useState(1);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -1768,5 +1778,13 @@ export default function ClientsPage() {
         </form>
       </Modal>
     </div>
+  );
+}
+
+export default function ClientsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-[var(--accent-rose)]" /></div>}>
+      <ClientsPageContent />
+    </Suspense>
   );
 }

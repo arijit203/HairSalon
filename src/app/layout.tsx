@@ -22,7 +22,7 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Wyapar — Beauty Salon Management",
+  title: "Madoe Beauty Salon",
   description:
     "Professional beauty salon management platform for products, services, bookings, and analytics.",
   keywords: "beauty salon, salon management, products, services, bookings",

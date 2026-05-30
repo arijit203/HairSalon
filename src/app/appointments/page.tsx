@@ -123,7 +123,7 @@ export default function AppointmentsPage() {
       }
       groups[key].appointments.push(appt);
     });
-    return Object.values(groups);
+    return Object.values(groups).sort((a: any, b: any) => b.startTime.localeCompare(a.startTime));
   };
 
   const handlePrintReceipt = (group: any) => {
@@ -243,8 +243,8 @@ export default function AppointmentsPage() {
           <div><strong>Staff:</strong> ${staffNames}</div>
           
           <div class="divider"></div>
-          <div class="bold" style="margin-bottom: 5px;">\${isProductSale ? "PRODUCTS" : "SERVICES"}</div>
-          \${servicesHtml}
+          <div class="bold" style="margin-bottom: 5px;">${isProductSale ? "PRODUCTS" : "SERVICES"}</div>
+          ${servicesHtml}
           
           <div class="divider"></div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
@@ -329,7 +329,7 @@ export default function AppointmentsPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Calendar */}
-        <div className="glass-card p-5">
+        <div className="glass-card p-5 self-start">
           <div className="flex items-center justify-between mb-5">
             <button onClick={prevMonth} className="btn-icon w-8 h-8"><ChevronLeft className="w-4 h-4" /></button>
             <h2 className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{MONTHS[month]} {year}</h2>
@@ -416,7 +416,7 @@ export default function AppointmentsPage() {
                     style={{ border: `1px solid ${clr}20`, background: `${clr}06` }}>
                     <div className="flex flex-col items-center flex-shrink-0 w-16">
                       <p className="text-sm font-bold" style={{ color: clr }}>{group.endTime}</p>
-                      <div className="mt-4 w-full">
+                      <div className="mt-4 w-full flex flex-col gap-1.5">
                         {hasProductSale ? (
                           <span className="flex items-center justify-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg w-full"
                             style={{ background: "rgba(6,182,212,0.14)", color: "#06b6d4", border: "1px solid rgba(6,182,212,0.3)" }}>
@@ -428,6 +428,21 @@ export default function AppointmentsPage() {
                             <Scissors className="w-3 h-3 flex-shrink-0" /> Service
                           </span>
                         )}
+                        {(() => {
+                          const paymentMethod = group.appointments[0]?.transaction?.paymentMethod || "ONLINE";
+                          const isCash = paymentMethod === "CASH";
+                          return isCash ? (
+                            <span className="flex items-center justify-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg w-full"
+                              style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)" }}>
+                              Cash
+                            </span>
+                          ) : (
+                            <span className="flex items-center justify-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg w-full"
+                              style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
+                              Online
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div className="w-px self-stretch" style={{ background: `${clr}40` }} />

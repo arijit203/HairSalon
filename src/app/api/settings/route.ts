@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 // Default settings
 const DEFAULT_SETTINGS: Record<string, string> = {
-  salon_name: "Wyapar Beauty Studio",
+  salon_name: "Madoe Beauty Salon",
   owner_name: "Admin User",
   email: "admin@wyapar.com",
   phone: "+91 98765 43210",

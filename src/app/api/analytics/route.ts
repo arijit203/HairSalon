@@ -23,7 +23,7 @@ function getKolkataTimeStr(date: Date): string {
 const getCachedAnalytics = unstable_cache(
   async (fromStr: string, toStr: string, period: string) => {
     const from = new Date(fromStr);
-    const to   = new Date(toStr);
+    const to = new Date(toStr);
 
     const periodDiff = to.getTime() - from.getTime();
     const prevFrom = new Date(from.getTime() - periodDiff);
@@ -38,11 +38,11 @@ const getCachedAnalytics = unstable_cache(
       // Current Period
       prisma.transaction.findMany({
         where: { createdAt: { gte: from, lte: to }, status: "COMPLETED" },
-        select: { total: true, createdAt: true },
+        select: { id: true, total: true, discountAmt: true, createdAt: true },
       }),
       prisma.expense.findMany({
         where: { date: { gte: from, lte: to } },
-        select: { amount: true, date: true },
+        select: { amount: true, date: true, category: true },
       }),
       prisma.appointment.findMany({
         where: { date: { gte: from, lte: to }, status: "COMPLETED" },
@@ -76,6 +76,7 @@ const getCachedAnalytics = unstable_cache(
         },
         include: {
           service: { select: { category: true } },
+          transaction: { select: { createdAt: true } },
         },
       }),
       prisma.transactionItem.findMany({
@@ -104,27 +105,50 @@ const getCachedAnalytics = unstable_cache(
     const prevRetentionRate = prevClients > 0 ? (prevRetainedClients / prevClients) * 100 : 0;
 
     const revenueChange = prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0;
-    const marginChange = profitMargin - prevProfitMargin; // Margin diff in percentage points
-    const ticketChange = prevAvgTicketSize > 0 ? ((avgTicketSize - prevAvgTicketSize) / prevAvgTicketSize) * 100 : 0;
+    const profitChange = prevProfit > 0 ? ((profit - prevProfit) / prevProfit) * 100 : 0;
+    const expensesChange = prevExpensesSum > 0 ? ((totalExpenses - prevExpensesSum) / prevExpensesSum) * 100 : 0;
     const retentionChange = retentionRate - prevRetentionRate; // Retention diff in percentage points
 
     // ── 3. Revenue vs Expenses Timeline
-    const groupMap = new Map<string, { revenue: number; expenses: number }>();
+    const groupMap = new Map<string, {
+      revenue: number; expenses: number; discount: number;
+      incomeService: number; incomeProduct: number;
+      expProduct: number; expStaff: number; expMisc: number;
+    }>();
+
+    const emptyGroup = () => ({
+      revenue: 0, expenses: 0, discount: 0,
+      incomeService: 0, incomeProduct: 0,
+      expProduct: 0, expStaff: 0, expMisc: 0
+    });
 
     if (period === "1D") {
-      groupMap.set("09:00", { revenue: 0, expenses: 0 });
+      groupMap.set("09:00", emptyGroup());
       for (const t of transactions) {
         const label = getKolkataTimeStr(new Date(t.createdAt));
-        const val = groupMap.get(label) || { revenue: 0, expenses: 0 };
-        groupMap.set(label, { revenue: val.revenue + Number(t.total), expenses: val.expenses });
+        const val = groupMap.get(label) || emptyGroup();
+        groupMap.set(label, { ...val, revenue: val.revenue + Number(t.total), discount: val.discount + Number(t.discountAmt) });
       }
       for (const e of expenses) {
         const label = getKolkataTimeStr(new Date(e.date));
-        const val = groupMap.get(label) || { revenue: 0, expenses: 0 };
-        groupMap.set(label, { revenue: val.revenue, expenses: val.expenses + Number(e.amount) });
+        const val = groupMap.get(label) || emptyGroup();
+        const amt = Number(e.amount);
+        val.expenses += amt;
+        if (e.category === "PRODUCT_PURCHASE") val.expProduct += amt;
+        else if (e.category === "STAFF_PAYMENT") val.expStaff += amt;
+        else val.expMisc += amt;
+        groupMap.set(label, val);
+      }
+      for (const item of txItems) {
+        const label = getKolkataTimeStr(new Date(item.transaction.createdAt));
+        const val = groupMap.get(label) || emptyGroup();
+        const amt = Number(item.lineTotal);
+        if (item.productId) val.incomeProduct += amt;
+        else val.incomeService += amt;
+        groupMap.set(label, val);
       }
       if (!groupMap.has("21:00")) {
-        groupMap.set("21:00", { revenue: 0, expenses: 0 });
+        groupMap.set("21:00", emptyGroup());
       }
       const sortedEntries = Array.from(groupMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
       groupMap.clear();
@@ -139,18 +163,31 @@ const getCachedAnalytics = unstable_cache(
       });
       const temp = new Date(from);
       while (temp <= to) {
-        groupMap.set(dayFormat.format(temp), { revenue: 0, expenses: 0 });
+        groupMap.set(dayFormat.format(temp), emptyGroup());
         temp.setDate(temp.getDate() + 1);
       }
       for (const t of transactions) {
         const label = dayFormat.format(new Date(t.createdAt));
-        const val = groupMap.get(label) || { revenue: 0, expenses: 0 };
-        groupMap.set(label, { revenue: val.revenue + Number(t.total), expenses: val.expenses });
+        const val = groupMap.get(label) || emptyGroup();
+        groupMap.set(label, { ...val, revenue: val.revenue + Number(t.total), discount: val.discount + Number(t.discountAmt) });
       }
       for (const e of expenses) {
         const label = dayFormat.format(new Date(e.date));
-        const val = groupMap.get(label) || { revenue: 0, expenses: 0 };
-        groupMap.set(label, { revenue: val.revenue, expenses: val.expenses + Number(e.amount) });
+        const val = groupMap.get(label) || emptyGroup();
+        const amt = Number(e.amount);
+        val.expenses += amt;
+        if (e.category === "PRODUCT_PURCHASE") val.expProduct += amt;
+        else if (e.category === "STAFF_PAYMENT") val.expStaff += amt;
+        else val.expMisc += amt;
+        groupMap.set(label, val);
+      }
+      for (const item of txItems) {
+        const label = dayFormat.format(new Date(item.transaction.createdAt));
+        const val = groupMap.get(label) || emptyGroup();
+        const amt = Number(item.lineTotal);
+        if (item.productId) val.incomeProduct += amt;
+        else val.incomeService += amt;
+        groupMap.set(label, val);
       }
     } else {
       const monthFormat = new Intl.DateTimeFormat("en-US", {
@@ -159,18 +196,31 @@ const getCachedAnalytics = unstable_cache(
       });
       const temp = new Date(from);
       while (temp <= to) {
-        groupMap.set(monthFormat.format(temp), { revenue: 0, expenses: 0 });
+        groupMap.set(monthFormat.format(temp), emptyGroup());
         temp.setMonth(temp.getMonth() + 1);
       }
       for (const t of transactions) {
         const label = monthFormat.format(new Date(t.createdAt));
-        const val = groupMap.get(label) || { revenue: 0, expenses: 0 };
-        groupMap.set(label, { revenue: val.revenue + Number(t.total), expenses: val.expenses });
+        const val = groupMap.get(label) || emptyGroup();
+        groupMap.set(label, { ...val, revenue: val.revenue + Number(t.total), discount: val.discount + Number(t.discountAmt) });
       }
       for (const e of expenses) {
         const label = monthFormat.format(new Date(e.date));
-        const val = groupMap.get(label) || { revenue: 0, expenses: 0 };
-        groupMap.set(label, { revenue: val.revenue, expenses: val.expenses + Number(e.amount) });
+        const val = groupMap.get(label) || emptyGroup();
+        const amt = Number(e.amount);
+        val.expenses += amt;
+        if (e.category === "PRODUCT_PURCHASE") val.expProduct += amt;
+        else if (e.category === "STAFF_PAYMENT") val.expStaff += amt;
+        else val.expMisc += amt;
+        groupMap.set(label, val);
+      }
+      for (const item of txItems) {
+        const label = monthFormat.format(new Date(item.transaction.createdAt));
+        const val = groupMap.get(label) || emptyGroup();
+        const amt = Number(item.lineTotal);
+        if (item.productId) val.incomeProduct += amt;
+        else val.incomeService += amt;
+        groupMap.set(label, val);
       }
     }
 
@@ -179,6 +229,12 @@ const getCachedAnalytics = unstable_cache(
       revenue: Math.round(val.revenue),
       expenses: Math.round(val.expenses),
       profit: Math.round(val.revenue - val.expenses),
+      discount: Math.round(val.discount),
+      incomeService: Math.round(val.incomeService),
+      incomeProduct: Math.round(val.incomeProduct),
+      expProduct: Math.round(val.expProduct),
+      expStaff: Math.round(val.expStaff),
+      expMisc: Math.round(val.expMisc),
     }));
 
     // ── 4. Weekly Bookings
@@ -231,26 +287,26 @@ const getCachedAnalytics = unstable_cache(
 
     // ── 6. Staff Performance
     const staffPerformance = await prisma.appointment.groupBy({
-      by:    ["staffId"],
+      by: ["staffId"],
       where: {
-        date:   { gte: from, lte: to },
+        date: { gte: from, lte: to },
         status: { in: ["COMPLETED"] },
       },
       _count: { id: true },
-      _sum:   { price: true },
+      _sum: { price: true },
     });
     const staffIds = staffPerformance.map((s) => s.staffId);
     const staffList = await prisma.staff.findMany({
-      where:  { id: { in: staffIds } },
+      where: { id: { in: staffIds } },
       select: { id: true, name: true, role: true },
     });
     const staffMap = new Map(staffList.map((s) => [s.id, s]));
     const staffStats = staffPerformance
       .map((s) => ({
-        name:     staffMap.get(s.staffId)?.name     ?? "Unknown",
-        role:     staffMap.get(s.staffId)?.role     ?? "STYLIST",
+        name: staffMap.get(s.staffId)?.name ?? "Unknown",
+        role: staffMap.get(s.staffId)?.role ?? "STYLIST",
         bookings: s._count.id,
-        revenue:  Number(s._sum.price ?? 0),
+        revenue: Number(s._sum.price ?? 0),
       }))
       .sort((a, b) => b.revenue - a.revenue);
 
@@ -260,10 +316,30 @@ const getCachedAnalytics = unstable_cache(
       staffStats,
       weeklyData,
       kpis: [
-        { label: "Total Revenue (Period)", value: `₹${totalRevenue.toLocaleString("en-IN")}`, change: `${revenueChange >= 0 ? "+" : ""}${revenueChange.toFixed(1)}%`, up: revenueChange >= 0 },
-        { label: "Net Profit Margin", value: `${profitMargin.toFixed(1)}%`, change: `${marginChange >= 0 ? "+" : ""}${marginChange.toFixed(1)}%`, up: marginChange >= 0 },
-        { label: "Customer Retention", value: `${retentionRate.toFixed(0)}%`, change: `${retentionChange >= 0 ? "+" : ""}${retentionChange.toFixed(1)}%`, up: retentionChange >= 0 },
-        { label: "Avg. Ticket Size", value: `₹${Math.round(avgTicketSize).toLocaleString("en-IN")}`, change: `${ticketChange >= 0 ? "+" : ""}${ticketChange.toFixed(1)}%`, up: ticketChange >= 0 }
+        { 
+          label: "Total Revenue (Period)", 
+          value: `₹${totalRevenue.toLocaleString("en-IN")}`, 
+          change: `${revenueChange >= 0 ? "+" : ""}${revenueChange.toFixed(1)}%`, 
+          up: revenueChange >= 0 
+        },
+        { 
+          label: "Net Profit Margin", 
+          value: `₹${profit.toLocaleString("en-IN")}`, 
+          change: `${profitChange >= 0 ? "+" : ""}${profitChange.toFixed(1)}%`, 
+          up: profitChange >= 0 
+        },
+        { 
+          label: "Expenses", 
+          value: `₹${totalExpenses.toLocaleString("en-IN")}`, 
+          change: `${expensesChange >= 0 ? "+" : ""}${expensesChange.toFixed(1)}%`, 
+          up: expensesChange <= 0 
+        },
+        { 
+          label: "Customer Retention", 
+          value: `${retentionRate.toFixed(0)}%`, 
+          change: `${retentionChange >= 0 ? "+" : ""}${retentionChange.toFixed(1)}%`, 
+          up: retentionChange >= 0 
+        }
       ]
     };
   },
@@ -279,15 +355,58 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl;
 
-    const to   = new Date(searchParams.get("to")   ?? new Date());
+    const to = new Date(searchParams.get("to") ?? new Date());
     const from = new Date(searchParams.get("from") ?? new Date(to.getFullYear(), to.getMonth() - 5, 1));
     const period = searchParams.get("period") ?? "6M";
 
-    const data = await getCachedAnalytics(
+    const cachedData = await getCachedAnalytics(
       from.toISOString(),
       to.toISOString(),
       period
     );
+
+    // Deep copy/shallow copy the returned object so we don't mutate cache references directly
+    const data = {
+      ...cachedData,
+      revenueData: [...cachedData.revenueData],
+    };
+
+    if (period === "1D") {
+      const nowKolkata = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      const todayKolkataStr = nowKolkata.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+      const toKolkataStr = to.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+      const isToday = toKolkataStr === todayKolkataStr;
+
+      if (isToday) {
+        const currentKolkataTimeStr = `${String(nowKolkata.getHours()).padStart(2, "0")}:${String(nowKolkata.getMinutes()).padStart(2, "0")}`;
+        let endLabel = "21:00";
+        if (currentKolkataTimeStr < "21:00") {
+          endLabel = currentKolkataTimeStr;
+        }
+
+        // Filter out any labels that are in the future (after endLabel)
+        data.revenueData = data.revenueData.filter((r) => r.month <= endLabel);
+
+        // Ensure the endLabel point is present to draw the line/area to the current time
+        if (!data.revenueData.some((r) => r.month === endLabel)) {
+          data.revenueData.push({
+            month: endLabel,
+            revenue: 0,
+            expenses: 0,
+            profit: 0,
+            discount: 0,
+            incomeService: 0,
+            incomeProduct: 0,
+            expProduct: 0,
+            expStaff: 0,
+            expMisc: 0,
+          });
+        }
+
+        // Ensure chronological sorting of keys
+        data.revenueData.sort((a, b) => a.month.localeCompare(b.month));
+      }
+    }
 
     return successResponse(data);
   } catch (error) {

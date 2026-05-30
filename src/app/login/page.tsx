@@ -68,7 +68,7 @@ function LoginForm() {
               <Scissors className="w-6 h-6 animate-float" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight" style={{ fontFamily: "var(--font-playfair)", color: "var(--text-primary)" }}>
-              Welcome to Wyapar
+              Welcome to Madoe Beauty Salon
             </h1>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
               Manage your bookings and experience salon excellence
