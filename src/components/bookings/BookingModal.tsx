@@ -1070,7 +1070,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
             : undefined,
           staffId: selectedStaff.id,
           date,
-          startTime: finalTime || undefined,
+          startTime: isFutureDate ? finalEndTime : (finalTime || undefined),
           endTime: isFutureDate ? undefined : finalEndTime,
           price: finalPrice,
           notes: notes.trim() || undefined,
