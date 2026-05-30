@@ -559,3 +559,14 @@ body::before {
     width: 0%;
   }
 }
+
+/* ─── MODAL BLUR ─────────────────────────────────────────── */
+main.modal-blur-active {
+  filter: blur(6px);
+  transition: filter 0.25s ease;
+  pointer-events: none;
+  user-select: none;
+}
+main {
+  transition: filter 0.25s ease;
+}

@@ -9,14 +9,49 @@ type Params = { params: { id: string } };
 // GET /api/clients/:id
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
+    const apptsAggregate = await prisma.appointment.aggregate({
+      where: { clientId: params.id, status: "COMPLETED" },
+      _count: { _all: true },
+      _sum: { price: true },
+    });
+
+    const txAggregate = await prisma.transaction.aggregate({
+      where: { clientId: params.id, status: "COMPLETED" },
+      _sum: { total: true },
+    });
+
+    const standaloneApptSum = await prisma.appointment.aggregate({
+      where: { clientId: params.id, status: "COMPLETED", transactionId: null },
+      _sum: { price: true },
+    });
+
+    const visits = apptsAggregate._count._all || 0;
+    const totalSpent = Number(txAggregate._sum.total || 0) + Number(standaloneApptSum._sum.price || 0);
+    const loyaltyPoints = Math.floor(totalSpent / 100);
+
+    let tier: "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" = "BRONZE";
+    if (totalSpent >= 50000) tier = "PLATINUM";
+    else if (totalSpent >= 25000) tier = "GOLD";
+    else if (totalSpent >= 10000) tier = "SILVER";
+
+    await prisma.client.update({
+      where: { id: params.id },
+      data: {
+        totalSpent,
+        totalVisits: visits,
+        loyaltyPoints,
+        tier,
+      },
+    });
+
     const client = await prisma.client.findUnique({
       where: { id: params.id },
       include: {
         appointments: {
-          take: 10,
+          take: 100,
           orderBy: { date: "desc" },
           include: {
-            service: { select: { id: true, name: true } },
+            service: { select: { id: true, name: true, price: true } },
             staff:   { select: { id: true, name: true } },
           },
         },

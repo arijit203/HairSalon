@@ -19,7 +19,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
           include: { service: { select: { id: true, name: true, category: true } } },
         },
         appointments: {
-          take: 5,
+          take: 100,
           orderBy: { date: "desc" },
           include: {
             client:  { select: { id: true, name: true } },

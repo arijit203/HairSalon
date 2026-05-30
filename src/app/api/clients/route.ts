@@ -31,6 +31,8 @@ export async function GET(req: NextRequest) {
       }),
     };
 
+    // Client stats are synchronized dynamically during write operations (appointment create, update, delete) and on-demand during client details load.
+
     const [clients, total] = await Promise.all([
       prisma.client.findMany({
         where,

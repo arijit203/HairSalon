@@ -103,7 +103,7 @@ export default function DashboardPage() {
   const greeting = new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 17 ? "Good afternoon" : "Good evening";
 
   const chartData = (analytics?.revenueData ?? []).map(r => ({
-    name: r.label,
+    name: (r as any).month || (r as any).label,
     revenue: Math.round(r.revenue),
   }));
 
@@ -606,16 +606,10 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Other / Past / Completed Section */}
+            {/* Other / Past / Completed Section - no heading needed */}
             {otherAppointments.length > 0 && (
               <div className="space-y-2.5">
                 {scheduledPending.length > 0 && <div className="border-t border-[var(--border-subtle)] my-4" />}
-                <div className="flex items-center gap-2 px-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-500">
-                    Ongoing & Past Schedule ({otherAppointments.length})
-                  </h3>
-                </div>
                 <div className="space-y-2">
                   {otherAppointments.map((group: any) => {
                     const initials = group.client?.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2) ?? "??";
@@ -687,6 +681,136 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Past Schedules */}
+      <PastSchedules groupAppointments={groupAppointments} handlePrintReceipt={handlePrintReceipt} />
+    </div>
+  );
+}
+
+function PastSchedules({ groupAppointments, handlePrintReceipt }: { groupAppointments: (appts: any[]) => any[]; handlePrintReceipt: (group: any) => void }) {
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+
+  // Fetch last 50 completed appointments (most recent first), then filter out today's and take 5 groups
+  const { data: pastData, loading: pastLoading } = useApi<any[]>(
+    `/api/appointments?limit=50&page=1&sortOrder=desc&status=COMPLETED`
+  );
+
+  const allPast = (pastData ?? []).filter((a: any) => {
+    const d = typeof a.date === "string" ? a.date.split("T")[0] : new Date(a.date).toISOString().split("T")[0];
+    return d < todayStr;
+  });
+
+  const pastGroups = groupAppointments(allPast)
+    .sort((a: any, b: any) => {
+      const da = new Date(`${a.date}T${a.endTime}`);
+      const db = new Date(`${b.date}T${b.endTime}`);
+      return db.getTime() - da.getTime();
+    })
+    .slice(0, 5);
+
+  const statusColors: Record<string, string> = {
+    IN_PROGRESS: "#a855f7",
+    PENDING:     "#f59e0b",
+    COMPLETED:   "#10b981",
+    CANCELLED:   "#6b7280",
+  };
+
+  return (
+    <div className="glass-card p-5">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h2 className="card-title">Past Schedules</h2>
+          <p className="card-subtitle">Last 5 completed transactions</p>
+        </div>
+        <a href="/appointments" className="btn-ghost text-sm flex items-center gap-1.5">
+          View All <ArrowRight className="w-3.5 h-3.5" />
+        </a>
+      </div>
+
+      {pastLoading ? (
+        <div className="space-y-3">
+          {Array(3).fill(0).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 p-4 rounded-xl animate-pulse" style={{ background: "var(--bg-card)" }}>
+              <div className="w-10 h-10 rounded-full bg-white/[0.06]" />
+              <div className="flex-1 space-y-2">
+                <div className="w-32 h-4 rounded bg-white/[0.06]" />
+                <div className="w-48 h-3 rounded bg-white/[0.04]" />
+              </div>
+              <div className="w-20 h-6 rounded-full bg-white/[0.06]" />
+            </div>
+          ))}
+        </div>
+      ) : pastGroups.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-10" style={{ color: "var(--text-muted)" }}>
+          <CalendarCheck className="w-9 h-9 mb-3 opacity-30" />
+          <p className="text-sm">No past bookings yet</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {pastGroups.map((group: any) => {
+            const initials = group.client?.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2) ?? "??";
+            const hasProductSale = group.appointments.some((a: any) => a.service?.name === "Product Sale");
+            const servicesStr = group.appointments.map((a: any) => {
+              const isPs = a.service?.name === "Product Sale";
+              if (isPs && a.transaction?.items?.length > 0) {
+                return a.transaction.items.map((item: any) => `${item.name} (x${item.quantity})`).join(", ");
+              }
+              return a.service?.name;
+            }).join(", ");
+            const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
+            return (
+              <div key={group.id} className="flex items-center justify-between gap-4 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all"
+                style={{ border: "1px solid var(--border-subtle)" }}>
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="avatar w-9 h-9 text-xs flex-shrink-0">{initials}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{group.client?.name}</p>
+                      {hasProductSale ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                          style={{ background: "rgba(6,182,212,0.12)", color: "#06b6d4", border: "1px solid rgba(6,182,212,0.25)" }}>
+                          <Package className="w-2.5 h-2.5" /> Product Sale
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0"
+                          style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.25)" }}>
+                          <Scissors className="w-2.5 h-2.5" /> Service
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
+                      {servicesStr} · {staffNames}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className="text-right">
+                    <span className="text-xs font-semibold tabular-nums block" style={{ color: "var(--text-secondary)" }}>
+                      {new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · {group.endTime}
+                    </span>
+                    <span className="text-xs font-black text-rose-400 block mt-0.5">
+                      ₹{group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+                    style={{ background: `${statusColors[group.status] ?? "#6b7280"}15`, color: statusColors[group.status] ?? "#6b7280" }}>
+                    {group.status.replace("_", " ")}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handlePrintReceipt(group); }}
+                    className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
+                    title="Print Receipt"
+                  >
+                    <Printer className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

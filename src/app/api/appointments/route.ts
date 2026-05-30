@@ -37,12 +37,14 @@ export async function GET(req: NextRequest) {
       }),
     };
 
+    const sortOrder = searchParams.get("sortOrder") === "desc" ? "desc" : "asc";
+
     const [appointments, total] = await Promise.all([
       prisma.appointment.findMany({
         where,
         skip,
         take: limit,
-        orderBy: [{ date: "asc" }, { startTime: "asc" }],
+        orderBy: [{ date: sortOrder }, { startTime: sortOrder }],
         include: {
           client:  { select: { id: true, name: true, phone: true, email: true } },
           service: { select: { id: true, name: true, category: true, price: true } },
@@ -227,6 +229,43 @@ export async function POST(req: NextRequest) {
 
       revalidateDashboardAndAnalytics();
 
+      if (data.clientId) {
+        const apptsAggregate = await prisma.appointment.aggregate({
+          where: { clientId: data.clientId, status: "COMPLETED" },
+          _count: { _all: true },
+          _sum: { price: true },
+        });
+
+        const txAggregate = await prisma.transaction.aggregate({
+          where: { clientId: data.clientId, status: "COMPLETED" },
+          _sum: { total: true },
+        });
+
+        const standaloneApptSum = await prisma.appointment.aggregate({
+          where: { clientId: data.clientId, status: "COMPLETED", transactionId: null },
+          _sum: { price: true },
+        });
+
+        const visits = apptsAggregate._count._all || 0;
+        const totalSpent = Number(txAggregate._sum.total || 0) + Number(standaloneApptSum._sum.price || 0);
+        const loyaltyPoints = Math.floor(totalSpent / 100);
+
+        let tier: "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" = "BRONZE";
+        if (totalSpent >= 50000) tier = "PLATINUM";
+        else if (totalSpent >= 25000) tier = "GOLD";
+        else if (totalSpent >= 10000) tier = "SILVER";
+
+        await prisma.client.update({
+          where: { id: data.clientId },
+          data: {
+            totalSpent,
+            totalVisits: visits,
+            loyaltyPoints,
+            tier,
+          },
+        });
+      }
+
       const createdAppt = transactionRecord.appointments[0];
       const responseData = {
         ...createdAppt,
@@ -322,6 +361,13 @@ export async function POST(req: NextRequest) {
         select: { transactionId: true },
       });
       const txIdsToDelete = appointmentsToDelete.map(a => a.transactionId).filter(Boolean) as string[];
+
+      queries.push(
+        prisma.appointment.deleteMany({
+          where: { id: { in: deleteAppointmentIds } },
+        })
+      );
+
       if (txIdsToDelete.length > 0) {
         queries.push(
           prisma.transaction.deleteMany({
@@ -329,12 +375,6 @@ export async function POST(req: NextRequest) {
           })
         );
       }
-
-      queries.push(
-        prisma.appointment.deleteMany({
-          where: { id: { in: deleteAppointmentIds } },
-        })
-      );
     }
 
     if (status === "COMPLETED") {
@@ -429,6 +469,43 @@ export async function POST(req: NextRequest) {
 
     // Revalidate stats & charts cache
     revalidateDashboardAndAnalytics();
+
+    if (data.clientId) {
+      const apptsAggregate = await prisma.appointment.aggregate({
+        where: { clientId: data.clientId, status: "COMPLETED" },
+        _count: { _all: true },
+        _sum: { price: true },
+      });
+
+      const txAggregate = await prisma.transaction.aggregate({
+        where: { clientId: data.clientId, status: "COMPLETED" },
+        _sum: { total: true },
+      });
+
+      const standaloneApptSum = await prisma.appointment.aggregate({
+        where: { clientId: data.clientId, status: "COMPLETED", transactionId: null },
+        _sum: { price: true },
+      });
+
+      const visits = apptsAggregate._count._all || 0;
+      const totalSpent = Number(txAggregate._sum.total || 0) + Number(standaloneApptSum._sum.price || 0);
+      const loyaltyPoints = Math.floor(totalSpent / 100);
+
+      let tier: "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" = "BRONZE";
+      if (totalSpent >= 50000) tier = "PLATINUM";
+      else if (totalSpent >= 25000) tier = "GOLD";
+      else if (totalSpent >= 10000) tier = "SILVER";
+
+      await prisma.client.update({
+        where: { id: data.clientId },
+        data: {
+          totalSpent,
+          totalVisits: visits,
+          loyaltyPoints,
+          tier,
+        },
+      });
+    }
 
     return createdResponse(responseData);
   } catch (error) {

@@ -115,7 +115,7 @@ export default function Sidebar() {
         label: "Business",
         items: [
           { label: "Purchase & Expense", href: "/expenses", icon: ShoppingCart, badge: null },
-          { label: "Clients", href: "/clients", icon: Users, badge: null },
+          { label: "Clients & Staff", href: "/clients", icon: Users, badge: null },
           { label: "Point of Sale", href: "/pos", icon: ShoppingCart, badge: null },
         ],
       },
