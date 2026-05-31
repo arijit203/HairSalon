@@ -234,34 +234,45 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
               {/* Categories */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>
-                  Categories * (Select one or more)
+                  Category *
                 </label>
-                <div className="flex flex-wrap gap-2 p-3 rounded-xl border border-zinc-200 dark:border-white/[0.06] bg-zinc-50/50 dark:bg-white/[0.02] max-h-[140px] overflow-y-auto">
-                  {allCategories.map((cat) => {
-                    const isSelected = category === cat;
-                    return (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setCategory(cat)}
-                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border focus:outline-none ${
-                          isSelected
-                            ? "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-300 hover:bg-rose-500/20 shadow-[0_2px_8px_rgba(244,63,94,0.06)]"
-                            : "border-zinc-200 dark:border-white/[0.06] bg-zinc-50 dark:bg-white/[0.02] text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/[0.06] hover:border-zinc-300 dark:hover:border-white/[0.12]"
-                        }`}
-                      >
-                        {cat}
-                      </button>
-                    );
-                  })}
+                <div className="space-y-2">
+                  <div className="relative">
+                    <select
+                      className="input-field appearance-none pr-10"
+                      value={showAddCategoryInput ? "__new__" : category}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "__new__") {
+                          setShowAddCategoryInput(true);
+                        } else {
+                          setShowAddCategoryInput(false);
+                          setCategory(val);
+                        }
+                      }}
+                      disabled={submitting}
+                      required
+                    >
+                      {allCategories.length === 0 && (
+                        <option value="" disabled>Select a category</option>
+                      )}
+                      {allCategories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                      <option value="__new__">+ Add New Category...</option>
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-zinc-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                   
                   {/* Add Custom Category Inline Form */}
-                  {showAddCategoryInput ? (
-                    <div className="flex items-center gap-1.5 animate-fade-in">
+                  {showAddCategoryInput && (
+                    <div className="flex items-center gap-1.5 animate-fade-in mt-2">
                       <input
                         type="text"
                         placeholder="New category..."
-                        className="px-3 py-1 text-xs rounded-full border border-zinc-200 dark:border-white/[0.12] bg-zinc-50 dark:bg-[#1a1a1a] text-zinc-800 dark:text-white outline-none focus:border-rose-500/50 w-[120px] transition-all"
+                        className="flex-1 px-3 py-2 text-xs rounded-xl border border-zinc-200 dark:border-white/[0.12] bg-white dark:bg-[#1a1a1a] text-zinc-800 dark:text-white outline-none focus:border-rose-500/50 transition-all"
                         value={newCategoryName}
                         onChange={(e) => setNewCategoryName(e.target.value)}
                         onKeyDown={(e) => {
@@ -272,6 +283,11 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                             e.preventDefault();
                             setShowAddCategoryInput(false);
                             setNewCategoryName("");
+                            if (allCategories.length > 0) {
+                               setCategory(allCategories[0]);
+                            } else {
+                               setCategory("");
+                            }
                           }
                         }}
                         autoFocus
@@ -279,7 +295,7 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                       <button
                         type="button"
                         onClick={handleAddCategoryInline}
-                        className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors focus:outline-none"
+                        className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors focus:outline-none"
                       >
                         Add
                       </button>
@@ -288,20 +304,17 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                         onClick={() => {
                           setShowAddCategoryInput(false);
                           setNewCategoryName("");
+                          if (allCategories.length > 0) {
+                             setCategory(allCategories[0]);
+                          } else {
+                             setCategory("");
+                          }
                         }}
-                        className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-zinc-200 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-white/[0.12] transition-colors focus:outline-none"
+                        className="p-2 rounded-xl border border-zinc-200 dark:border-white/[0.12] text-zinc-500 hover:text-zinc-800 dark:hover:text-white transition-colors"
                       >
-                        Cancel
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setShowAddCategoryInput(true)}
-                      className="px-3 py-1 rounded-full text-xs font-semibold border border-dashed border-zinc-200 dark:border-white/[0.1] bg-transparent text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-white/30 hover:bg-zinc-50 dark:hover:bg-white/[0.04] hover:text-zinc-800 dark:hover:text-white transition-all flex items-center gap-1 focus:outline-none"
-                    >
-                      + Add New...
-                    </button>
                   )}
                 </div>
               </div>
