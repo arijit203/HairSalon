@@ -93,7 +93,7 @@ export default function SettingsPage() {
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/settings");
+      const res = await fetch(`/api/settings?t=${Date.now()}`, { cache: "no-store" });
       const d = await res.json();
       if (d.success && d.data) {
         setSettings(d.data);
@@ -112,7 +112,7 @@ export default function SettingsPage() {
   const fetchStaffs = async () => {
     try {
       setStaffLoading(true);
-      const res = await fetch("/api/staff?limit=100");
+      const res = await fetch(`/api/staff?limit=100&t=${Date.now()}`, { cache: "no-store" });
       const d = await res.json();
       if (d.data) {
         setStaffs(d.data);
@@ -566,13 +566,17 @@ export default function SettingsPage() {
                         style={{
                           background: isChecked
                             ? "linear-gradient(135deg, var(--accent-rose), var(--accent-rose-dark))"
-                            : "rgba(255,255,255,0.1)",
-                          boxShadow: isChecked ? "var(--shadow-glow)" : "none",
+                            : (theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"),
+                          border: isChecked ? "1px solid transparent" : "1px solid var(--border-default)",
+                          boxShadow: isChecked ? "var(--shadow-glow)" : "inset 0 1px 2px rgba(0, 0, 0, 0.05)",
                         }}
                       >
                         <div
                           className="absolute top-1 w-4 h-4 rounded-full bg-white transition-all"
-                          style={{ left: isChecked ? "28px" : "4px" }}
+                          style={{
+                            left: isChecked ? "28px" : "4px",
+                            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.06)",
+                          }}
                         />
                       </button>
                     </div>
@@ -659,10 +663,20 @@ export default function SettingsPage() {
                       onClick={() => toggleHourDay(i)}
                       className="relative flex-shrink-0 w-10 h-5 rounded-full transition-all"
                       style={{
-                        background: h.open ? "linear-gradient(135deg, var(--accent-rose), var(--accent-rose-dark))" : "rgba(255,255,255,0.1)",
+                        background: h.open
+                          ? "linear-gradient(135deg, var(--accent-rose), var(--accent-rose-dark))"
+                          : (theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"),
+                        border: h.open ? "1px solid transparent" : "1px solid var(--border-default)",
+                        boxShadow: h.open ? "var(--shadow-glow)" : "inset 0 1px 2px rgba(0, 0, 0, 0.05)",
                       }}
                     >
-                      <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" style={{ left: h.open ? "22px" : "2px" }} />
+                      <div
+                        className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
+                        style={{
+                          left: h.open ? "22px" : "2px",
+                          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.06)",
+                        }}
+                      />
                     </button>
                     <span className="w-24 text-sm font-medium flex-shrink-0" style={{ color: h.open ? "var(--text-primary)" : "var(--text-muted)" }}>
                       {h.day}
@@ -873,13 +887,17 @@ export default function SettingsPage() {
                         style={{
                           background: isChecked
                             ? "linear-gradient(135deg, var(--accent-rose), var(--accent-rose-dark))"
-                            : "rgba(255,255,255,0.1)",
-                          boxShadow: isChecked ? "var(--shadow-glow)" : "none",
+                            : (theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"),
+                          border: isChecked ? "1px solid transparent" : "1px solid var(--border-default)",
+                          boxShadow: isChecked ? "var(--shadow-glow)" : "inset 0 1px 2px rgba(0, 0, 0, 0.05)",
                         }}
                       >
                         <div
                           className="absolute top-1 w-4 h-4 rounded-full bg-white transition-all"
-                          style={{ left: isChecked ? "28px" : "4px" }}
+                          style={{
+                            left: isChecked ? "28px" : "4px",
+                            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.06)",
+                          }}
                         />
                       </button>
                     </div>

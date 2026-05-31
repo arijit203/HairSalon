@@ -56,6 +56,8 @@ export async function GET() {
 
     const response = successResponse(mergedSettings);
     response.headers.set("Cache-Control", "no-store, max-age=0, must-revalidate");
+    response.headers.set("CDN-Cache-Control", "no-store");
+    response.headers.set("Vercel-CDN-Cache-Control", "no-store");
     return response;
   } catch (error) {
     return handleApiError(error);

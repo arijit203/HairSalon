@@ -3,7 +3,7 @@
 import {
   TrendingUp, TrendingDown, Users, ShoppingBag,
   CalendarCheck, Plus, ArrowRight, Clock,
-  Scissors, AlertTriangle, Printer, Package,
+  Scissors, AlertTriangle, Printer, Package, Sparkles,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -149,7 +149,7 @@ export default function DashboardPage() {
     let salonAddress = "CE/1/B/122 Newtown Kolkata-157";
     let salonPhone = "+919836867607(M)";
     try {
-      const res = await fetch("/api/settings");
+      const res = await fetch(`/api/settings?t=${Date.now()}`, { cache: "no-store" });
       const data = await res.json();
       if (data.success && data.data) {
         if (data.data.salon_name) salonName = data.data.salon_name;
@@ -390,7 +390,9 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="page-title">✨ {greeting}, Admin ✨</h1>
+          <h1 className="page-title flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-amber-400" /> {greeting}, Admin
+          </h1>
           <p className="page-subtitle">Here&apos;s what&apos;s happening at your salon today.</p>
         </div>
         <div className="flex items-center gap-3">

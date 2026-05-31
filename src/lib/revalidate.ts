@@ -7,8 +7,8 @@ import { revalidateTag } from "next/cache";
  */
 export function revalidateDashboardAndAnalytics() {
   try {
-    revalidateTag("dashboard-stats");
-    revalidateTag("analytics");
+    revalidateTag("dashboard-stats-v2");
+    revalidateTag("analytics-v2");
   } catch (error) {
     console.error("Cache revalidation error:", error);
   }
