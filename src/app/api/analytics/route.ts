@@ -322,25 +322,41 @@ const getCachedAnalytics = unstable_cache(
           label: "Total Revenue (Period)", 
           value: `₹${totalRevenue.toLocaleString("en-IN")}`, 
           change: `${revenueChange >= 0 ? "+" : ""}${revenueChange.toFixed(1)}%`, 
-          up: revenueChange >= 0 
+          up: revenueChange >= 0,
+          rawValue: totalRevenue,
+          prevValue: prevRevenue,
+          difference: totalRevenue - prevRevenue,
+          type: "currency"
         },
         { 
           label: "Net Profit Margin", 
           value: `₹${profit.toLocaleString("en-IN")}`, 
           change: `${profitChange >= 0 ? "+" : ""}${profitChange.toFixed(1)}%`, 
-          up: profitChange >= 0 
+          up: profitChange >= 0,
+          rawValue: profit,
+          prevValue: prevProfit,
+          difference: profit - prevProfit,
+          type: "currency"
         },
         { 
           label: "Expenses", 
           value: `₹${totalExpenses.toLocaleString("en-IN")}`, 
           change: `${expensesChange >= 0 ? "+" : ""}${expensesChange.toFixed(1)}%`, 
-          up: expensesChange <= 0 
+          up: expensesChange <= 0,
+          rawValue: totalExpenses,
+          prevValue: prevExpensesSum,
+          difference: totalExpenses - prevExpensesSum,
+          type: "currency"
         },
         { 
           label: "Customer Retention", 
           value: `${retentionRate.toFixed(0)}%`, 
           change: `${retentionChange >= 0 ? "+" : ""}${retentionChange.toFixed(1)}%`, 
-          up: retentionChange >= 0 
+          up: retentionChange >= 0,
+          rawValue: retentionRate,
+          prevValue: prevRetentionRate,
+          difference: retentionRate - prevRetentionRate,
+          type: "percentage"
         }
       ]
     };

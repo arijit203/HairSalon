@@ -144,7 +144,22 @@ export default function DashboardPage() {
     });
   };
 
-  const handlePrintReceipt = (group: any) => {
+  const handlePrintReceipt = async (group: any) => {
+    let salonName = "Madoe's Salon";
+    let salonAddress = "CE/1/B/122 Newtown Kolkata-157";
+    let salonPhone = "+919836867607(M)";
+    try {
+      const res = await fetch("/api/settings");
+      const data = await res.json();
+      if (data.success && data.data) {
+        if (data.data.salon_name) salonName = data.data.salon_name;
+        if (data.data.address) salonAddress = data.data.address;
+        if (data.data.phone) salonPhone = data.data.phone;
+      }
+    } catch (e) {
+      console.error("Error fetching salon settings for print:", e);
+    }
+
     const width = 450;
     const height = 650;
     const left = window.screen.width / 2 - width / 2;
@@ -255,9 +270,9 @@ export default function DashboardPage() {
           </style>
         </head>
         <body>
-          <div class="center header-title">MADOE SALON</div>
-          <div class="center">CE/1/B/122 Newtown Kolkata-157</div>
-          <div class="center" style="margin-bottom: 5px;">+919836867607(M)</div>
+          <div class="center header-title">${salonName.toUpperCase()}</div>
+          <div class="center">${salonAddress.toUpperCase()}</div>
+          <div class="center" style="margin-bottom: 5px;">${salonPhone.toUpperCase()}</div>
           <div class="divider"></div>
           
           <div>Date: ${group.date}</div>
@@ -340,7 +355,6 @@ export default function DashboardPage() {
       label: "Total Revenue",
       value: stats ? fmt(stats.revenue.thisMonth) : "—",
       change: stats?.revenue.changePercent ?? 0,
-      sub: "vs last month",
       icon: ShoppingBag,
       color: "#f43f5e",
     },
@@ -366,7 +380,6 @@ export default function DashboardPage() {
       label: "Products Sold",
       value: stats ? String(stats.productsSold.thisMonth) : "—",
       change: stats?.productsSold.changePercent ?? 0,
-      sub: "vs last month",
       icon: ShoppingBag,
       color: "#06b6d4",
     },
@@ -428,7 +441,9 @@ export default function DashboardPage() {
                   </div>
                   <p className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>{card.value}</p>
                   <p className="text-xs font-medium mb-0.5" style={{ color: "var(--text-muted)" }}>{card.label}</p>
-                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{card.sub}</p>
+                  {card.sub && (
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>{card.sub}</p>
+                  )}
                 </div>
               );
             })}

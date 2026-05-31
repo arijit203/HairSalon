@@ -134,7 +134,22 @@ export default function AppointmentsPage() {
     });
   };
 
-  const handlePrintReceipt = (group: any) => {
+  const handlePrintReceipt = async (group: any) => {
+    let salonName = "Madoe's Salon";
+    let salonAddress = "CE/1/B/122 Newtown Kolkata-157";
+    let salonPhone = "+919836867607(M)";
+    try {
+      const res = await fetch("/api/settings");
+      const data = await res.json();
+      if (data.success && data.data) {
+        if (data.data.salon_name) salonName = data.data.salon_name;
+        if (data.data.address) salonAddress = data.data.address;
+        if (data.data.phone) salonPhone = data.data.phone;
+      }
+    } catch (e) {
+      console.error("Error fetching salon settings for print:", e);
+    }
+
     const width = 450;
     const height = 650;
     const left = window.screen.width / 2 - width / 2;
@@ -245,9 +260,9 @@ export default function AppointmentsPage() {
           </style>
         </head>
         <body>
-          <div class="center header-title">MADOE SALON</div>
-          <div class="center">CE/1/B/122 Newtown Kolkata-157</div>
-          <div class="center" style="margin-bottom: 5px;">+919836867607(M)</div>
+          <div class="center header-title">${salonName.toUpperCase()}</div>
+          <div class="center">${salonAddress.toUpperCase()}</div>
+          <div class="center" style="margin-bottom: 5px;">${salonPhone.toUpperCase()}</div>
           <div class="divider"></div>
           
           <div>Date: ${group.date}</div>
@@ -426,11 +441,11 @@ export default function AppointmentsPage() {
                 const hasProductSale = group.appointments.some((a: any) => a.service?.name === "Product Sale");
 
                 return (
-                  <div key={group.id} className="flex items-start gap-4 p-4 rounded-xl hover:bg-[var(--bg-card)] transition-all"
+                  <div key={group.id} className="flex flex-col sm:flex-row items-stretch sm:items-start gap-4 p-4 rounded-xl hover:bg-[var(--bg-card)] transition-all"
                     style={{ border: `1px solid ${clr}20`, background: `${clr}06` }}>
-                    <div className="flex flex-col items-center flex-shrink-0 w-16">
+                    <div className="flex sm:flex-col items-center justify-between sm:justify-start flex-shrink-0 w-full sm:w-16">
                       <p className="text-sm font-bold" style={{ color: clr }}>{group.endTime}</p>
-                      <div className="mt-4 w-full flex flex-col gap-1.5">
+                      <div className="mt-0 sm:mt-4 flex sm:flex-col gap-1.5">
                         {hasProductSale ? (
                           <span className="flex items-center justify-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg w-full"
                             style={{ background: "rgba(6,182,212,0.14)", color: "#06b6d4", border: "1px solid rgba(6,182,212,0.3)" }}>
@@ -459,8 +474,9 @@ export default function AppointmentsPage() {
                         })()}
                       </div>
                     </div>
-                    <div className="w-px self-stretch" style={{ background: `${clr}40` }} />
-                    <div className="flex-1 min-w-0">
+                    <div className="hidden sm:block w-px self-stretch" style={{ background: `${clr}40` }} />
+                    <div className="block sm:hidden h-px w-full" style={{ background: `${clr}20` }} />
+                    <div className="flex-1 min-w-0 w-full">
                       <div>
                         <p className="text-sm font-semibold text-[var(--text-primary)]">{group.client.name}</p>
                         <div className="mt-2 space-y-1.5">
@@ -480,7 +496,7 @@ export default function AppointmentsPage() {
                                  <div className="flex items-center gap-2.5 shrink-0 ml-2">
                                    <span className="font-semibold text-[var(--text-primary)]">₹{Number(appt.price).toLocaleString("en-IN")}</span>
                                  </div>
-                               </div>
+                                </div>
                              );
                            })}
                         </div>
@@ -489,49 +505,51 @@ export default function AppointmentsPage() {
                     </div>
                     
                     {/* Side-by-side Status & Action Buttons */}
-                    <div className="flex items-center gap-2 flex-shrink-0 self-center">
+                    <div className="flex items-center justify-between sm:justify-end gap-2 flex-shrink-0 w-full sm:w-auto mt-3 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-white/[0.06] sm:self-center">
                       <span className="text-[11px] font-medium px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0 mr-1"
                         style={{ background: cfg.bg, color: cfg.color }}>
                         <Icon className="w-3 h-3 shrink-0" />
                         {cfg.label}
                       </span>
-                      {isAdmin && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openBooking({ editingGroup: group, onCreated: () => setTick(t => t + 1) });
-                            }}
-                            className="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 transition-colors flex items-center justify-center"
-                            title="Edit Booking"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenDelete(group);
-                            }}
-                            className="p-1.5 rounded-lg hover:bg-red-500/10 text-red-400 transition-colors flex items-center justify-center"
-                            title="Delete Booking"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePrintReceipt(group);
-                        }}
-                        className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
-                        title="Print Receipt"
-                      >
-                        <Printer className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1.5 ml-auto sm:ml-0">
+                        {isAdmin && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openBooking({ editingGroup: group, onCreated: () => setTick(t => t + 1) });
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 transition-colors flex items-center justify-center"
+                              title="Edit Booking"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenDelete(group);
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-red-500/10 text-red-400 transition-colors flex items-center justify-center"
+                              title="Delete Booking"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePrintReceipt(group);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
+                          title="Print Receipt"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );

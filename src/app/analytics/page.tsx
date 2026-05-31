@@ -324,7 +324,7 @@ export default function AnalyticsPage() {
           </h1>
           <p className="page-subtitle">Performance insights and business metrics</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto">
           <div className="flex items-center rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-default)" }}>
             {["7D","1M","3M","6M","1Y"].map((p) => (
               <button
@@ -430,23 +430,38 @@ export default function AnalyticsPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        {kpis.map((k: any, i: number) => (
-          <div key={i} className="glass-card p-6 relative overflow-hidden flex flex-col justify-between">
-            {loading && (
-              <div className="absolute inset-0 bg-black/5 animate-pulse" />
-            )}
-            <div className={showComparison ? "mb-4" : ""}>
-              <p className="text-xs font-medium mb-2" style={{ color:"var(--text-muted)" }}>{k.label}</p>
-              <p className="text-2xl font-bold" style={{ color:"var(--text-primary)" }}>{k.value}</p>
-            </div>
-            {showComparison && (
-              <div className={`flex items-center gap-1 text-xs font-semibold ${k.up ? "text-emerald-500" : "text-rose-400"}`}>
-                {k.change.startsWith("-") ? <ArrowDown className="w-3.5 h-3.5" /> : <ArrowUp className="w-3.5 h-3.5" />}
-                {k.change.replace(/[+-]/g, "")} vs last period
+        {kpis.map((k: any, i: number) => {
+          const displayValue = (() => {
+            if (showComparison && k.difference !== undefined) {
+              const diffVal = k.difference;
+              const absVal = Math.abs(diffVal);
+              const sign = diffVal > 0 ? "+" : diffVal < 0 ? "-" : "";
+              if (k.type === "currency") {
+                return `${sign}₹${absVal.toLocaleString("en-IN")}`;
+              } else if (k.type === "percentage") {
+                return `${sign}${absVal.toFixed(1)}%`;
+              }
+            }
+            return k.value;
+          })();
+          return (
+            <div key={i} className="glass-card p-6 relative overflow-hidden flex flex-col justify-between">
+              {loading && (
+                <div className="absolute inset-0 bg-black/5 animate-pulse" />
+              )}
+              <div className={showComparison ? "mb-4" : ""}>
+                <p className="text-xs font-medium mb-2" style={{ color:"var(--text-muted)" }}>{k.label}</p>
+                <p className="text-2xl font-bold" style={{ color:"var(--text-primary)" }}>{displayValue}</p>
               </div>
-            )}
-          </div>
-        ))}
+              {showComparison && (
+                <div className={`flex items-center gap-1 text-xs font-semibold ${k.up ? "text-emerald-500" : "text-rose-400"}`}>
+                  {k.change.startsWith("-") ? <ArrowDown className="w-3.5 h-3.5" /> : <ArrowUp className="w-3.5 h-3.5" />}
+                  {k.change.replace(/[+-]/g, "")} vs last period
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Revenue vs Expenses */}

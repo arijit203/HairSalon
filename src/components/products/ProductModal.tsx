@@ -45,7 +45,7 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
   const [showWholesalePrice, setShowWholesalePrice] = useState(false);
 
   // Stock & Visuals
-  const [stock, setStock] = useState("");
+  const [stock, setStock] = useState("1");
   const [lowStockAt, setLowStockAt] = useState("2");
   const [imageUrl, setImageUrl] = useState("");
   
@@ -112,7 +112,7 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
       setSelectedCategories(editingProduct.category || []);
       setPrice(editingProduct.price ? String(editingProduct.price) : "");
       setCostPrice(editingProduct.costPrice ? String(editingProduct.costPrice) : "");
-      setStock(editingProduct.stock !== undefined ? String(editingProduct.stock) : "");
+      setStock(editingProduct.stock !== undefined ? String(editingProduct.stock) : "1");
       setLowStockAt(editingProduct.lowStockAt !== undefined ? String(editingProduct.lowStockAt) : "2");
       setImageUrl(editingProduct.imageUrl || "");
       
@@ -133,7 +133,7 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
       setSelectedCategories([]);
       setPrice("");
       setCostPrice("");
-      setStock("");
+      setStock("1");
       setLowStockAt("2");
       setImageUrl("");
       
@@ -856,7 +856,7 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
                           type="number"
                           min="0"
                           step="1"
-                          placeholder="0"
+                          placeholder="1"
                           className="input-field pl-9"
                           value={stock}
                           onChange={(e) => setStock(e.target.value)}

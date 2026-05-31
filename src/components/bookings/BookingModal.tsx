@@ -218,6 +218,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
   const [clientPhone, setClientPhone] = useState("");
   const [phoneDigits, setPhoneDigits] = useState(""); // only the 10-digit part
   const [clientEmail, setClientEmail] = useState("");
+  const [selectedClient, setSelectedClient] = useState<any | null>(null);
 
   // Client suggestions for autofill
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -270,6 +271,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
   };
 
   const handleSelectSuggestion = (client: any) => {
+    setSelectedClient(client);
     setClientName(client.name || "");
     const fullPhone: string = client.phone || "";
     setClientPhone(fullPhone);
@@ -509,6 +511,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
   useEffect(() => {
     if (!open) return;
     if (editingGroup) {
+      setSelectedClient(editingGroup.client || null);
       setClientName(editingGroup.client?.name || "");
       const editPhone: string = editingGroup.client?.phone || "";
       setClientPhone(editPhone);
@@ -524,6 +527,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
       setBookingMode("service");
       setPaymentMethod(editingGroup.appointments?.[0]?.transaction?.paymentMethod || "ONLINE");
     } else {
+      setSelectedClient(null);
       setClientName(""); setClientPhone(""); setPhoneDigits(""); setClientEmail("");
       setSelectedServices([]);
       setSelectedProducts([]);
@@ -799,8 +803,24 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
   // ── Form submission ────────────────────────────────────────────────────────
 
-  const handlePrintReceipt = (bookingDetails: typeof createdBooking) => {
+  const handlePrintReceipt = async (bookingDetails: typeof createdBooking) => {
     if (!bookingDetails) return;
+
+    let salonName = "Madoe's Salon";
+    let salonAddress = "CE/1/B/122 NEWTOWN KOLKATA-157";
+    let salonPhone = "+919836867607(M)";
+    try {
+      const res = await fetch("/api/settings");
+      const data = await res.json();
+      if (data.success && data.data) {
+        if (data.data.salon_name) salonName = data.data.salon_name;
+        if (data.data.address) salonAddress = data.data.address;
+        if (data.data.phone) salonPhone = data.data.phone;
+      }
+    } catch (e) {
+      console.error("Error fetching salon settings for print:", e);
+    }
+
     const width = 450;
     const height = 650;
     const left = window.screen.width / 2 - width / 2;
@@ -812,7 +832,6 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
     }
 
     const isProductSale = bookingDetails.products && bookingDetails.products.length > 0;
-
     const timeStr = bookingDetails.endTime ? format24to12(bookingDetails.endTime).toLowerCase().replace(/\s+/g, "") : "";
 
     const paymentFormatted = (bookingDetails.paymentMethod === "ONLINE" ? "ONLINE" :
@@ -822,53 +841,33 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
     const taxAmt = bookingDetails.taxAmt !== undefined ? bookingDetails.taxAmt : (bookingDetails.taxPct > 0 ? Math.round((bookingDetails.salePrice - (bookingDetails.salePrice * bookingDetails.discountPct / 100)) * bookingDetails.taxPct / 100) : 0);
 
-    const generateItemsText = () => {
-      if (isProductSale) {
-        return bookingDetails.products!.map(p => {
-          const name = (p.name + " (X" + p.quantity + ")").toUpperCase();
-          const amount = "₹" + (Number(p.price) * p.quantity).toFixed(2);
-          const spacing = " ".repeat(Math.max(0, 48 - name.length - amount.length));
-          return name + spacing + amount;
-        }).join("\n");
-      } else {
-        return bookingDetails.services.map(s => {
-          const name = s.name.toUpperCase();
-          const amount = "₹" + Number(s.price).toFixed(2);
-          const spacing = " ".repeat(Math.max(0, 48 - name.length - amount.length));
-          return name + spacing + amount;
-        }).join("\n");
-      }
-    };
+    const servicesHtml = isProductSale
+      ? bookingDetails.products!.map(p => `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>${p.name.toUpperCase()} (X${p.quantity})</span>
+            <span>₹${(Number(p.price) * p.quantity).toFixed(2)}</span>
+          </div>
+        `).join("")
+      : bookingDetails.services.map(s => `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>${s.name.toUpperCase()}</span>
+            <span>₹${Number(s.price).toFixed(2)}</span>
+          </div>
+        `).join("");
 
-    const discountLine = bookingDetails.discountPct > 0 ? 
-      (() => {
-        const label = "DISCOUNT(" + bookingDetails.discountPct + "%)";
-        const amount = "-₹" + (bookingDetails.salePrice * bookingDetails.discountPct / 100).toFixed(2);
-        const spacing = " ".repeat(Math.max(0, 48 - label.length - amount.length));
-        return label + spacing + amount + "\n";
-      })() : "";
+    const discountHtml = bookingDetails.discountPct > 0 ? `
+      <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+        <span>DISCOUNT (${bookingDetails.discountPct}%)</span>
+        <span>-₹${(bookingDetails.salePrice * bookingDetails.discountPct / 100).toFixed(2)}</span>
+      </div>
+    ` : "";
 
-    const taxLine = taxAmt > 0 ?
-      (() => {
-        const label = ("GST (" + bookingDetails.taxPct + "%)").toUpperCase();
-        const amount = "₹" + Number(taxAmt).toFixed(2);
-        const spacing = " ".repeat(Math.max(0, 48 - label.length - amount.length));
-        return label + spacing + amount + "\n";
-      })() : "";
-
-    const subtotalRow = (() => {
-      const label = "SUBTOTAL";
-      const amount = "₹" + bookingDetails.salePrice.toFixed(2);
-      const spacing = " ".repeat(Math.max(0, 48 - label.length - amount.length));
-      return label + spacing + amount;
-    })();
-
-    const totalRow = (() => {
-      const label = "TOTAL (INR)";
-      const amount = "₹" + bookingDetails.finalPrice.toFixed(2);
-      const spacing = " ".repeat(Math.max(0, 48 - label.length - amount.length));
-      return label + spacing + amount;
-    })();
+    const taxHtml = taxAmt > 0 ? `
+      <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+        <span>GST (${bookingDetails.taxPct}%)</span>
+        <span>₹${Number(taxAmt).toFixed(2)}</span>
+      </div>
+    ` : "";
 
     printWindow.document.write(`
       <html>
@@ -883,12 +882,12 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
               font-family: 'Courier New', Courier, monospace;
               font-size: 12px;
               font-weight: bold;
-              width: 52mm;
+              width: 48mm;
               margin: 0 auto;
-              padding: 8px 4px;
+              padding: 10px 5px;
               color: #000;
               background: #fff;
-              line-height: 1.4;
+              line-height: 1.3;
               text-transform: uppercase;
             }
             /* Enforce uniform font size, weight, and capitalization across all elements */
@@ -903,37 +902,66 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
               font-size: 16px !important;
               font-weight: 900 !important;
             }
-            pre {
-              margin: 0;
-              padding: 0;
-              white-space: pre-wrap;
-              word-wrap: break-word;
-              line-height: 1.4;
+            .section-title, .section-title * {
+              font-size: 14px !important;
+              font-weight: 900 !important;
+            }
+            .services-list, .services-list * {
+              font-size: 13px !important;
+            }
+            .center {
+              text-align: center;
+            }
+            .divider {
+              border-top: 1px dashed #000;
+              margin: 8px 0;
+            }
+            .double-divider {
+              border-top: 3px double #000;
+              margin: 8px 0;
+            }
+            .footer {
+              margin-top: 15px;
             }
           </style>
         </head>
         <body>
-          <pre><span class="header-title">MADOE SALON</span>
-CE/1/B/122 NEWTOWN KOLKATA-157
-+919836867607(M)
-----------------------------------------------
-
-DATE: ${bookingDetails.date.toUpperCase()}
-TIME: ${timeStr.toUpperCase()}
-CUSTOMER: ${bookingDetails.clientName.toUpperCase()}
-${bookingDetails.clientPhone ? `PHONE: ${bookingDetails.clientPhone.toUpperCase()}\n` : ""}STAFF: ${bookingDetails.staffName.toUpperCase()}
-PAYMENT: ${paymentFormatted}
-----------------------------------------------
-${isProductSale ? "PRODUCTS" : "SERVICES"}
-${generateItemsText()}
-
-----------------------------------------------
-${subtotalRow}
-${discountLine}${taxLine}=============================================
-${totalRow}
-=============================================
-
-THANK YOU FOR VISITING!</pre>
+          <div class="center header-title">${salonName.toUpperCase()}</div>
+          <div class="center">${salonAddress.toUpperCase()}</div>
+          <div class="center" style="margin-bottom: 5px;">${salonPhone.toUpperCase()}</div>
+          <div class="divider"></div>
+          
+          <div>DATE: ${bookingDetails.date}</div>
+          <div>TIME: ${timeStr.toUpperCase()}</div>
+          <div>CUSTOMER: ${bookingDetails.clientName.toUpperCase()}</div>
+          ${bookingDetails.clientPhone ? `<div>PHONE: ${bookingDetails.clientPhone}</div>` : ""}
+          <div>STAFF: ${bookingDetails.staffName.toUpperCase()}</div>
+          <div>PAYMENT: ${paymentFormatted}</div>
+          
+          <div class="divider"></div>
+          <div class="section-title" style="margin-bottom: 5px;">${isProductSale ? "PRODUCTS" : "SERVICES"}</div>
+          <div class="services-list">
+            ${servicesHtml}
+          </div>
+          
+          <div class="divider"></div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>SUBTOTAL</span>
+            <span>₹${bookingDetails.salePrice.toFixed(2)}</span>
+          </div>
+          ${discountHtml}
+          ${taxHtml}
+          
+          <div class="double-divider"></div>
+          <div style="display: flex; justify-content: space-between; margin-top: 3px; font-weight: 900;">
+            <span>TOTAL (INR)</span>
+            <span>₹${bookingDetails.finalPrice.toFixed(2)}</span>
+          </div>
+          <div class="double-divider"></div>
+          
+          <div class="center footer">
+            THANK YOU FOR VISITING!
+          </div>
           
           <script>
             window.onload = function() {
@@ -992,6 +1020,72 @@ THANK YOU FOR VISITING!</pre>
         return;
       }
       formattedPhone = formatted;
+    }
+
+    // Check for existing client conflicts
+    try {
+      let existingByEmail: any = null;
+      let existingByPhone: any = null;
+
+      if (clientEmail.trim()) {
+        const searchRes = await fetch(`/api/clients?search=${encodeURIComponent(clientEmail.trim())}&limit=10`);
+        const searchData = await searchRes.json();
+        if (searchData.data?.length > 0) {
+          existingByEmail = searchData.data.find(
+            (c: any) => c.email?.toLowerCase() === clientEmail.trim().toLowerCase()
+          );
+        }
+      }
+
+      if (formattedPhone) {
+        const cleanDigits = formattedPhone.replace(/[^\d]/g, "");
+        const searchPhone = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : cleanDigits;
+
+        const searchRes = await fetch(`/api/clients?search=${encodeURIComponent(searchPhone)}&limit=10`);
+        const searchData = await searchRes.json();
+        if (searchData.data?.length > 0) {
+          existingByPhone = searchData.data.find((c: any) => {
+            const cleanInputPhone = formattedPhone.replace(/[\s+-]/g, "");
+            const cleanDbPhone = c.phone?.trim().replace(/[\s+-]/g, "") || "";
+            return cleanInputPhone && (cleanDbPhone === cleanInputPhone || cleanDbPhone.endsWith(cleanInputPhone) || cleanInputPhone.endsWith(cleanDbPhone));
+          });
+        }
+      }
+
+      const conflictClient = existingByEmail || existingByPhone;
+
+      if (conflictClient) {
+        const originalClientId = editingGroup?.client?.id || selectedClient?.id;
+
+        if (originalClientId) {
+          if (conflictClient.id !== originalClientId) {
+            error(`The phone number or email conflicts with an existing client: "${conflictClient.name}".`);
+            setActiveTab("client");
+            return;
+          }
+
+          const nameChanged = clientName.trim().toLowerCase() !== conflictClient.name.trim().toLowerCase();
+          const normInputPhone = formattedPhone.replace(/[\s+-]/g, "");
+          const normDbPhone = conflictClient.phone?.trim().replace(/[\s+-]/g, "") || "";
+          const phoneChanged = normInputPhone !== normDbPhone;
+          const emailChanged = clientEmail.trim().toLowerCase() !== (conflictClient.email || "").trim().toLowerCase();
+
+          if (nameChanged || phoneChanged || emailChanged) {
+            error(`Cannot modify the details of an existing client ("${conflictClient.name}"). This conflicts with their registered profile.`);
+            setActiveTab("client");
+            return;
+          }
+        } else {
+          const nameChanged = clientName.trim().toLowerCase() !== conflictClient.name.trim().toLowerCase();
+          if (nameChanged) {
+            error(`This phone number or email is already registered to another client: "${conflictClient.name}".`);
+            setActiveTab("client");
+            return;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Conflict validation check failed:", err);
     }
 
     setSubmitting(true);
@@ -1127,6 +1221,7 @@ THANK YOU FOR VISITING!</pre>
   // ── Reset & Close ──────────────────────────────────────────────────────────
 
   const handleClose = () => {
+    setSelectedClient(null);
     setClientName(""); setClientPhone(""); setPhoneDigits(""); setClientEmail("");
     setSelectedServices([]); setServiceSearch("");
     setSelectedProducts([]); setProductSearch("");
