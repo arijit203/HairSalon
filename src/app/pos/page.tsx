@@ -96,9 +96,9 @@ export default function POSPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 h-[calc(100vh-200px)]">
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 h-auto xl:h-[calc(100vh-200px)]">
         {/* Catalog */}
-        <div className="xl:col-span-3 flex flex-col gap-4 overflow-hidden">
+        <div className="xl:col-span-3 flex flex-col gap-4 xl:overflow-hidden">
           {/* Catalog Controls */}
           <div className="flex gap-3">
             <div className="relative flex-1">
@@ -173,8 +173,8 @@ export default function POSPage() {
         </div>
 
         {/* Cart & Checkout */}
-        <div className="xl:col-span-2 flex flex-col gap-4 overflow-hidden">
-          <div className="glass-card flex flex-col overflow-hidden" style={{ flex: 1 }}>
+        <div className="xl:col-span-2 flex flex-col gap-4 xl:overflow-hidden">
+          <div className="glass-card flex flex-col xl:overflow-hidden" style={{ flex: 1 }}>
             {/* Client Selector */}
             <div className="p-4 border-b flex items-center gap-3" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
               <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(244,63,94,0.15)" }}>

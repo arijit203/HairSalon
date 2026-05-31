@@ -17,6 +17,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { clsx } from "clsx";
+import { useSidebar } from "@/context/SidebarContext";
 
 interface UserSession {
   userId: string;
@@ -30,6 +31,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { isOpen, close } = useSidebar();
   const [user, setUser] = useState<UserSession | null>(null);
   const [salonName, setSalonName] = useState("Madoe Beauty Salon");
   const [logoUrl, setLogoUrl] = useState("");
@@ -170,18 +172,30 @@ export default function Sidebar() {
     : "??";
 
   return (
-    <aside
-      className="flex flex-col h-full flex-shrink-0"
-      style={{
-        width: "var(--sidebar-width)",
-        background: "var(--bg-sidebar)",
-        borderRight: "1px solid var(--border-sidebar)",
-        zIndex: 20,
-      }}
-    >
-      {/* ── Logo ─────────────────────── */}
-      <div className="px-5 py-5">
-        <Link href={isClient ? "/portal" : "/"} className="flex items-center gap-3">
+    <>
+      {/* Mobile Backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-[95] lg:hidden backdrop-blur-sm transition-opacity duration-300"
+          onClick={close}
+        />
+      )}
+
+      <aside
+        className={clsx(
+          "flex flex-col h-full flex-shrink-0 transition-transform duration-300 ease-in-out",
+          "fixed inset-y-0 left-0 z-[100] lg:static lg:translate-x-0 lg:z-20",
+          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        )}
+        style={{
+          width: "var(--sidebar-width)",
+          background: "var(--bg-sidebar)",
+          borderRight: "1px solid var(--border-sidebar)",
+        }}
+      >
+        {/* ── Logo ─────────────────────── */}
+        <div className="px-5 py-5">
+          <Link href={isClient ? "/portal" : "/"} className="flex items-center gap-3" onClick={close}>
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"
             style={{
@@ -254,6 +268,7 @@ export default function Sidebar() {
                     key={item.href}
                     href={item.href}
                     className={clsx("nav-link", { active })}
+                    onClick={close}
                   >
                     <Icon
                       style={{
@@ -296,6 +311,7 @@ export default function Sidebar() {
           <Link
             href="/settings"
             className={clsx("nav-link", { active: pathname === "/settings" })}
+            onClick={close}
           >
             <Settings
               style={{
@@ -310,7 +326,10 @@ export default function Sidebar() {
         )}
 
         <button
-          onClick={handleLogout}
+          onClick={() => {
+            close();
+            handleLogout();
+          }}
           className="nav-link w-full text-left"
           style={{ background: "transparent", border: "none" }}
         >
@@ -352,5 +371,6 @@ export default function Sidebar() {
         </div>
       </div>
     </aside>
+  </>
   );
 }

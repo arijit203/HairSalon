@@ -1,8 +1,9 @@
 "use client";
 
-import { Bell, Search, Plus, Sun, Moon } from "lucide-react";
+import { Bell, Search, Plus, Sun, Moon, Menu } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import { useBooking } from "@/context/BookingContext";
+import { useSidebar } from "@/context/SidebarContext";
 import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -18,6 +19,7 @@ interface UserSession {
 export default function Topbar() {
   const { theme, toggleTheme } = useTheme();
   const { openBooking } = useBooking();
+  const { toggle } = useSidebar();
   const [user, setUser] = useState<UserSession | null>(null);
 
   const router = useRouter();
@@ -167,6 +169,15 @@ export default function Topbar() {
         WebkitBackdropFilter: "blur(16px)",
       }}
     >
+      {/* Hamburger Menu Button for Mobile */}
+      <button
+        onClick={toggle}
+        className="btn-icon lg:hidden flex-shrink-0"
+        aria-label="Toggle Sidebar"
+      >
+        <Menu className="w-5 h-5" style={{ color: "var(--text-primary)" }} />
+      </button>
+
       {/* Search */}
       <div className="relative flex-1 max-w-md" ref={searchContainerRef}>
         <Search
