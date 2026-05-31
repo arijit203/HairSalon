@@ -565,9 +565,9 @@ export default function DashboardPage() {
                     const hasProductSale = group.appointments.some((a: any) => a.service?.name === "Product Sale");
                     const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
                     return (
-                      <div key={group.id} className="flex items-center justify-between gap-4 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all bg-amber-500/[0.01]"
+                      <div key={group.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all bg-amber-500/[0.01]"
                         style={{ border: "1px solid rgba(245, 158, 11, 0.15)" }}>
-                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
                           <div className="avatar w-9 h-9 text-xs flex-shrink-0">{initials}</div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
@@ -604,8 +604,8 @@ export default function DashboardPage() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          <div className="text-right">
+                        <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0 w-full sm:w-auto border-t sm:border-t-0 border-[var(--border-subtle)] pt-2 sm:pt-0 mt-1 sm:mt-0">
+                          <div className="text-left sm:text-right">
                             <span className="text-xs font-bold tabular-nums block" style={{ color: "var(--text-secondary)" }}>
                               {new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · {group.endTime}
                             </span>
@@ -613,21 +613,23 @@ export default function DashboardPage() {
                               ₹{group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0).toLocaleString("en-IN")}
                             </span>
                           </div>
-                          <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-                            style={{ background: `${statusColors[group.status] ?? "#6b7280"}15`, color: statusColors[group.status] ?? "#6b7280" }}>
-                            {group.status.replace("_", " ")}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handlePrintReceipt(group);
-                            }}
-                            className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
-                            title="Print Receipt"
-                          >
-                            <Printer className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-3 ml-auto sm:ml-0">
+                            <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+                              style={{ background: `${statusColors[group.status] ?? "#6b7280"}15`, color: statusColors[group.status] ?? "#6b7280" }}>
+                              {group.status.replace("_", " ")}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePrintReceipt(group);
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
+                              title="Print Receipt"
+                            >
+                              <Printer className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -659,9 +661,9 @@ export default function DashboardPage() {
                     const hasProductSale = group.appointments.some((a: any) => a.service?.name === "Product Sale");
                     const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
                     return (
-                      <div key={group.id} className="flex items-center justify-between gap-4 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all"
+                      <div key={group.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all"
                         style={{ border: "1px solid var(--border-subtle)" }}>
-                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
                           <div className="avatar w-9 h-9 text-xs flex-shrink-0">{initials}</div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
@@ -698,8 +700,8 @@ export default function DashboardPage() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          <div className="text-right">
+                        <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0 w-full sm:w-auto border-t sm:border-t-0 border-[var(--border-subtle)] pt-2 sm:pt-0 mt-1 sm:mt-0">
+                          <div className="text-left sm:text-right">
                             <span className="text-xs font-semibold tabular-nums block" style={{ color: "var(--text-secondary)" }}>
                               {new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · {group.endTime}
                             </span>
@@ -707,21 +709,23 @@ export default function DashboardPage() {
                               ₹{group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0).toLocaleString("en-IN")}
                             </span>
                           </div>
-                          <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-                            style={{ background: `${statusColors[group.status] ?? "#6b7280"}15`, color: statusColors[group.status] ?? "#6b7280" }}>
-                            {group.status.replace("_", " ")}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handlePrintReceipt(group);
-                            }}
-                            className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
-                            title="Print Receipt"
-                          >
-                            <Printer className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-3 ml-auto sm:ml-0">
+                            <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+                              style={{ background: `${statusColors[group.status] ?? "#6b7280"}15`, color: statusColors[group.status] ?? "#6b7280" }}>
+                              {group.status.replace("_", " ")}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePrintReceipt(group);
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
+                              title="Print Receipt"
+                            >
+                              <Printer className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -857,9 +861,9 @@ function PastSchedules({ groupAppointments, handlePrintReceipt }: { groupAppoint
                   }).join(", ");
                   const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
                   return (
-                    <div key={group.id} className="flex items-center justify-between gap-4 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all bg-amber-500/[0.01]"
+                    <div key={group.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all bg-amber-500/[0.01]"
                       style={{ border: "1px solid rgba(245, 158, 11, 0.15)" }}>
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
                         <div className="avatar w-9 h-9 text-xs flex-shrink-0">{initials}</div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
@@ -881,8 +885,8 @@ function PastSchedules({ groupAppointments, handlePrintReceipt }: { groupAppoint
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <div className="text-right">
+                      <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0 w-full sm:w-auto border-t sm:border-t-0 border-[rgba(245, 158, 11, 0.15)] pt-2 sm:pt-0 mt-1 sm:mt-0">
+                        <div className="text-left sm:text-right">
                           <span className="text-xs font-semibold tabular-nums block" style={{ color: "var(--text-secondary)" }}>
                             {new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · {group.endTime}
                           </span>
@@ -890,18 +894,20 @@ function PastSchedules({ groupAppointments, handlePrintReceipt }: { groupAppoint
                             ₹{group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0).toLocaleString("en-IN")}
                           </span>
                         </div>
-                        <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-                          style={{ background: `${statusColors[group.status] ?? "#6b7280"}15`, color: statusColors[group.status] ?? "#6b7280" }}>
-                          {group.status.replace("_", " ")}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handlePrintReceipt(group); }}
-                          className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
-                          title="Print Receipt"
-                        >
-                          <Printer className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-3 ml-auto sm:ml-0">
+                          <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+                            style={{ background: `${statusColors[group.status] ?? "#6b7280"}15`, color: statusColors[group.status] ?? "#6b7280" }}>
+                            {group.status.replace("_", " ")}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handlePrintReceipt(group); }}
+                            className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
+                            title="Print Receipt"
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -933,9 +939,9 @@ function PastSchedules({ groupAppointments, handlePrintReceipt }: { groupAppoint
                   }).join(", ");
                   const staffNames = Array.from(new Set(group.appointments.map((a: any) => a.staff?.name).filter(Boolean))).join(", ");
                   return (
-                    <div key={group.id} className="flex items-center justify-between gap-4 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all"
+                    <div key={group.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl hover:bg-[var(--bg-card)] transition-all"
                       style={{ border: "1px solid var(--border-subtle)" }}>
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
                         <div className="avatar w-9 h-9 text-xs flex-shrink-0">{initials}</div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
@@ -972,8 +978,8 @@ function PastSchedules({ groupAppointments, handlePrintReceipt }: { groupAppoint
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <div className="text-right">
+                      <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0 w-full sm:w-auto border-t sm:border-t-0 border-[var(--border-subtle)] pt-2 sm:pt-0 mt-1 sm:mt-0">
+                        <div className="text-left sm:text-right">
                           <span className="text-xs font-semibold tabular-nums block" style={{ color: "var(--text-secondary)" }}>
                             {new Date(group.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} · {group.endTime}
                           </span>
@@ -981,18 +987,20 @@ function PastSchedules({ groupAppointments, handlePrintReceipt }: { groupAppoint
                             ₹{group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0).toLocaleString("en-IN")}
                           </span>
                         </div>
-                        <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-                          style={{ background: `${statusColors[group.status] ?? "#6b7280"}15`, color: statusColors[group.status] ?? "#6b7280" }}>
-                          {group.status.replace("_", " ")}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handlePrintReceipt(group); }}
-                          className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
-                          title="Print Receipt"
-                        >
-                          <Printer className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-3 ml-auto sm:ml-0">
+                          <span className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+                            style={{ background: `${statusColors[group.status] ?? "#6b7280"}15`, color: statusColors[group.status] ?? "#6b7280" }}>
+                            {group.status.replace("_", " ")}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handlePrintReceipt(group); }}
+                            className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors flex items-center justify-center"
+                            title="Print Receipt"
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );

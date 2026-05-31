@@ -350,7 +350,7 @@ function ProductsPageContent() {
 
       {/* Filters */}
       <div className="glass-card p-4 space-y-4">
-        <div className="flex flex-col sm:flex-row items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative flex-1 max-w-[280px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-muted)" }} />
             <input type="text" placeholder="Search by name, brand, SKU..." className="input-field pl-10 w-full"
