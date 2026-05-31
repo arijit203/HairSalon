@@ -361,10 +361,10 @@ const getCachedAnalytics = unstable_cache(
       ]
     };
   },
-  ["analytics-data"],
+  ["analytics-data-v2"],
   {
     revalidate: 3600, // 1 hour cache time
-    tags: ["analytics"]
+    tags: ["analytics-v2"]
   }
 );
 

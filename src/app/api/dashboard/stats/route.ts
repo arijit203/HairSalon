@@ -119,10 +119,10 @@ const getCachedDashboardData = unstable_cache(
       todayAppointments,
     };
   },
-  ["dashboard-stats"],
+  ["dashboard-stats-v2"],
   {
     revalidate: 3600, // 1 hour cache time
-    tags: ["dashboard-stats"]
+    tags: ["dashboard-stats-v2"]
   }
 );
 
