@@ -97,8 +97,7 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
   }, [open]);
 
   const allCategories = useMemo(() => {
-    const defaultCats = ["Hair Care", "Skin Care", "Nail Care", "Body Care", "Packages", "Tools", "Spa"];
-    const merged = Array.from(new Set([...defaultCats, ...dynamicCategories, ...serviceCategories, ...customCategories]));
+    const merged = Array.from(new Set([...dynamicCategories, ...serviceCategories, ...customCategories]));
     return merged;
   }, [dynamicCategories, serviceCategories, customCategories]);
 

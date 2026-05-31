@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Scissors,
@@ -25,14 +25,18 @@ interface Service {
   imageUrl: string | null;
 }
 
-const CATEGORIES = ["ALL", "HAIR CARE", "SKIN CARE", "NAIL CARE", "BODY CARE", "PACKAGES", "TOOLS", "SPA"];
-
 export default function PortalServicesPage() {
   const router = useRouter();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const CATEGORIES = useMemo(() => {
+    const cats = services.map(s => (s.category || "").toUpperCase()).filter(Boolean);
+    const unique = Array.from(new Set(cats));
+    return ["ALL", ...unique];
+  }, [services]);
 
   useEffect(() => {
     async function loadServices() {

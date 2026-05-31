@@ -57,9 +57,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingBackup, setEditingBackup] = useState<ParsedItem | null>(null);
-  const [allCategoriesList, setAllCategoriesList] = useState<string[]>([
-    "Hair Care", "Skin Care", "Nail Care", "Body Care", "Packages", "Tools", "Spa"
-  ]);
+  const [allCategoriesList, setAllCategoriesList] = useState<string[]>([]);
   const [existingProducts, setExistingProducts] = useState<any[]>([]);
 
   // Load custom categories from localStorage
