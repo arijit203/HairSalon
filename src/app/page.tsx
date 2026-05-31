@@ -16,15 +16,15 @@ import { useToast } from "@/context/ToastContext";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface DashboardStats {
-  revenue:      { thisMonth: number; lastMonth: number; changePercent: number };
-  bookings:     { today: number; newToday: number };
-  clients:      { total: number; newThisMonth: number };
+  revenue: { thisMonth: number; lastMonth: number; changePercent: number };
+  bookings: { today: number; newToday: number };
+  clients: { total: number; newThisMonth: number };
   productsSold: { thisMonth: number; lastMonth: number; changePercent: number };
-  alerts:       { lowStockCount: number; outOfStockCount: number };
+  alerts: { lowStockCount: number; outOfStockCount: number };
   todayAppointments: any[];
 }
 interface AnalyticsData {
-  revenueData:      { label: string; revenue: number }[];
+  revenueData: { label: string; revenue: number }[];
   serviceRevenue: { name: string; revenue: number; growth: number }[];
 }
 
@@ -35,18 +35,18 @@ const PERIOD_LABELS: Record<string, string> = {
   "6M": "6 Months",
 };
 
-const PIE_COLORS = ["#f43f5e","#a855f7","#06b6d4","#f59e0b","#10b981","#6366f1"];
+const PIE_COLORS = ["#f43f5e", "#a855f7", "#06b6d4", "#f59e0b", "#10b981", "#6366f1"];
 
 const statusColors: Record<string, string> = {
   IN_PROGRESS: "#a855f7",
-  PENDING:     "#f59e0b",
-  COMPLETED:   "#10b981",
-  CANCELLED:   "#6b7280",
+  PENDING: "#f59e0b",
+  COMPLETED: "#10b981",
+  CANCELLED: "#6b7280",
 };
 
 function fmt(n: number) {
   if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000)   return `₹${(n / 1000).toFixed(1)}k`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
   return `₹${n.toLocaleString("en-IN")}`;
 }
 
@@ -391,9 +391,9 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="page-title flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-amber-400" /> {greeting}, Admin
+            <Sparkles className="w-5 h-5 text-amber-400" /> {greeting}, Admin <Sparkles className="w-5 h-5 text-amber-400" />
           </h1>
-          <p className="page-subtitle">Here&apos;s what&apos;s happening at your salon today.</p>
+          <p className="page-subtitle pl-7">Here&apos;s what&apos;s happening at your salon today.</p>
         </div>
         <div className="flex items-center gap-3">
           <button className="btn-primary" onClick={() => openBooking()}><Plus className="w-4 h-4" /> New Booking</button>
@@ -425,30 +425,30 @@ export default function DashboardPage() {
         {statsLoading
           ? Array(4).fill(0).map((_, i) => <StatCardSkeleton key={i} />)
           : statCards.map((card) => {
-              const Icon = card.icon;
-              const isPositive = card.isCount ? (card.change as number) >= 0 : (card.change as number) >= 0;
-              return (
-                <div key={card.label} className="glass-card p-5 hover:scale-[1.01] transition-all duration-200">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-                      style={{ background: `${card.color}18` }}>
-                      <Icon className="w-5 h-5" style={{ color: card.color }} />
-                    </div>
-                    {!card.isCount && (
-                      <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${isPositive ? "text-emerald-400 bg-emerald-400/10" : "text-red-400 bg-red-400/10"}`}>
-                        {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                        {Math.abs(card.change as number)}%
-                      </span>
-                    )}
+            const Icon = card.icon;
+            const isPositive = card.isCount ? (card.change as number) >= 0 : (card.change as number) >= 0;
+            return (
+              <div key={card.label} className="glass-card p-5 hover:scale-[1.01] transition-all duration-200">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                    style={{ background: `${card.color}18` }}>
+                    <Icon className="w-5 h-5" style={{ color: card.color }} />
                   </div>
-                  <p className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>{card.value}</p>
-                  <p className="text-xs font-medium mb-0.5" style={{ color: "var(--text-muted)" }}>{card.label}</p>
-                  {card.sub && (
-                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>{card.sub}</p>
+                  {!card.isCount && (
+                    <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${isPositive ? "text-emerald-400 bg-emerald-400/10" : "text-red-400 bg-red-400/10"}`}>
+                      {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      {Math.abs(card.change as number)}%
+                    </span>
                   )}
                 </div>
-              );
-            })}
+                <p className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>{card.value}</p>
+                <p className="text-xs font-medium mb-0.5" style={{ color: "var(--text-muted)" }}>{card.label}</p>
+                {card.sub && (
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{card.sub}</p>
+                )}
+              </div>
+            );
+          })}
       </div>
 
       {/* Charts Row */}
@@ -481,13 +481,13 @@ export default function DashboardPage() {
               <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#f43f5e" stopOpacity={0.3} />
+                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
                     <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
                 <XAxis dataKey="name" tick={{ fill: "var(--text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tickFormatter={v => `₹${(v/1000).toFixed(0)}k`} tick={{ fill: "var(--text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} tick={{ fill: "var(--text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} />
                 <Tooltip
                   contentStyle={{ background: "var(--bg-card)", border: "1px solid var(--border-default)", borderRadius: "12px" }}
                   labelStyle={{ color: "var(--text-primary)" }}
@@ -819,9 +819,9 @@ function PastSchedules({ groupAppointments, handlePrintReceipt }: { groupAppoint
 
   const statusColors: Record<string, string> = {
     IN_PROGRESS: "#a855f7",
-    PENDING:     "#f59e0b",
-    COMPLETED:   "#10b981",
-    CANCELLED:   "#6b7280",
+    PENDING: "#f59e0b",
+    COMPLETED: "#10b981",
+    CANCELLED: "#6b7280",
   };
 
   return (
