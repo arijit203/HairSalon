@@ -22,8 +22,10 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
   const [description, setDescription] = useState("");
   const [dynamicCategories, setDynamicCategories] = useState<string[]>([]);
   const [productCategories, setProductCategories] = useState<string[]>([]);
-  const [selectedCategoryOption, setSelectedCategoryOption] = useState("Hair Care");
-  const [customCategory, setCustomCategory] = useState("");
+  const [category, setCategory] = useState<string>("");
+  const [showAddCategoryInput, setShowAddCategoryInput] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [price, setPrice] = useState("");
   const [isPopular, setIsPopular] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -40,7 +42,7 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
       .then((r) => r.json())
       .then((d) => {
         if (d.data) {
-          const cats = d.data.map((s: any) => s.category);
+          const cats = d.data.flatMap((s: any) => s.category || []);
           const uniqueCats = Array.from(new Set(cats)).filter(Boolean) as string[];
           setDynamicCategories(uniqueCats.sort());
         }
@@ -57,32 +59,66 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
         }
       })
       .catch((err) => console.error("Error loading products for categories:", err));
+
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("wyapar_custom_categories") || localStorage.getItem("wyapar_service_categories");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+             setCustomCategories(parsed);
+          }
+        } catch (e) {
+          console.error("Error parsing custom categories:", e);
+        }
+      }
+    }
   }, [open]);
 
   const allCategories = useMemo(() => {
-    const defaultCats = ["Hair Care", "Skin Care", "Nail Care", "Body Care", "Packages", "Tools", "Spa"];
-    const merged = Array.from(new Set([...defaultCats, ...dynamicCategories, ...productCategories, ...(extraCategories || [])]));
+    const merged = Array.from(new Set([
+      ...dynamicCategories, ...productCategories, ...customCategories, ...(extraCategories || [])
+    ]));
     return merged;
-  }, [dynamicCategories, productCategories, extraCategories]);
+  }, [dynamicCategories, productCategories, customCategories, extraCategories]);
 
   // Load editing service data if provided
   useEffect(() => {
     if (open && editingService) {
       setName(editingService.name || "");
       setDescription(editingService.description || "");
-      setSelectedCategoryOption(editingService.category || "Hair Care");
-      setCustomCategory("");
+      setCategory(editingService.category || "General");
       setPrice(editingService.price ? String(editingService.price) : "");
       setIsPopular(editingService.isPopular || false);
     } else if (open) {
       setName("");
       setDescription("");
-      setSelectedCategoryOption(defaultCategory || "Hair Care");
-      setCustomCategory("");
+      setCategory(defaultCategory ? defaultCategory : "General");
       setPrice("");
       setIsPopular(false);
+      setShowAddCategoryInput(false);
+      setNewCategoryName("");
     }
   }, [open, editingService, defaultCategory]);
+
+  const handleAddCategoryInline = () => {
+    const nameToUse = newCategoryName.trim();
+    if (!nameToUse) return;
+
+    if (allCategories.some((c) => c.toLowerCase() === nameToUse.toLowerCase())) {
+      const existing = allCategories.find((c) => c.toLowerCase() === nameToUse.toLowerCase()) || nameToUse;
+      setCategory(existing);
+    } else {
+      const updated = [...customCategories, nameToUse];
+      setCustomCategories(updated);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("wyapar_custom_categories", JSON.stringify(updated));
+      }
+      setCategory(nameToUse);
+    }
+    setNewCategoryName("");
+    setShowAddCategoryInput(false);
+  };
 
   const handleClose = () => {
     if (submitting) return;
@@ -92,16 +128,7 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return toastError("Service name is required");
-    const finalCategory = selectedCategoryOption === "__new__" ? customCategory.trim() : selectedCategoryOption;
-    if (!finalCategory) return toastError("Category is required");
-    if (selectedCategoryOption === "__new__") {
-      const duplicate = allCategories.find(
-        c => c.toLowerCase() === customCategory.trim().toLowerCase()
-      );
-      if (duplicate) {
-        return toastError(`Category "${duplicate}" already exists. Please select it from the dropdown.`);
-      }
-    }
+    if (!category) return toastError("Category is required");
     if (price === "" || parseFloat(price) < 0) return toastError("Price cannot be negative");
 
     setSubmitting(true);
@@ -112,7 +139,7 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
       const payload = {
         name: name.trim(),
         description: description.trim() || undefined,
-        category: finalCategory,
+        category: category,
         price: parseFloat(price),
         isPopular,
       };
@@ -204,49 +231,80 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                 />
               </div>
 
-              {/* Category */}
+              {/* Categories */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                  Category *
+                <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>
+                  Categories * (Select one or more)
                 </label>
-                <div className="relative">
-                  <select
-                    className="input-field appearance-none pr-10"
-                    value={selectedCategoryOption}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSelectedCategoryOption(val);
-                    }}
-                    disabled={submitting}
-                  >
-                    {allCategories.map((cat) => (
-                      <option key={cat} value={cat}>
+                <div className="flex flex-wrap gap-2 p-3 rounded-xl border border-zinc-200 dark:border-white/[0.06] bg-zinc-50/50 dark:bg-white/[0.02] max-h-[140px] overflow-y-auto">
+                  {allCategories.map((cat) => {
+                    const isSelected = category === cat;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setCategory(cat)}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border focus:outline-none ${
+                          isSelected
+                            ? "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-300 hover:bg-rose-500/20 shadow-[0_2px_8px_rgba(244,63,94,0.06)]"
+                            : "border-zinc-200 dark:border-white/[0.06] bg-zinc-50 dark:bg-white/[0.02] text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/[0.06] hover:border-zinc-300 dark:hover:border-white/[0.12]"
+                        }`}
+                      >
                         {cat}
-                      </option>
-                    ))}
-                    <option value="__new__">+ Add New Category...</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+                      </button>
+                    );
+                  })}
+                  
+                  {/* Add Custom Category Inline Form */}
+                  {showAddCategoryInput ? (
+                    <div className="flex items-center gap-1.5 animate-fade-in">
+                      <input
+                        type="text"
+                        placeholder="New category..."
+                        className="px-3 py-1 text-xs rounded-full border border-zinc-200 dark:border-white/[0.12] bg-zinc-50 dark:bg-[#1a1a1a] text-zinc-800 dark:text-white outline-none focus:border-rose-500/50 w-[120px] transition-all"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddCategoryInline();
+                          } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            setShowAddCategoryInput(false);
+                            setNewCategoryName("");
+                          }
+                        }}
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddCategoryInline}
+                        className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors focus:outline-none"
+                      >
+                        Add
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddCategoryInput(false);
+                          setNewCategoryName("");
+                        }}
+                        className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-zinc-200 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-white/[0.12] transition-colors focus:outline-none"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCategoryInput(true)}
+                      className="px-3 py-1 rounded-full text-xs font-semibold border border-dashed border-zinc-200 dark:border-white/[0.1] bg-transparent text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-white/30 hover:bg-zinc-50 dark:hover:bg-white/[0.04] hover:text-zinc-800 dark:hover:text-white transition-all flex items-center gap-1 focus:outline-none"
+                    >
+                      + Add New...
+                    </button>
+                  )}
                 </div>
               </div>
-
-              {/* Conditional Custom Category Input */}
-              {selectedCategoryOption === "__new__" && (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                    New Category Name *
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Enter new category name"
-                    className="input-field"
-                    value={customCategory}
-                    onChange={(e) => setCustomCategory(e.target.value)}
-                    disabled={submitting}
-                    required
-                  />
-                </div>
-              )}
 
               {/* Price */}
               <div className="space-y-1.5">
