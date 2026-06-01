@@ -8,17 +8,8 @@ import {
   ChevronRight, AlertCircle, Clock, Printer, Package,
 } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
+import { isComboCategory, getComboSummary, type Service } from "@/lib/services";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface Service {
-  id: string;
-  name: string;
-  category: string;
-  price: number | string;
-  discountPrice?: number | string | null;
-  isPopular: boolean;
-}
 
 interface Product {
   id: string;
@@ -433,6 +424,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
   // Pricing
   const [salePrice, setSalePrice] = useState("");
   const [discountPct, setDiscountPct] = useState("0");
+  const [discountType, setDiscountType] = useState<"PERCENTAGE" | "FIXED">("PERCENTAGE");
   const [taxPct, setTaxPct] = useState(0); // 0 = None
 
   // Submission
@@ -467,7 +459,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
     // Load services (filter out internal "Product Sale" dummy service)
     setServicesLoading(true);
-    fetch("/api/services?limit=100")
+    fetch("/api/services?limit=200")
       .then(r => r.json())
       .then(d => {
         if (d.data) {
@@ -632,8 +624,9 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
       s.category.toLowerCase().includes(serviceSearch.toLowerCase())
     );
     return filtered.reduce<Record<string, Service[]>>((acc, s) => {
-      acc[s.category] = acc[s.category] ?? [];
-      acc[s.category].push(s);
+      const cat = s.category || "General";
+      acc[cat] = acc[cat] ?? [];
+      acc[cat].push(s);
       return acc;
     }, {});
   }, [services, serviceSearch]);
@@ -730,10 +723,18 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
   const salePriceNum = parseFloat(salePrice) || 0;
   const discountNum = parseFloat(discountPct) || 0;
-  const discountAmt = Math.round(salePriceNum * discountNum / 100);
+  const discountAmt = discountType === "PERCENTAGE" 
+    ? Math.round(salePriceNum * discountNum / 100)
+    : Math.round(discountNum);
+    
   const priceAfterDiscount = Math.max(0, salePriceNum - discountAmt);
   const taxAmt = Math.round(priceAfterDiscount * taxPct / 100);
   const finalPrice = priceAfterDiscount + taxAmt;
+  
+  // Calculate equivalent percentage to send to API
+  const effectiveDiscountPct = discountType === "PERCENTAGE" 
+    ? discountNum 
+    : (salePriceNum > 0 ? (discountNum / salePriceNum) * 100 : 0);
 
   const displayTimeSummary = (timeHH && timeMM)
     ? `${timeHH}:${timeMM} ${timeAmPm.toLowerCase()}`
@@ -1183,7 +1184,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
           notes: notes.trim() || undefined,
           status: bookingMode === "product" ? "COMPLETED" : (status || undefined),
           taxPct,
-          discountPct: discountNum,
+          discountPct: effectiveDiscountPct,
           paymentMethod,
           ...(editingGroup && { deleteAppointmentIds: editingGroup.appointments.map((a: any) => a.id) }),
         }),
@@ -1205,7 +1206,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
         time: finalTime || apptData.data.startTime,
         endTime: isFutureDate ? apptData.data.endTime : finalEndTime,
         salePrice: salePriceNum,
-        discountPct: discountNum,
+        discountPct: effectiveDiscountPct,
         taxPct,
         taxAmt,
         finalPrice,
@@ -1682,6 +1683,11 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                                     setSalePrice(String(sumPrice));
                                     setDiscountPct("0");
                                   };
+                                  const isCombo = isComboCategory(svc.category);
+                                  const comboSummary = isCombo ? getComboSummary(svc.description || "", services) : "";
+                                  const accentColor = isCombo ? "#8b5cf6" : "#f43f5e";
+                                  const accentBg = isCombo ? "rgba(139,92,246,0.1)" : "rgba(244,63,94,0.1)";
+                                  const accentBorder = isCombo ? "rgba(139,92,246,0.35)" : "rgba(244,63,94,0.35)";
                                   return (
                                     <button
                                       type="button"
@@ -1689,28 +1695,36 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                                       onClick={handleToggleService}
                                       className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-left"
                                       style={{
-                                        background: isSelected ? "rgba(244,63,94,0.1)" : "var(--bg-card)",
-                                        border: `1px solid ${isSelected ? "rgba(244,63,94,0.35)" : "var(--border-subtle)"}`,
+                                        background: isSelected ? accentBg : "var(--bg-card)",
+                                        border: `1px solid ${isSelected ? accentBorder : "var(--border-subtle)"}`,
                                       }}
                                     >
                                       <div className="flex items-center gap-2.5">
                                         <div
                                           className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                                          style={{ background: isSelected ? "rgba(244,63,94,0.15)" : "rgba(255,255,255,0.04)" }}
+                                          style={{ background: isSelected ? (isCombo ? "rgba(139,92,246,0.15)" : "rgba(244,63,94,0.15)") : "rgba(255,255,255,0.04)" }}
                                         >
-                                          <Scissors className="w-3.5 h-3.5" style={{ color: isSelected ? "#f43f5e" : "var(--text-muted)" }} />
+                                          {isCombo
+                                            ? <Package className="w-3.5 h-3.5" style={{ color: isSelected ? accentColor : "var(--text-muted)" }} />
+                                            : <Scissors className="w-3.5 h-3.5" style={{ color: isSelected ? accentColor : "var(--text-muted)" }} />
+                                          }
                                         </div>
                                         <div>
-                                          <p className="text-xs font-semibold" style={{ color: isSelected ? "#f43f5e" : "var(--text-primary)" }}>
+                                          <p className="text-xs font-semibold" style={{ color: isSelected ? accentColor : "var(--text-primary)" }}>
                                             {svc.name}
                                           </p>
+                                          {comboSummary && (
+                                            <p className="text-xs mt-0.5" style={{ color: isSelected ? accentColor : "var(--text-muted)", opacity: 0.85 }}>
+                                              Includes: {comboSummary}
+                                            </p>
+                                          )}
                                         </div>
                                       </div>
                                       <div className="text-right">
-                                        <p className="text-xs font-bold" style={{ color: isSelected ? "#f43f5e" : "var(--text-primary)" }}>
+                                        <p className="text-xs font-bold" style={{ color: isSelected ? accentColor : "var(--text-primary)" }}>
                                           ₹{Number(svc.price).toLocaleString("en-IN")}
                                         </p>
-                                        {isSelected && <Check className="w-3.5 h-3.5 text-rose-400 ml-auto mt-0.5" />}
+                                        {isSelected && <Check className="w-3.5 h-3.5 ml-auto mt-0.5" style={{ color: accentColor }} />}
                                       </div>
                                     </button>
                                   );
@@ -2161,11 +2175,15 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                           </label>
                           <div className="flex gap-2">
                             <div className="relative flex-1">
-                              <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+                              {discountType === "PERCENTAGE" ? (
+                                <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+                              ) : (
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold pointer-events-none" style={{ color: "var(--text-muted)" }}>₹</span>
+                              )}
                               <input
                                 type="number"
                                 min="0"
-                                max="100"
+                                max={discountType === "PERCENTAGE" ? "100" : undefined}
                                 step="1"
                                 placeholder="0"
                                 className="input-field pl-8"
@@ -2173,16 +2191,18 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                                 onChange={e => setDiscountPct(e.target.value)}
                               />
                             </div>
-                            <div
-                              className="flex items-center px-3 rounded-xl text-xs font-semibold flex-shrink-0"
+                            <button
+                              type="button"
+                              onClick={() => setDiscountType(discountType === "PERCENTAGE" ? "FIXED" : "PERCENTAGE")}
+                              className="flex items-center px-4 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95"
                               style={{
                                 background: "rgba(255,255,255,0.03)",
                                 border: "1px solid var(--border-subtle)",
                                 color: "var(--text-muted)",
                               }}
                             >
-                              Percentage
-                            </div>
+                              {discountType === "PERCENTAGE" ? "Percentage" : "Fixed (₹)"}
+                            </button>
                           </div>
                         </div>
 
@@ -2245,7 +2265,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                         {discountNum > 0 && (
                           <div className="flex items-center justify-between text-sm">
                             <span style={{ color: "var(--text-secondary)" }}>
-                              Discount ({discountNum}%)
+                              Discount ({discountNum}{discountType === "PERCENTAGE" ? "%" : "₹"})
                             </span>
                             <span className="text-emerald-400">−₹{discountAmt.toLocaleString("en-IN")}</span>
                           </div>
@@ -2348,7 +2368,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                             </div>
                             {discountNum > 0 && (
                               <div className="flex items-center justify-between text-xs">
-                                <span style={{ color: "var(--text-secondary)" }}>Discount ({discountNum}%)</span>
+                                <span style={{ color: "var(--text-secondary)" }}>Discount ({discountNum}{discountType === "PERCENTAGE" ? "%" : "₹"})</span>
                                 <span className="text-emerald-400 font-semibold">−₹{discountAmt.toLocaleString("en-IN")}</span>
                               </div>
                             )}

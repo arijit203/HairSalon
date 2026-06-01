@@ -18,6 +18,13 @@ export function applyAccentColor(color: string) {
     document.documentElement.style.setProperty("--accent-rose", pal.main);
     document.documentElement.style.setProperty("--accent-rose-dark", pal.dark);
     document.documentElement.style.setProperty("--accent-rose-light", pal.light);
+    
+    // Parse hex to set rgb components for background transparencies
+    const hex = pal.main.replace("#", "");
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    document.documentElement.style.setProperty("--accent-rose-rgb", `${r}, ${g}, ${b}`);
   }
 }
 

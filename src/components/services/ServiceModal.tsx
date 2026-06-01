@@ -3,8 +3,27 @@
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Scissors, Tag, Loader2, ChevronDown, Sparkles } from "lucide-react";
+import { X, Scissors, Tag, Loader2, ChevronDown, Sparkles, Check, Package } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
+import { isComboCategory, parseComboIds } from "@/lib/services";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Strip [combo:...] tag from description text for display */
+function stripComboTag(desc: string): string {
+  return (desc || "").replace(/\s*\[combo:[^\]]*\]/, "").trim();
+}
+
+/** Build description with combo tag appended */
+function buildDescription(cleanDesc: string, comboIds: string[]): string | undefined {
+  const base = cleanDesc.trim();
+  if (comboIds.length === 0) return base || undefined;
+  const tag = `[combo:${comboIds.join(",")}]`;
+  return base ? `${base} ${tag}` : tag;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 
 interface ServiceModalProps {
   open: boolean;
@@ -31,23 +50,44 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
   const [submitting, setSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  // Combo state
+  const [allServices, setAllServices] = useState<{ id: string; name: string; price: number; category: string }[]>([]);
+  const [selectedComboIds, setSelectedComboIds] = useState<string[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Load existing categories
+  // Load existing categories and all services (for combo selection)
   useEffect(() => {
     if (!open) return;
-    fetch("/api/services?limit=100")
+
+    // Load services
+    setServicesLoading(true);
+    fetch("/api/services?limit=200")
       .then((r) => r.json())
       .then((d) => {
         if (d.data) {
-          const cats = d.data.flatMap((s: any) => s.category || []);
+          // Deduplicate categories
+          const cats = d.data.map((s: any) => s.category).filter(Boolean);
           const uniqueCats = Array.from(new Set(cats)).filter(Boolean) as string[];
           setDynamicCategories(uniqueCats.sort());
+
+          // Store all non-combo services for combo selection
+          const nonCombos = d.data.filter((s: any) => !isComboCategory(s.category || ""));
+          setAllServices(
+            nonCombos.map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              price: Number(s.price),
+              category: s.category,
+            }))
+          );
         }
       })
-      .catch((err) => console.error("Error loading services for categories:", err));
+      .catch((err) => console.error("Error loading services:", err))
+      .finally(() => setServicesLoading(false));
 
     fetch("/api/products?limit=100")
       .then((r) => r.json())
@@ -60,13 +100,14 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
       })
       .catch((err) => console.error("Error loading products for categories:", err));
 
+    // Load custom categories from localStorage
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("wyapar_custom_categories") || localStorage.getItem("wyapar_service_categories");
+      const saved = localStorage.getItem("wyapar_custom_categories");
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
-             setCustomCategories(parsed);
+            setCustomCategories(parsed);
           }
         } catch (e) {
           console.error("Error parsing custom categories:", e);
@@ -86,14 +127,17 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
   useEffect(() => {
     if (open && editingService) {
       setName(editingService.name || "");
-      setDescription(editingService.description || "");
-      setCategory(editingService.category || "General");
+      const rawDesc: string = editingService.description || "";
+      setDescription(stripComboTag(rawDesc));
+      setSelectedComboIds(parseComboIds(rawDesc));
+      setCategory(editingService.category || "");
       setPrice(editingService.price ? String(editingService.price) : "");
       setIsPopular(editingService.isPopular || false);
     } else if (open) {
       setName("");
       setDescription("");
-      setCategory(defaultCategory ? defaultCategory : "General");
+      setSelectedComboIds([]);
+      setCategory(defaultCategory ? defaultCategory : "");
       setPrice("");
       setIsPopular(false);
       setShowAddCategoryInput(false);
@@ -131,14 +175,24 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
     if (!category) return toastError("Category is required");
     if (price === "" || parseFloat(price) < 0) return toastError("Price cannot be negative");
 
+    // Validate combo
+    if (isComboCategory(category) && selectedComboIds.length < 2) {
+      return toastError("A combo must include at least 2 services");
+    }
+
     setSubmitting(true);
     try {
       const url = editingService ? `/api/services/${editingService.id}` : "/api/services";
       const method = editingService ? "PATCH" : "POST";
 
+      // Build description – embed combo tag if needed
+      const finalDescription = isComboCategory(category)
+        ? buildDescription(description, selectedComboIds)
+        : description.trim() || undefined;
+
       const payload = {
         name: name.trim(),
-        description: description.trim() || undefined,
+        description: finalDescription,
         category: category,
         price: parseFloat(price),
         isPopular,
@@ -164,6 +218,16 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
       setSubmitting(false);
     }
   };
+
+  // Derived: is the current category a combo?
+  const isCombo = isComboCategory(category);
+
+  // Derived: total list price of selected combo services
+  const comboTotalListPrice = useMemo(() => {
+    return allServices
+      .filter((s) => selectedComboIds.includes(s.id))
+      .reduce((sum, s) => sum + s.price, 0);
+  }, [allServices, selectedComboIds]);
 
   if (!mounted) return null;
 
@@ -199,9 +263,13 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-subtle)]">
               <div className="flex items-center gap-2">
-                <Scissors className="w-5 h-5 text-rose-400" />
+                {isCombo ? (
+                  <Package className="w-5 h-5 text-violet-400" />
+                ) : (
+                  <Scissors className="w-5 h-5 text-rose-400" />
+                )}
                 <h3 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-playfair)" }}>
-                  {editingService ? "Edit Service" : "Add New Service"}
+                  {editingService ? (isCombo ? "Edit Combo Offer" : "Edit Service") : (isCombo ? "Add Combo Offer" : "Add New Service")}
                 </h3>
               </div>
               <button
@@ -218,11 +286,11 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
               {/* Name */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                  Service Name *
+                  {isCombo ? "Combo Name *" : "Service Name *"}
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g., Keratin Treatment"
+                  placeholder={isCombo ? "e.g., Hair Cut & Facial Combo" : "e.g., Keratin Treatment"}
                   className="input-field"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -248,6 +316,10 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                         } else {
                           setShowAddCategoryInput(false);
                           setCategory(val);
+                          // Reset combo selection when switching away from combo category
+                          if (!isComboCategory(val)) {
+                            setSelectedComboIds([]);
+                          }
                         }
                       }}
                       disabled={submitting}
@@ -265,7 +337,7 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                     </select>
                     <ChevronDown className="w-4 h-4 text-zinc-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
-                  
+
                   {/* Add Custom Category Inline Form */}
                   {showAddCategoryInput && (
                     <div className="flex items-center gap-1.5 animate-fade-in mt-2">
@@ -319,10 +391,105 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                 </div>
               </div>
 
+              {/* ── COMBO SERVICE SELECTOR ─────────────────────────────── */}
+              {isCombo && (
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>
+                    Enclosed Services *{" "}
+                    <span className="font-normal" style={{ color: "var(--text-muted)" }}>
+                      (select at least 2)
+                    </span>
+                  </label>
+
+                  {/* Info banner */}
+                  {comboTotalListPrice > 0 && (
+                    <div
+                      className="flex items-center justify-between px-3 py-2 rounded-xl text-xs"
+                      style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)" }}
+                    >
+                      <span style={{ color: "var(--text-muted)" }}>
+                        Sum of selected services
+                      </span>
+                      <span className="font-bold text-violet-400">
+                        ₹{comboTotalListPrice.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Service checkbox list */}
+                  <div
+                    className="rounded-xl overflow-hidden max-h-52 overflow-y-auto"
+                    style={{ border: "1px solid var(--border-default)" }}
+                  >
+                    {servicesLoading ? (
+                      <div className="flex items-center justify-center py-6">
+                        <Loader2 className="w-4 h-4 animate-spin text-violet-400" />
+                      </div>
+                    ) : allServices.length === 0 ? (
+                      <p className="text-center text-xs py-6" style={{ color: "var(--text-muted)" }}>
+                        No services found. Add individual services first.
+                      </p>
+                    ) : (
+                      allServices.map((svc) => {
+                        const checked = selectedComboIds.includes(svc.id);
+                        return (
+                          <label
+                            key={svc.id}
+                            className="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors"
+                            style={{
+                              background: checked ? "rgba(139,92,246,0.07)" : "transparent",
+                              borderBottom: "1px solid var(--border-subtle)",
+                            }}
+                          >
+                            {/* Custom checkbox */}
+                            <div
+                              className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+                              style={{
+                                background: checked ? "#8b5cf6" : "transparent",
+                                border: `1.5px solid ${checked ? "#8b5cf6" : "var(--border-default)"}`,
+                              }}
+                            >
+                              {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                            </div>
+                            <input
+                              type="checkbox"
+                              className="sr-only"
+                              checked={checked}
+                              onChange={() => {
+                                setSelectedComboIds((prev) =>
+                                  checked ? prev.filter((id) => id !== svc.id) : [...prev, svc.id]
+                                );
+                              }}
+                              disabled={submitting}
+                            />
+                            <span className="flex-1 text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+                              {svc.name}
+                            </span>
+                            <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+                              ₹{svc.price.toLocaleString("en-IN")}
+                            </span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                  {selectedComboIds.length > 0 && (
+                    <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                      {selectedComboIds.length} service{selectedComboIds.length > 1 ? "s" : ""} selected
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Price */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                  Price (₹) *
+                  {isCombo ? "Combo Price (₹) *" : "Price (₹) *"}
+                  {isCombo && comboTotalListPrice > 0 && (
+                    <span className="ml-2 font-normal text-violet-400">
+                      (save ₹{Math.max(0, comboTotalListPrice - (parseFloat(price) || 0)).toLocaleString("en-IN")} vs. individual)
+                    </span>
+                  )}
                 </label>
                 <div className="relative">
                   <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
@@ -330,7 +497,7 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                     type="number"
                     min="0"
                     step="any"
-                    placeholder="800"
+                    placeholder={isCombo ? "e.g., 1200 (less than sum above)" : "800"}
                     className="input-field pl-9"
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
@@ -338,6 +505,11 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                     required
                   />
                 </div>
+                {isCombo && comboTotalListPrice > 0 && parseFloat(price) >= comboTotalListPrice && (
+                  <p className="text-[10px] text-amber-500">
+                    ⚠️ Combo price should be less than the sum (₹{comboTotalListPrice.toLocaleString("en-IN")}) to offer a discount
+                  </p>
+                )}
               </div>
 
               {/* Description */}
@@ -347,7 +519,7 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Describe the service details, products used, or who it is best for..."
+                  placeholder={isCombo ? "Describe what is included or any special notes..." : "Describe the service details, products used, or who it is best for..."}
                   className="input-field resize-none"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -367,7 +539,7 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                 <div>
                   <p className="text-xs font-semibold flex items-center gap-1" style={{ color: "var(--text-primary)" }}>
                     <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    Feature this service
+                    Feature this {isCombo ? "combo" : "service"}
                   </p>
                   <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
                     Mark as a popular choice to display a featured badge.
@@ -389,9 +561,10 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                   type="submit"
                   className="btn-primary py-2 px-5 text-sm flex items-center gap-1.5"
                   disabled={submitting}
+                  style={isCombo ? { background: "linear-gradient(135deg, #7c3aed, #a855f7)" } : {}}
                 >
                   {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {editingService ? "Update Service" : "Create Service"}
+                  {editingService ? (isCombo ? "Update Combo" : "Update Service") : (isCombo ? "Create Combo" : "Create Service")}
                 </button>
               </div>
             </form>

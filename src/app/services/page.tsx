@@ -24,6 +24,13 @@ import {
   Crown,
   Wrench,
   Smile,
+  Palette,
+  Droplets,
+  Footprints,
+  Gem,
+  Package,
+  Gift,
+  HeartPulse,
   type LucideIcon,
 } from "lucide-react";
 import { useState, useEffect, useMemo, Suspense } from "react";
@@ -33,58 +40,13 @@ import { useToast } from "@/context/ToastContext";
 import { useBooking } from "@/context/BookingContext";
 import ServiceModal from "@/components/services/ServiceModal";
 import Modal from "@/components/ui/Modal";
+import { 
+  isComboCategory, 
+  getComboSummary, 
+  mapServiceToIcon, 
+  mapCategoryToColor 
+} from "@/lib/services";
 
-const serviceCategories = ["All", "Hair Care", "Skin Care", "Nail Care", "Body Care", "Packages", "Tools", "Spa"];
-
-const mapCategoryToIcon = (cat: string): LucideIcon => {
-  switch (cat.toLowerCase()) {
-    case "hair":
-    case "hair care":
-      return Scissors;
-    case "skin & facial":
-    case "skin care":
-      return Sparkles;
-    case "nails":
-    case "nail care":
-      return Paintbrush;
-    case "body & wax":
-    case "body care":
-      return Heart;
-    case "packages":
-      return Crown;
-    case "tools":
-      return Wrench;
-    case "spa":
-      return Smile;
-    default:
-      return Scissors;
-  }
-};
-
-const mapCategoryToColor = (cat: string) => {
-  switch (cat.toLowerCase()) {
-    case "hair":
-    case "hair care":
-      return "#f43f5e";
-    case "skin & facial":
-    case "skin care":
-      return "#fbbf24";
-    case "nails":
-    case "nail care":
-      return "#ec4899";
-    case "body & wax":
-    case "body care":
-      return "#f97316";
-    case "packages":
-      return "#8b5cf6";
-    case "tools":
-      return "#3b82f6";
-    case "spa":
-      return "#06b6d4";
-    default:
-      return "#a855f7";
-  }
-};
 
 function ServicesPageContent() {
   const { success, error: toastError } = useToast();
@@ -106,6 +68,18 @@ function ServicesPageContent() {
   }, [searchParams]);
 
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (openMenu && !target.closest(".dropdown-menu") && !target.closest(".btn-icon")) {
+        setOpenMenu(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openMenu]);
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -130,7 +104,7 @@ function ServicesPageContent() {
   // Load custom categories from localStorage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("wyapar_custom_categories") || localStorage.getItem("wyapar_service_categories");
+      const saved = localStorage.getItem("wyapar_custom_categories");
       if (saved) {
         try {
           setCustomCategories(JSON.parse(saved));
@@ -157,15 +131,10 @@ function ServicesPageContent() {
       .catch((err) => console.error("Error loading products for categories:", err));
   }, [tick]);
 
-  // Dynamic categories list including defaults, database entries, and custom ones
+  // Dynamic categories list including database entries and custom ones
   const categoriesList = useMemo(() => {
-    const defaultCats = ["Hair Care", "Skin Care", "Nail Care", "Body Care", "Packages", "Tools", "Spa"];
-    const activeCats = dbServices.map((s: any) => s.category).filter(Boolean);
-    // Only include default categories if they have active services or products
-    const defaultCatsWithContent = defaultCats.filter(cat => 
-      activeCats.includes(cat) || productCategories.includes(cat)
-    );
-    const merged = Array.from(new Set([...defaultCatsWithContent, ...activeCats, ...productCategories, ...customCategories]));
+    const activeCats = dbServices?.map((s: any) => s.category).filter(Boolean) || [];
+    const merged = Array.from(new Set([...activeCats, ...productCategories, ...customCategories]));
     return ["All", ...merged.filter(c => c !== "All")];
   }, [dbServices, productCategories, customCategories]);
 
@@ -269,17 +238,26 @@ function ServicesPageContent() {
   const mappedServices = useMemo(() => {
     return dbServices.map((s: any) => {
       const uniqueClients = new Set((s.appointments || []).map((a: any) => a.clientId));
+      const description = s.description || "";
+      const isCombo = isComboCategory(s.category);
+      const comboSummary = isCombo ? getComboSummary(description, dbServices) : "";
+      
+      // Clean description of [combo:...] tag
+      const displayDescription = description.replace(/\[combo:[^\]]*\]/, "").trim();
+
       return {
         id: s.id,
         name: s.name,
         category: s.category,
         price: Number(s.price),
         discountPrice: s.discountPrice ? Number(s.discountPrice) : null,
-        rating: 4.8, // Default rating as it's not a direct column in the DB
+        rating: 4.8, 
         totalBookings: uniqueClients.size,
         staff: s.staffServices?.map((ss: any) => ss.staff?.name).filter(Boolean) || [],
-        description: s.description || "",
-        icon: mapCategoryToIcon(s.category),
+        description: displayDescription,
+        comboSummary,
+        isCombo,
+        icon: mapServiceToIcon(s.category, s.name),
         color: mapCategoryToColor(s.category),
         popular: s.isPopular,
         raw: s,
@@ -378,10 +356,10 @@ function ServicesPageContent() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { statusVal: "All",      label: "Total Services", value: stats.totalServices, color: "#f43f5e", activeBorder: "var(--border-total-active)", activeShadow: "0 0 12px var(--border-total-active)", activeBg: "var(--bg-total-active)", icon: Scissors },
-          { statusVal: "Bookings", label: "Total Bookings", value: stats.totalBookings.toLocaleString(), color: "#a855f7", activeBorder: "#a855f7", activeShadow: "0 0 12px rgba(168,85,247,0.2)", activeBg: "rgba(168,85,247,0.05)", icon: Calendar },
-          { statusVal: "Rating",   label: "Avg. Rating",    value: "4.8", color: "#fbbf24", activeBorder: "#fbbf24", activeShadow: "0 0 12px rgba(251,191,36,0.2)", activeBg: "rgba(251,191,36,0.05)", icon: Star },
-          { statusVal: "Popular",  label: "Popular Services", value: stats.popularCount, color: "#10b981", activeBorder: "#10b981", activeShadow: "0 0 12px rgba(16,185,129,0.2)", activeBg: "rgba(16,185,129,0.05)", icon: Flame },
+          { statusVal: "All",      label: "Total Services", value: stats.totalServices, color: "#f43f5e", icon: Scissors },
+          { statusVal: "Bookings", label: "Total Bookings", value: stats.totalBookings.toLocaleString(), color: "#a855f7", icon: Calendar },
+          { statusVal: "Rating",   label: "Avg. Rating",    value: "4.8", color: "#fbbf24", icon: Star },
+          { statusVal: "Popular",  label: "Popular Services", value: stats.popularCount, color: "#10b981", icon: Flame },
         ].map(s => {
           const Icon = s.icon;
           const isActive = statsFilter === s.statusVal;
@@ -392,13 +370,13 @@ function ServicesPageContent() {
               className="glass-card p-4 flex items-center gap-3 cursor-pointer select-none transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
               style={{ 
                 border: isActive 
-                  ? `1.5px solid ${s.activeBorder}` 
+                  ? "1.5px solid var(--accent-rose)" 
                   : "1px solid var(--border-default)",
                 boxShadow: isActive 
-                  ? s.activeShadow 
+                  ? "0 0 12px rgba(var(--accent-rose-rgb), 0.15)" 
                   : "none",
                 background: isActive 
-                  ? s.activeBg 
+                  ? "rgba(var(--accent-rose-rgb), 0.04)" 
                   : "var(--bg-card)",
               }}
             >
@@ -546,11 +524,14 @@ function ServicesPageContent() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 a.onClick();
+                                setOpenMenu(null);
                               }}
-                              className={`dropdown-item ${(a as any).danger ? "danger" : ""}`}
+                              className={`dropdown-item w-full ${
+                                (a as any).danger ? "danger" : ""
+                              }`}
                             >
                               <Icon className="w-3.5 h-3.5" />
-                              {a.label}
+                              <span className="flex-1 text-left">{a.label}</span>
                             </button>
                           );
                         })}
@@ -560,12 +541,20 @@ function ServicesPageContent() {
                 )}
 
                 {/* Icon */}
-                <div className="mt-8 mb-4 flex items-start gap-4">
+                <div className="mt-2 mb-4 flex items-start gap-4">
                   <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 animate-fade-in"
+                    className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 animate-fade-in overflow-hidden shadow-sm"
                     style={{ background: `${service.color}15`, border: `1px solid ${service.color}25` }}
                   >
-                    <service.icon className="w-6 h-6" style={{ color: service.color }} />
+                    {service.icon.type === 'image' ? (
+                      <img 
+                        src={service.icon.url} 
+                        alt={service.name} 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <service.icon.icon className="w-6 h-6" style={{ color: service.color }} />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0 pt-1">
                     <p className="text-base font-semibold leading-tight truncate" style={{ color: "var(--text-primary)" }}>
@@ -580,9 +569,20 @@ function ServicesPageContent() {
                   </div>
                 </div>
 
-                <p className="text-xs leading-relaxed mb-4 line-clamp-2 h-8" style={{ color: "var(--text-muted)" }}>
-                  {service.description || "No description provided."}
-                </p>
+                <div className="space-y-2 mb-4 h-12 overflow-hidden">
+                  <p className="text-xs leading-relaxed line-clamp-2" style={{ color: "var(--text-muted)" }}>
+                    {service.description || "No description provided."}
+                  </p>
+                  
+                  {service.isCombo && service.comboSummary && (
+                    <div className="flex items-start gap-1 p-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+                      <Package className="w-3.5 h-3.5 text-rose-400 mt-0.5 flex-shrink-0" />
+                      <p className="text-xs leading-tight font-medium" style={{ color: "var(--text-secondary)" }}>
+                        <span className="text-rose-400">Includes:</span> {service.comboSummary}
+                      </p>
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex items-center gap-4 mb-4 text-xs" style={{ color: "var(--text-muted)" }}>
                   <div className="flex items-center gap-1.5">
