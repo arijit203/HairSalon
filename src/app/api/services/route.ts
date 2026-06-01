@@ -15,17 +15,17 @@ export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl;
     const { page, limit, skip } = getPaginationParams(searchParams);
 
-    const category  = searchParams.get("category")  ?? undefined;
-    const search    = searchParams.get("search")    ?? undefined;
+    const category = searchParams.get("category") ?? undefined;
+    const search = searchParams.get("search") ?? undefined;
     const isPopular = searchParams.get("popular") === "true" ? true : undefined;
 
     const where = {
       isActive: true,
-      ...(category  && { category }),
+      ...(category && { category }),
       ...(isPopular !== undefined && { isPopular }),
-      ...(search    && {
+      ...(search && {
         OR: [
-          { name:        { contains: search, mode: "insensitive" as const } },
+          { name: { contains: search, mode: "insensitive" as const } },
           { description: { contains: search, mode: "insensitive" as const } },
         ],
       }),
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
           staffServices: {
             include: { staff: { select: { id: true, name: true, role: true } } },
           },
-          appointments: { select: { clientId: true } },
+          appointments: { select: { clientId: true, date: true } },
         },
       }),
       prisma.service.count({ where }),

@@ -2007,7 +2007,6 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                             type="date"
                             className="input-field pl-9"
                             style={{ height: "42px" }}
-                            min={getLocalDateStr()}
                             value={date}
                             onChange={e => setDate(e.target.value)}
                           />

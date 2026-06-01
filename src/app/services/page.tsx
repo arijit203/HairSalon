@@ -236,8 +236,18 @@ function ServicesPageContent() {
 
   // Map database services to UI structure
   const mappedServices = useMemo(() => {
+    const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+
     return dbServices.map((s: any) => {
-      const uniqueClients = new Set((s.appointments || []).map((a: any) => a.clientId));
+      const appointments = s.appointments || [];
+      const uniqueClients = new Set(appointments.map((a: any) => a.clientId));
+      
+      const todayAppointments = appointments.filter((a: any) => {
+        if (!a.date) return false;
+        const d = new Date(a.date).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+        return d === todayStr;
+      });
+
       const description = s.description || "";
       const isCombo = isComboCategory(s.category);
       const comboSummary = isCombo ? getComboSummary(description, dbServices) : "";
@@ -253,6 +263,7 @@ function ServicesPageContent() {
         discountPrice: s.discountPrice ? Number(s.discountPrice) : null,
         rating: 4.8, 
         totalBookings: uniqueClients.size,
+        todayBookings: todayAppointments.length,
         staff: s.staffServices?.map((ss: any) => ss.staff?.name).filter(Boolean) || [],
         description: displayDescription,
         comboSummary,
@@ -273,7 +284,7 @@ function ServicesPageContent() {
                           s.description.toLowerCase().includes(searchQuery.toLowerCase());
       let matchStats = true;
       if (statsFilter === "Bookings") {
-        matchStats = s.totalBookings > 0;
+        matchStats = s.todayBookings > 0;
       } else if (statsFilter === "Rating") {
         matchStats = s.rating >= 4.8;
       } else if (statsFilter === "Popular") {
@@ -296,10 +307,12 @@ function ServicesPageContent() {
   const stats = useMemo(() => {
     const totalServices = statsBase.length;
     const totalBookings = statsBase.reduce((acc, s) => acc + s.totalBookings, 0);
+    const todayBookings = statsBase.reduce((acc, s) => acc + s.todayBookings, 0);
     const popularCount = statsBase.filter((s) => s.popular).length;
     return {
       totalServices,
       totalBookings,
+      todayBookings,
       popularCount,
     };
   }, [statsBase]);
@@ -357,7 +370,7 @@ function ServicesPageContent() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { statusVal: "All",      label: "Total Services", value: stats.totalServices, color: "#f43f5e", icon: Scissors },
-          { statusVal: "Bookings", label: "Total Bookings", value: stats.totalBookings.toLocaleString(), color: "#a855f7", icon: Calendar },
+          { statusVal: "Bookings", label: "Bookings for Today", value: stats.todayBookings.toLocaleString(), color: "#a855f7", icon: Calendar },
           { statusVal: "Rating",   label: "Avg. Rating",    value: "4.8", color: "#fbbf24", icon: Star },
           { statusVal: "Popular",  label: "Popular Services", value: stats.popularCount, color: "#10b981", icon: Flame },
         ].map(s => {

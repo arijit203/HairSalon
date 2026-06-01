@@ -302,10 +302,13 @@ export async function POST(req: NextRequest) {
     // Determine status first
     const localToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }); // YYYY-MM-DD in IST
     const isToday = data.date === localToday;
+    const isPast = data.date < localToday;
 
     // We temp-check if overallEndTime is provided to auto-complete status
     let defaultStatus: "PENDING" | "COMPLETED" = "PENDING";
-    if (isToday && overallEndTime) {
+    if (isPast) {
+      defaultStatus = "COMPLETED";
+    } else if (isToday && overallEndTime) {
       try {
         const appointmentEndDateTime = new Date(`${data.date}T${overallEndTime}:00+05:30`);
         if (Date.now() > appointmentEndDateTime.getTime()) {
