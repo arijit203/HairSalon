@@ -137,13 +137,13 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
       setName("");
       setDescription("");
       setSelectedComboIds([]);
-      setCategory(defaultCategory ? defaultCategory : "");
+      setCategory(defaultCategory ? defaultCategory : (allCategories[0] || ""));
       setPrice("");
       setIsPopular(false);
       setShowAddCategoryInput(false);
       setNewCategoryName("");
     }
-  }, [open, editingService, defaultCategory]);
+  }, [open, editingService, defaultCategory, allCategories]);
 
   const handleAddCategoryInline = () => {
     const nameToUse = newCategoryName.trim();
@@ -325,9 +325,7 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                       disabled={submitting}
                       required
                     >
-                      {allCategories.length === 0 && (
-                        <option value="" disabled>Select a category</option>
-                      )}
+                      <option value="" disabled>Select a category</option>
                       {allCategories.map((cat) => (
                         <option key={cat} value={cat}>
                           {cat}
