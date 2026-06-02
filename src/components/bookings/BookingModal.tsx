@@ -430,6 +430,11 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
   // Submission
   const [submitting, setSubmitting] = useState(false);
 
+  // Conflict resolution
+  const [showConflictWarning, setShowConflictWarning] = useState(false);
+  const [conflictingClient, setConflictingClient] = useState<any | null>(null);
+  const [allowConflictOverride, setAllowConflictOverride] = useState(false);
+
   // Booking confirmation / receipt print state
   const [createdBooking, setCreatedBooking] = useState<{
     clientName: string;
@@ -1055,7 +1060,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
       const conflictClient = existingByEmail || existingByPhone;
 
-      if (conflictClient) {
+      if (conflictClient && !allowConflictOverride) {
         const originalClientId = editingGroup?.client?.id || selectedClient?.id;
 
         if (originalClientId) {
@@ -1071,16 +1076,25 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
           const phoneChanged = normInputPhone !== normDbPhone;
           const emailChanged = clientEmail.trim().toLowerCase() !== (conflictClient.email || "").trim().toLowerCase();
 
-          if (nameChanged || phoneChanged || emailChanged) {
+          // If editing (editingGroup exists), don't allow modifications
+          if (editingGroup && (nameChanged || phoneChanged || emailChanged)) {
             error(`Cannot modify the details of an existing client ("${conflictClient.name}"). This conflicts with their registered profile.`);
             setActiveTab("client");
             return;
           }
+
+          // For new bookings with selectedClient match (from suggestions), show warning dialog
+          if (nameChanged && !editingGroup) {
+            setConflictingClient(conflictClient);
+            setShowConflictWarning(true);
+            return;
+          }
         } else {
+          // New booking with no prior client selection: show warning dialog
           const nameChanged = clientName.trim().toLowerCase() !== conflictClient.name.trim().toLowerCase();
           if (nameChanged) {
-            error(`This phone number or email is already registered to another client: "${conflictClient.name}".`);
-            setActiveTab("client");
+            setConflictingClient(conflictClient);
+            setShowConflictWarning(true);
             return;
           }
         }
@@ -1216,6 +1230,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
       error(e.message ?? "Something went wrong.");
     } finally {
       setSubmitting(false);
+      setAllowConflictOverride(false);
     }
   };
 
@@ -1239,6 +1254,9 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
     setIsStatusManuallyChanged(false);
     setActiveTab("client");
     setCreatedBooking(null);
+    setShowConflictWarning(false);
+    setConflictingClient(null);
+    setAllowConflictOverride(false);
     onClose();
   };
 
@@ -1256,6 +1274,90 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
   return (
     <AnimatePresence>
+      {/* Conflict Warning Dialog */}
+      {showConflictWarning && conflictingClient && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <motion.div
+            className="absolute inset-0"
+            style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => {
+              setShowConflictWarning(false);
+              setConflictingClient(null);
+              setAllowConflictOverride(false);
+            }}
+          />
+          <motion.div
+            className="relative w-full max-w-md rounded-2xl overflow-hidden p-6"
+            style={{
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border-default)",
+              boxShadow: "0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)",
+            }}
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+          >
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center flex-shrink-0 border border-orange-500/25">
+                <AlertCircle className="w-6 h-6 text-orange-500" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+                  Existing Client Detected
+                </h2>
+                <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
+                  This phone number is registered to <strong>"{conflictingClient.name}"</strong>.
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-6 p-4 rounded-lg" style={{ background: "rgba(249, 115, 22, 0.05)", border: "1px solid rgba(249, 115, 22, 0.1)" }}>
+              <p style={{ color: "var(--text-primary)" }} className="text-sm">
+                You're trying to create a booking under <strong>"{clientName}"</strong>. Do you want to update the existing client's name to match?
+              </p>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowConflictWarning(false);
+                  setConflictingClient(null);
+                  setAllowConflictOverride(false);
+                }}
+                className="px-4 py-2 rounded-lg font-medium transition-all"
+                style={{
+                  background: "var(--bg-tertiary)",
+                  color: "var(--text-primary)",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setShowConflictWarning(false);
+                  setAllowConflictOverride(true);
+                  // Schedule re-submission after state update
+                  setTimeout(() => handleSubmit(), 0);
+                }}
+                className="px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2"
+                style={{
+                  background: "#dc2626", // Red,
+                  color: "white",
+                }}
+              >
+                Update & Continue
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {open && (
         <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4">
           {/* Backdrop */}
