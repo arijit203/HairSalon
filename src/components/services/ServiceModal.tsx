@@ -134,6 +134,7 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
       setCategory(editingService.category || "");
       setPrice(editingService.price ? String(editingService.price) : "");
       setIsPopular(editingService.isPopular || false);
+      setComboServiceSearch("");
     } else if (open) {
       setName("");
       setDescription("");
@@ -143,6 +144,10 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
       setIsPopular(false);
       setShowAddCategoryInput(false);
       setNewCategoryName("");
+      setComboServiceSearch("");
+    } else {
+      // Reset search when modal closes
+      setComboServiceSearch("");
     }
   }, [open, editingService, defaultCategory, allCategories]);
 
@@ -429,11 +434,21 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                     <input
                       type="text"
                       placeholder="Search services by name or category..."
-                      className="input-field pl-9 text-xs"
+                      className="input-field pl-9 pr-9 text-xs"
                       value={comboServiceSearch}
                       onChange={(e) => setComboServiceSearch(e.target.value)}
                       disabled={servicesLoading}
                     />
+                    {comboServiceSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setComboServiceSearch("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                        title="Clear search"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
 
                   {/* Service checkbox list */}

@@ -501,7 +501,7 @@ function ServicesPageContent() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((service) => (
-            <div key={service.id} className="glass-card p-5 group relative flex flex-col justify-between">
+            <div key={service.id} className="glass-card p-5 group relative flex flex-col justify-between min-h-full">
               <div>
                 {/* Popular Badge */}
                 {service.popular && (
@@ -582,18 +582,23 @@ function ServicesPageContent() {
                   </div>
                 </div>
 
-                <div className="space-y-2 mb-4 h-12 overflow-hidden">
-                  <p className="text-xs leading-relaxed line-clamp-2" style={{ color: "var(--text-muted)" }}>
-                    {service.description || "No description provided."}
-                  </p>
+                <div className="space-y-2 mb-4">
+                  {service.description && (
+                    <p className="text-xs leading-relaxed line-clamp-2" style={{ color: "var(--text-muted)" }}>
+                      {service.description}
+                    </p>
+                  )}
                   
                   {service.isCombo && service.comboSummary && (
-                    <div className="flex items-start gap-1 p-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+                    <div className="flex items-start gap-1 p-2 rounded-lg bg-white/[0.03] border border-white/[0.05]">
                       <Package className="w-3.5 h-3.5 text-rose-400 mt-0.5 flex-shrink-0" />
-                      <p className="text-xs leading-tight font-medium" style={{ color: "var(--text-secondary)" }}>
+                      <p className="text-xs leading-snug font-medium break-words" style={{ color: "var(--text-secondary)" }}>
                         <span className="text-rose-400">Includes:</span> {service.comboSummary}
                       </p>
                     </div>
+                  )}
+                  {!service.description && !service.isCombo && (
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>No description provided.</p>
                   )}
                 </div>
 
