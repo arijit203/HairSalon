@@ -412,10 +412,20 @@ function ServicesPageContent() {
           <input
             type="text"
             placeholder="Search services..."
-            className="input-field pl-10"
+            className="input-field pl-10 pr-9"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              title="Clear search"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <div className="flex items-center gap-2 py-1 pr-2 overflow-x-auto w-full">
