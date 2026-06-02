@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Scissors, Tag, Loader2, ChevronDown, Sparkles, Check, Package } from "lucide-react";
+import { X, Scissors, Tag, Loader2, ChevronDown, Sparkles, Check, Package, Search } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { isComboCategory, parseComboIds } from "@/lib/services";
 
@@ -54,6 +54,7 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
   const [allServices, setAllServices] = useState<{ id: string; name: string; price: number; category: string }[]>([]);
   const [selectedComboIds, setSelectedComboIds] = useState<string[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
+  const [comboServiceSearch, setComboServiceSearch] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -221,6 +222,14 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
 
   // Derived: is the current category a combo?
   const isCombo = isComboCategory(category);
+
+  // Derived: filtered services based on search query
+  const filteredComboServices = useMemo(() => {
+    return allServices.filter(s => 
+      s.name.toLowerCase().includes(comboServiceSearch.toLowerCase()) ||
+      s.category.toLowerCase().includes(comboServiceSearch.toLowerCase())
+    );
+  }, [allServices, comboServiceSearch]);
 
   // Derived: total list price of selected combo services
   const comboTotalListPrice = useMemo(() => {
@@ -414,6 +423,19 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                     </div>
                   )}
 
+                  {/* Search filter */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+                    <input
+                      type="text"
+                      placeholder="Search services by name or category..."
+                      className="input-field pl-9 text-xs"
+                      value={comboServiceSearch}
+                      onChange={(e) => setComboServiceSearch(e.target.value)}
+                      disabled={servicesLoading}
+                    />
+                  </div>
+
                   {/* Service checkbox list */}
                   <div
                     className="rounded-xl overflow-hidden max-h-52 overflow-y-auto"
@@ -427,8 +449,12 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
                       <p className="text-center text-xs py-6" style={{ color: "var(--text-muted)" }}>
                         No services found. Add individual services first.
                       </p>
+                    ) : filteredComboServices.length === 0 ? (
+                      <p className="text-center text-xs py-6" style={{ color: "var(--text-muted)" }}>
+                        No services match your search.
+                      </p>
                     ) : (
-                      allServices.map((svc) => {
+                      filteredComboServices.map((svc) => {
                         const checked = selectedComboIds.includes(svc.id);
                         return (
                           <label
