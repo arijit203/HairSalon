@@ -107,6 +107,8 @@ export default function DashboardPage() {
     revenue: Math.round(r.revenue),
   }));
 
+  const totalPeriodRevenue = chartData.reduce((sum, item) => sum + item.revenue, 0);
+
   const pieData = (analytics?.serviceRevenue ?? []).slice(0, 6).map(s => ({
     name: s.name,
     value: Math.round(s.revenue),
@@ -460,7 +462,18 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="card-title">Revenue Overview</h2>
-              <p className="card-subtitle">Monthly performance</p>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+                  {analyticsLoading ? (
+                    <span className="inline-block w-24 h-6 animate-pulse rounded bg-white/[0.06] align-middle" />
+                  ) : (
+                    `₹${totalPeriodRevenue.toLocaleString("en-IN")}`
+                  )}
+                </span>
+                <span className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>
+                  {PERIOD_LABELS[period].toLowerCase()} revenue
+                </span>
+              </div>
             </div>
             <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: "var(--bg-card)" }}>
               {Object.keys(PERIOD_LABELS).map(p => (
