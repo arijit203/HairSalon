@@ -1063,40 +1063,17 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
       if (conflictClient && !allowConflictOverride) {
         const originalClientId = editingGroup?.client?.id || selectedClient?.id;
 
-        if (originalClientId) {
-          if (conflictClient.id !== originalClientId) {
-            error(`The phone number or email conflicts with an existing client: "${conflictClient.name}".`);
-            setActiveTab("client");
-            return;
-          }
+        if (originalClientId && conflictClient.id !== originalClientId) {
+          error(`The phone number or email conflicts with an existing client: "${conflictClient.name}".`);
+          setActiveTab("client");
+          return;
+        }
 
-          const nameChanged = clientName.trim().toLowerCase() !== conflictClient.name.trim().toLowerCase();
-          const normInputPhone = formattedPhone.replace(/[\s+-]/g, "");
-          const normDbPhone = conflictClient.phone?.trim().replace(/[\s+-]/g, "") || "";
-          const phoneChanged = normInputPhone !== normDbPhone;
-          const emailChanged = clientEmail.trim().toLowerCase() !== (conflictClient.email || "").trim().toLowerCase();
-
-          // If editing (editingGroup exists), don't allow modifications
-          if (editingGroup && (nameChanged || phoneChanged || emailChanged)) {
-            error(`Cannot modify the details of an existing client ("${conflictClient.name}"). This conflicts with their registered profile.`);
-            setActiveTab("client");
-            return;
-          }
-
-          // For new bookings with selectedClient match (from suggestions), show warning dialog
-          if (nameChanged && !editingGroup) {
-            setConflictingClient(conflictClient);
-            setShowConflictWarning(true);
-            return;
-          }
-        } else {
-          // New booking with no prior client selection: show warning dialog
-          const nameChanged = clientName.trim().toLowerCase() !== conflictClient.name.trim().toLowerCase();
-          if (nameChanged) {
-            setConflictingClient(conflictClient);
-            setShowConflictWarning(true);
-            return;
-          }
+        const nameChanged = clientName.trim().toLowerCase() !== conflictClient.name.trim().toLowerCase();
+        if (nameChanged) {
+          setConflictingClient(conflictClient);
+          setShowConflictWarning(true);
+          return;
         }
       }
     } catch (err) {
@@ -1318,7 +1295,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
             <div className="mb-6 p-4 rounded-lg" style={{ background: "rgba(249, 115, 22, 0.05)", border: "1px solid rgba(249, 115, 22, 0.1)" }}>
               <p style={{ color: "var(--text-primary)" }} className="text-sm">
-                You're trying to create a booking under <strong>"{clientName}"</strong>. Do you want to update the existing client's name to match?
+                You're trying to {editingGroup ? "update" : "create"} a booking under <strong>"{clientName}"</strong>. Do you want to update the existing client's name to match?
               </p>
             </div>
 
