@@ -462,18 +462,16 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="card-title">Revenue Overview</h2>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-                  {analyticsLoading ? (
-                    <span className="inline-block w-24 h-6 animate-pulse rounded bg-white/[0.06] align-middle" />
-                  ) : (
-                    `₹${totalPeriodRevenue.toLocaleString("en-IN")}`
-                  )}
-                </span>
-                <span className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>
-                  {PERIOD_LABELS[period].toLowerCase()} revenue
-                </span>
-              </div>
+              <p className="card-subtitle mt-0.5" style={{ fontSize: "13px" }}>
+                <span>{PERIOD_LABELS[period]} performance</span>
+                {!analyticsLoading && (
+                  <>
+                    <span className="mx-1.5" style={{ color: "var(--text-muted)", opacity: 0.5 }}>·</span>
+                    <span style={{ color: "var(--text-muted)" }}>Total Earnings: </span>
+                    <span className="font-semibold text-rose-400">₹{totalPeriodRevenue.toLocaleString("en-IN")}</span>
+                  </>
+                )}
+              </p>
             </div>
             <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: "var(--bg-card)" }}>
               {Object.keys(PERIOD_LABELS).map(p => (
