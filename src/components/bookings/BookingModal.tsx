@@ -981,7 +981,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
     printWindow.document.close();
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (overrideConflict: boolean | any = false) => {
     const isFutureDate = date > getLocalDateStr();
     if (!clientName.trim()) { error("Client name is required."); setActiveTab("client"); return; }
     if (phoneDigits.length !== 10) {
@@ -1059,8 +1059,9 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
       }
 
       const conflictClient = existingByEmail || existingByPhone;
+      const shouldOverride = overrideConflict === true || allowConflictOverride;
 
-      if (conflictClient && !allowConflictOverride) {
+      if (conflictClient && !shouldOverride) {
         const originalClientId = editingGroup?.client?.id || selectedClient?.id;
 
         if (originalClientId && conflictClient.id !== originalClientId) {
@@ -1319,7 +1320,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                   setShowConflictWarning(false);
                   setAllowConflictOverride(true);
                   // Schedule re-submission after state update
-                  setTimeout(() => handleSubmit(), 0);
+                  setTimeout(() => handleSubmit(true), 0);
                 }}
                 className="px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2"
                 style={{
