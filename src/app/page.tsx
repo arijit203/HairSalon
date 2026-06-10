@@ -76,16 +76,16 @@ export default function DashboardPage() {
     if (p === "1D") {
       from.setHours(0, 0, 0, 0);
     } else if (p === "1M") {
-      from.setDate(from.getDate() - 29); // Last 30 days
+      // Exactly 1 month ago (same day)
+      from.setMonth(from.getMonth() - 1);
       from.setHours(0, 0, 0, 0);
     } else if (p === "3M") {
-      from.setMonth(from.getMonth() - 2);
-      from.setDate(1);
+      // Exactly 3 months ago (same day)
+      from.setMonth(from.getMonth() - 3);
       from.setHours(0, 0, 0, 0);
     } else {
-      // Default 6M
-      from.setMonth(from.getMonth() - 5);
-      from.setDate(1);
+      // Default 6M — exactly 6 months ago (same day)
+      from.setMonth(from.getMonth() - 6);
       from.setHours(0, 0, 0, 0);
     }
     return { from, to };
@@ -352,12 +352,14 @@ export default function DashboardPage() {
     return !scheduledPending.some((s: any) => s.id === group.id);
   });
 
+  const currentMonthName = new Date().toLocaleString("en-US", { month: "long", timeZone: "Asia/Kolkata" });
+
   const statCards = [
     {
       label: "Total Revenue",
       value: stats ? fmt(stats.revenue.thisMonth) : "—",
       change: stats?.revenue.changePercent ?? 0,
-      sub: "This month",
+      sub: `This month (${currentMonthName})`,
       icon: ShoppingBag,
       color: "#f43f5e",
     },

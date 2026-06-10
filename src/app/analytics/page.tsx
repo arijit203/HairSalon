@@ -45,7 +45,7 @@ function ChartTooltip({ active, payload, label }: any) {
 
 export default function AnalyticsPage() {
   const [period, setPeriod] = useState("3M");
-  const [showComparison, setShowComparison] = useState(true);
+  const [showComparison, setShowComparison] = useState(false);
   
   // Custom Date States
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -77,23 +77,24 @@ export default function AnalyticsPage() {
 
     const from = new Date();
     if (p === "7D") {
-      from.setDate(from.getDate() - 6);
+      // Exactly 7 days ago
+      from.setDate(from.getDate() - 7);
       from.setHours(0, 0, 0, 0);
     } else if (p === "1M") {
-      from.setDate(from.getDate() - 29);
+      // Exactly 1 month ago (same day)
+      from.setMonth(from.getMonth() - 1);
       from.setHours(0, 0, 0, 0);
     } else if (p === "3M") {
-      from.setMonth(from.getMonth() - 2);
-      from.setDate(1);
+      // Exactly 3 months ago (same day)
+      from.setMonth(from.getMonth() - 3);
       from.setHours(0, 0, 0, 0);
     } else if (p === "6M") {
-      from.setMonth(from.getMonth() - 5);
-      from.setDate(1);
+      // Exactly 6 months ago (same day)
+      from.setMonth(from.getMonth() - 6);
       from.setHours(0, 0, 0, 0);
     } else {
-      // 1Y
-      from.setMonth(from.getMonth() - 11);
-      from.setDate(1);
+      // 1Y — exactly 1 year ago (same day)
+      from.setFullYear(from.getFullYear() - 1);
       from.setHours(0, 0, 0, 0);
     }
     return { from, to };
@@ -103,9 +104,22 @@ export default function AnalyticsPage() {
   const fromStr = from.toISOString();
   const toStr = to.toISOString();
 
+  // For Custom period, determine day-level vs month-level grouping based on span
+  const effectivePeriod = (() => {
+    if (period !== "Custom") return period;
+    const diffDays = Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays <= 31 ? "1M" : "3M";
+  })();
+
   const { data, loading } = useApi<any>(
-    `/api/analytics?from=${fromStr}&to=${toStr}&period=${period}`
+    `/api/analytics?from=${fromStr}&to=${toStr}&period=${effectivePeriod}`
   );
+
+  // Human-readable period range label
+  const periodRangeLabel = (() => {
+    const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    return `${fmt(from)} – ${fmt(to)}`;
+  })();
 
   const kpis = data?.kpis ?? [
     { label: "Total Revenue (Period)", value: "₹0", change: "0.0%", up: true },
@@ -445,20 +459,28 @@ export default function AnalyticsPage() {
             return k.value;
           })();
           return (
-            <div key={i} className="glass-card p-6 relative overflow-hidden flex flex-col justify-between">
+            <div key={i} className="glass-card px-5 pt-4 pb-4 relative overflow-hidden flex flex-col">
               {loading && (
                 <div className="absolute inset-0 bg-black/5 animate-pulse" />
               )}
-              <div className={showComparison ? "mb-4" : ""}>
-                <p className="text-xs font-medium mb-2" style={{ color:"var(--text-muted)" }}>{k.label}</p>
-                <p className="text-2xl font-bold" style={{ color:"var(--text-primary)" }}>{displayValue}</p>
+              {/* Label row — date inline for card 0 only */}
+              <div className="flex items-baseline gap-1.5 mb-3 flex-wrap">
+                <p className="text-xs font-medium leading-tight" style={{ color: "var(--text-muted)" }}>{k.label}</p>
+                {i === 0 && (
+                  <p className="text-[10px] leading-tight opacity-55 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
+                    ({periodRangeLabel})
+                  </p>
+                )}
               </div>
-              {showComparison && (
-                <div className={`flex items-center gap-1 text-xs font-semibold ${k.up ? "text-emerald-500" : "text-rose-400"}`}>
+              {/* Value */}
+              <p className="text-2xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>{displayValue}</p>
+              {/* Compare row — only rendered when compare is on, no dead space when off */}
+              {showComparison ? (
+                <div className={`flex items-center gap-1 text-xs font-semibold mt-2 ${k.up ? "text-emerald-500" : "text-rose-400"}`}>
                   {k.change.startsWith("-") ? <ArrowDown className="w-3.5 h-3.5" /> : <ArrowUp className="w-3.5 h-3.5" />}
                   {k.change.replace(/[+-]/g, "")} vs last period
                 </div>
-              )}
+              ) : null}
             </div>
           );
         })}
@@ -474,7 +496,7 @@ export default function AnalyticsPage() {
         <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
           <div>
             <h2 className="card-title">Revenue vs Expenses vs Profit</h2>
-            <p className="card-subtitle">Period breakdown</p>
+            <p className="card-subtitle">{periodRangeLabel}</p>
           </div>
           <div className="flex items-center gap-4 text-xs">
             {[{ color:"#f43f5e",label:"Revenue"},{ color:"#a855f7",label:"Expenses"},{ color:"#10b981",label:"Profit"}].map(l=>(
