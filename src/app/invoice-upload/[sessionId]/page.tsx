@@ -2,33 +2,89 @@
 
 import { useState, useRef } from "react";
 import { useParams } from "next/navigation";
-import { Camera, Upload, CheckCircle2, AlertCircle, Loader2, Smartphone } from "lucide-react";
+import { Camera, Upload, CheckCircle2, AlertCircle, Loader2, Smartphone, X, Check } from "lucide-react";
 
 export default function InvoiceUploadPage() {
   const params = useParams();
   const sessionId = params.sessionId as string;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [status, setStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "selected" | "uploading" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Compress image: resize to max 1600px, convert to JPEG 82%
+  const compressImage = (file: File): Promise<{ blob: Blob; mimeType: string }> => {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const MAX_PX = 1600;
+        let { width, height } = img;
+        if (width > MAX_PX || height > MAX_PX) {
+          const ratio = Math.min(MAX_PX / width, MAX_PX / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(
+          (blob) => {
+            if (blob) resolve({ blob, mimeType: "image/jpeg" });
+            else reject(new Error("Compression failed"));
+          },
+          "image/jpeg",
+          0.82
+        );
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Failed to load image")); };
+      img.src = url;
+    });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Show preview
+    setSelectedFile(file);
+    setStatus("selected");
+    setErrorMessage("");
+
+    // Show preview immediately from raw file
     const reader = new FileReader();
     reader.onload = (ev) => setPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
+  };
+
+  const handleClear = () => {
+    setSelectedFile(null);
+    setPreview(null);
+    setStatus("idle");
+    setErrorMessage("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedFile) return;
 
     setStatus("uploading");
     setErrorMessage("");
 
     try {
+      // Compress before upload to keep size manageable
+      const { blob, mimeType: compressedMime } = await compressImage(selectedFile);
+      const compressed = new File([blob], selectedFile.name.replace(/\.[^.]+$/, ".jpg"), { type: compressedMime });
+
       const formData = new FormData();
       formData.append("sessionId", sessionId);
-      formData.append("file", file);
+      formData.append("file", compressed);
 
       const res = await fetch("/api/invoice-scan/upload", {
         method: "POST",
@@ -47,6 +103,7 @@ export default function InvoiceUploadPage() {
       setErrorMessage(err.message || "Failed to upload. Please try again.");
     }
   };
+
 
   return (
     <div
@@ -186,6 +243,92 @@ export default function InvoiceUploadPage() {
           </div>
         )}
 
+        {status === "selected" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            {preview && (
+              <div
+                style={{
+                  width: "100%",
+                  maxHeight: "280px",
+                  borderRadius: "14px",
+                  overflow: "hidden",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  background: "rgba(0, 0, 0, 0.25)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "inset 0 2px 10px rgba(0, 0, 0, 0.5)",
+                }}
+              >
+                <img
+                  src={preview}
+                  alt="Invoice Preview"
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "280px",
+                    objectFit: "contain",
+                  }}
+                />
+              </div>
+            )}
+
+            <div style={{ textAlign: "center", marginBottom: "4px" }}>
+              <p style={{ fontSize: "13px", color: "#b89da8", fontWeight: 500 }}>
+                Is the photo clear and readable?
+              </p>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <button
+                onClick={handleSubmit}
+                style={{
+                  width: "100%",
+                  padding: "16px",
+                  borderRadius: "14px",
+                  background: "linear-gradient(135deg, #f43f5e, #e11d48)",
+                  border: "none",
+                  color: "white",
+                  fontSize: "15px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "10px",
+                  boxShadow: "0 4px 16px rgba(244, 63, 94, 0.35)",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                <Check className="w-5 h-5" />
+                Submit Invoice
+              </button>
+
+              <button
+                onClick={handleClear}
+                style={{
+                  width: "100%",
+                  padding: "14px",
+                  borderRadius: "14px",
+                  background: "rgba(255, 255, 255, 0.05)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  color: "#e2d5da",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "10px",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                <X className="w-4 h-4" />
+                Clear & Start Over
+              </button>
+            </div>
+          </div>
+        )}
+
         {status === "uploading" && (
           <div style={{ textAlign: "center", padding: "24px 0" }}>
             {preview && (
@@ -287,8 +430,12 @@ export default function InvoiceUploadPage() {
             <button
               onClick={() => {
                 setStatus("idle");
+                setSelectedFile(null);
                 setPreview(null);
                 setErrorMessage("");
+                if (fileInputRef.current) {
+                  fileInputRef.current.value = "";
+                }
               }}
               style={{
                 padding: "12px 24px",

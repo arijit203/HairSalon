@@ -154,19 +154,20 @@ IMPORTANT RULES:
 - For quantity, default to 1 if not clearly stated.
 - Be thorough — extract EVERY line item from the invoice.
 - Clean up product names — remove random codes, fix spelling if obviously wrong.
+- CRITICAL for itemCode: Copy the EXACT item/SKU/barcode/article code AS PRINTED on the invoice. If no such code is printed for an item, return "" (empty string). DO NOT invent, generate, or abbreviate codes.
 
 Example output format:
 {
   "items": [
-    {"name":"L'Oreal Paris Shampoo","brand":"L'Oreal","quantity":2,"unitPrice":450,"discount":0,"suggestedCategories":["Hair Care"],"itemCode":"LOR001","taxRate":0},
-    {"name":"Wella Hair Mask","brand":"Wella","quantity":1,"unitPrice":650,"discount":0,"suggestedCategories":["Hair Care"],"itemCode":"WEL002","taxRate":0}
+    {"name":"L'Oreal Professionnel Shampoo 300ml","brand":"L'Oreal","quantity":2,"unitPrice":450,"discount":0,"suggestedCategories":["Hair Care"],"itemCode":"","taxRate":18},
+    {"name":"Wella Professionals Hair Mask 150ml","brand":"Wella Professionals","quantity":1,"unitPrice":650,"discount":5,"suggestedCategories":["Hair Care"],"itemCode":"8005610524863","taxRate":12}
   ],
   "invoiceSubtotal": 1550,
-  "invoiceDiscountAmount": 77.5,
+  "invoiceDiscountAmount": 32.5,
   "invoiceDiscountRate": 5,
-  "invoiceTaxAmount": 0,
-  "invoiceTaxRate": 0,
-  "invoiceGrandTotal": 1472.5
+  "invoiceTaxAmount": 148,
+  "invoiceTaxRate": 12,
+  "invoiceGrandTotal": 1665.5
 }`;
 
     // Call Gemini Vision API — cascade through models with retry on 503

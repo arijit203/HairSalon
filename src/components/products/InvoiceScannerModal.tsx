@@ -155,6 +155,8 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
           if (data.success && data.data.uploaded) {
             clearInterval(interval);
             setPollingInterval(null);
+            // Set image preview from QR-uploaded image before processing
+            setImagePreview(`data:${data.data.mimeType};base64,${data.data.image}`);
             processImage(data.data.image, data.data.mimeType);
           }
         } catch {
@@ -224,10 +226,23 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
         body: JSON.stringify({ image: base64Image, mimeType }),
       });
 
-      const data = await res.json();
+      // Safely parse response — server may return plain text on crash/timeout
+      const responseText = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        // Server returned non-JSON (e.g. "A server error occurred" or HTML error page)
+        console.error("Non-JSON response from /api/invoice-scan:", responseText.slice(0, 200));
+        throw new Error(
+          res.status === 504 || res.status === 502
+            ? "The request timed out. The invoice may be too large or the AI service is slow. Please try again."
+            : "The server encountered an error while processing the invoice. Please try again."
+        );
+      }
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to process invoice");
+        throw new Error(data?.error || "Failed to process invoice");
       }
 
       if (data.data.items.length === 0) {

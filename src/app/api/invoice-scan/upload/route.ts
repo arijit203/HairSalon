@@ -1,26 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-// In-memory store for upload sessions
-// In production, use Redis or a database
-const uploadSessions = new Map<
-  string,
-  { image: string; mimeType: string; uploadedAt: number }
->();
+// Prefix to distinguish upload sessions from real settings
+const SESSION_PREFIX = "__invoice_sess_";
+const SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
-// Clean up expired sessions (older than 10 minutes)
+// Best-effort cleanup of expired sessions (fire-and-forget)
 function cleanupSessions() {
-  const now = Date.now();
-  const TEN_MINUTES = 10 * 60 * 1000;
-  const keys = Array.from(uploadSessions.keys());
-  for (const key of keys) {
-    const value = uploadSessions.get(key);
-    if (value && now - value.uploadedAt > TEN_MINUTES) {
-      uploadSessions.delete(key);
-    }
-  }
+  const cutoff = new Date(Date.now() - SESSION_TTL_MS);
+  prisma.salonSettings
+    .deleteMany({
+      where: {
+        key: { startsWith: SESSION_PREFIX },
+        updatedAt: { lt: cutoff },
+      },
+    })
+    .catch(() => {}); // non-critical
 }
 
 // POST /api/invoice-scan/upload — Mobile upload (receives form data)
@@ -55,12 +53,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Reject images over 8MB base64 (~6MB raw) — phone should compress before upload
+    if (imageBase64.length > 8 * 1024 * 1024) {
+      return errorResponse("Image is too large. Please compress the image before uploading.", 413);
+    }
+
     cleanupSessions();
 
-    uploadSessions.set(sessionId, {
-      image: imageBase64,
-      mimeType,
-      uploadedAt: Date.now(),
+    // Persist session to DB so all serverless instances can read it
+    await prisma.salonSettings.upsert({
+      where: { key: `${SESSION_PREFIX}${sessionId}` },
+      create: {
+        key: `${SESSION_PREFIX}${sessionId}`,
+        value: JSON.stringify({ image: imageBase64, mimeType }),
+      },
+      update: {
+        value: JSON.stringify({ image: imageBase64, mimeType }),
+      },
     });
 
     return successResponse({ message: "Image uploaded successfully" });
@@ -70,7 +79,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET /api/invoice-scan/upload?sessionId=xxx — Poll for upload
+// GET /api/invoice-scan/upload?sessionId=xxx — Poll for upload status
 export async function GET(req: NextRequest) {
   try {
     const sessionId = req.nextUrl.searchParams.get("sessionId");
@@ -79,9 +88,9 @@ export async function GET(req: NextRequest) {
       return errorResponse("Missing sessionId", 400);
     }
 
-    cleanupSessions();
-
-    const session = uploadSessions.get(sessionId);
+    const session = await prisma.salonSettings.findUnique({
+      where: { key: `${SESSION_PREFIX}${sessionId}` },
+    });
 
     if (!session) {
       return NextResponse.json({
@@ -90,15 +99,19 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Return the image and remove from store (one-time use)
-    uploadSessions.delete(sessionId);
+    // One-time use — delete after reading
+    await prisma.salonSettings.delete({
+      where: { key: `${SESSION_PREFIX}${sessionId}` },
+    });
+
+    const { image, mimeType } = JSON.parse(session.value);
 
     return NextResponse.json({
       success: true,
       data: {
         uploaded: true,
-        image: session.image,
-        mimeType: session.mimeType,
+        image,
+        mimeType,
       },
     });
   } catch (error) {
