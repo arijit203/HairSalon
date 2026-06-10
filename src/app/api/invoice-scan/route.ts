@@ -299,17 +299,40 @@ Example output format:
       let isPartialOverlap = false;
 
       for (const p of products) {
-        // Normalize brands for comparison (strip non-alphanumeric, map 0 to o)
+        // 1. Check SKU / itemCode exact match first
+        const itemSku = (item.itemCode || "").toLowerCase().trim();
+        const pSku = (p.sku || "").toLowerCase().trim();
+        
+        if (itemSku && pSku && itemSku === pSku) {
+          bestMatch = p;
+          highestSimilarity = 1.0;
+          isPartialOverlap = false;
+          break;
+        }
+
+        // 2. Check SKU / itemCode similarity >= 0.50
+        const codeSim = itemSku && pSku ? getStringSimilarity(pSku, itemSku) : 0;
+        if (codeSim >= 0.50) {
+          bestMatch = p;
+          highestSimilarity = codeSim;
+          isPartialOverlap = false;
+          break;
+        }
+
+        // 3. Brand matches if one or both are empty, one contains the other, or similarity is >= 50%
         const pBrandNorm = (p.brand || "").toLowerCase().replace(/[^a-z0-9]/g, "").replace(/0/g, "o").trim();
         const iBrandNorm = (item.brand || "").toLowerCase().replace(/[^a-z0-9]/g, "").replace(/0/g, "o").trim();
         const brandSim = getStringSimilarity(p.brand || "", item.brand || "");
         
-        // Brand matches if both are empty, one contains the other, or similarity is >= 50%
         const brandMatches = 
-          (pBrandNorm === "" && iBrandNorm === "") || 
-          (pBrandNorm !== "" && iBrandNorm !== "" && (pBrandNorm.includes(iBrandNorm) || iBrandNorm.includes(pBrandNorm) || brandSim >= 0.50));
+          pBrandNorm === "" || 
+          iBrandNorm === "" || 
+          pBrandNorm.includes(iBrandNorm) || 
+          iBrandNorm.includes(pBrandNorm) || 
+          brandSim >= 0.50;
         if (!brandMatches) continue;
 
+        // 4. Name similarity >= 50%
         const similarity = getStringSimilarity(p.name, item.name);
         if (similarity >= highestSimilarity) {
           highestSimilarity = similarity;

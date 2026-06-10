@@ -305,13 +305,16 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
         break;
       }
 
-      // 3. Brand matches if both are empty, one contains the other, or similarity is >= 50%
+      // 3. Brand matches if one or both are empty, one contains the other, or similarity is >= 50%
       const pBrandNorm = (p.brand || "").toLowerCase().replace(/[^a-z0-9]/g, "").replace(/0/g, "o").trim();
       const iBrandNorm = (item.brand || "").toLowerCase().replace(/[^a-z0-9]/g, "").replace(/0/g, "o").trim();
       const brandSim = getStringSimilarity(p.brand || "", item.brand || "");
       const brandMatches = 
-        (pBrandNorm === "" && iBrandNorm === "") || 
-        (pBrandNorm !== "" && iBrandNorm !== "" && (pBrandNorm.includes(iBrandNorm) || iBrandNorm.includes(pBrandNorm) || brandSim >= 0.50));
+        pBrandNorm === "" || 
+        iBrandNorm === "" || 
+        pBrandNorm.includes(iBrandNorm) || 
+        iBrandNorm.includes(pBrandNorm) || 
+        brandSim >= 0.50;
       if (!brandMatches) continue;
 
       // 4. Name similarity >= 50%
