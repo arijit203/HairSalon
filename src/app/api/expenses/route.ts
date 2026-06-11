@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     const endDate   = searchParams.get("endDate")   ?? undefined;
 
     const where = {
-      ...(category && { category }),
+      category: category ? category : { not: "PRODUCT_USAGE" },
       ...(type     && { type }),
       ...(search   && {
         OR: [

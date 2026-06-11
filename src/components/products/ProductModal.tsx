@@ -307,11 +307,11 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
     }
 
     if (stock.trim() === "") {
-      return toastError("Quantity Purchased is required");
+      return toastError(`${editingProduct ? "Stock Quantity" : "Quantity Purchased"} is required`);
     }
     const parsedStock = parseInt(stock, 10);
     if (isNaN(parsedStock) || parsedStock < 0) {
-      return toastError("Quantity Purchased cannot be negative");
+      return toastError(`${editingProduct ? "Stock Quantity" : "Quantity Purchased"} cannot be negative`);
     }
 
     if (lowStockAt.trim() === "") {
@@ -847,7 +847,7 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                        Quantity Purchased *
+                        {editingProduct ? "Stock Quantity *" : "Quantity Purchased *"}
                       </label>
                       <div className="relative">
                         <Archive className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />

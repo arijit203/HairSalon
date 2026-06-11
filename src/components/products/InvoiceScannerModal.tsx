@@ -331,7 +331,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
 
     if (bestMatch) {
       const existingCost = Number(bestMatch.costPrice || bestMatch.price || 0);
-      const newCost = item.unitPrice;
+      const newCost = Math.round((item.unitPrice * (1 - (item.discount || 0) / 100) * (1 + (item.taxRate || 0) / 100)) * 100) / 100;
       
       // If price differs by more than 1 unit, or it's a partial match, flag as conflict
       const priceDiffers = Math.abs(existingCost - newCost) > 1.0;

@@ -41,7 +41,7 @@ const getCachedAnalytics = unstable_cache(
         select: { id: true, total: true, discountAmt: true, createdAt: true },
       }),
       prisma.expense.findMany({
-        where: { date: { gte: from, lte: to } },
+        where: { date: { gte: from, lte: to }, category: { not: "PRODUCT_USAGE" } },
         select: { amount: true, date: true, category: true },
       }),
       prisma.appointment.findMany({
@@ -60,7 +60,7 @@ const getCachedAnalytics = unstable_cache(
         select: { total: true },
       }),
       prisma.expense.findMany({
-        where: { date: { gte: prevFrom, lte: prevTo } },
+        where: { date: { gte: prevFrom, lte: prevTo }, category: { not: "PRODUCT_USAGE" } },
         select: { amount: true },
       }),
       prisma.client.count({

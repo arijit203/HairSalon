@@ -16,6 +16,7 @@ interface Product {
   name: string;
   category: string[];
   price: number | string;
+  costPrice?: number | string;
   stock: number;
 }
 
@@ -728,17 +729,25 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
 
   const salePriceNum = parseFloat(salePrice) || 0;
   const discountNum = parseFloat(discountPct) || 0;
-  const discountAmt = discountType === "PERCENTAGE" 
+  const discountAmt = discountType === "PERCENTAGE"
     ? Math.round(salePriceNum * discountNum / 100)
     : Math.round(discountNum);
-    
+
   const priceAfterDiscount = Math.max(0, salePriceNum - discountAmt);
   const taxAmt = Math.round(priceAfterDiscount * taxPct / 100);
   const finalPrice = priceAfterDiscount + taxAmt;
-  
+
+  const totalCostPrice = useMemo(() => {
+    if (bookingMode !== "product") return 0;
+    return selectedProducts.reduce((sum, p) => {
+      const itemCost = p.costPrice !== undefined ? Number(p.costPrice) : 0;
+      return sum + itemCost * p.quantity;
+    }, 0);
+  }, [selectedProducts, bookingMode]);
+
   // Calculate equivalent percentage to send to API
-  const effectiveDiscountPct = discountType === "PERCENTAGE" 
-    ? discountNum 
+  const effectiveDiscountPct = discountType === "PERCENTAGE"
+    ? discountNum
     : (salePriceNum > 0 ? (discountNum / salePriceNum) * 100 : 0);
 
   const displayTimeSummary = (timeHH && timeMM)
@@ -1016,6 +1025,11 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
       return;
     }
     if (finalPrice <= 0) { error("Sale price must be greater than 0."); setActiveTab("pricing"); return; }
+    if (bookingMode === "product" && finalPrice < totalCostPrice) {
+      error(`Final price (₹${finalPrice.toLocaleString("en-IN")}) cannot be less than the total buying cost (₹${totalCostPrice.toLocaleString("en-IN")}) to prevent selling at a loss.`);
+      setActiveTab("pricing");
+      return;
+    }
 
     let formattedPhone = "";
     if (clientPhone.trim()) {
@@ -1583,8 +1597,8 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                                   }}
                                   onClick={() => handleSelectSuggestion(client)}
                                   className={`w-full text-left px-4 py-2 transition-colors flex flex-col py-2 ${index === focusedSuggestionIndex
-                                      ? "bg-black/[0.05] dark:bg-white/[0.08]"
-                                      : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+                                    ? "bg-black/[0.05] dark:bg-white/[0.08]"
+                                    : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
                                     }`}
                                   style={{ borderBottom: "1px solid var(--border-subtle)" }}
                                 >
@@ -1675,8 +1689,8 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                                   }}
                                   onClick={() => handleSelectSuggestion(client)}
                                   className={`w-full text-left px-4 py-2 transition-colors flex flex-col py-2 ${index === focusedSuggestionIndex
-                                      ? "bg-black/[0.05] dark:bg-white/[0.08]"
-                                      : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+                                    ? "bg-black/[0.05] dark:bg-white/[0.08]"
+                                    : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
                                     }`}
                                   style={{ borderBottom: "1px solid var(--border-subtle)" }}
                                 >
@@ -1959,9 +1973,8 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                                       key={prod.id}
                                       onClick={handleToggleProduct}
                                       disabled={prod.stock <= 0 && !isSelected}
-                                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-left ${
-                                        prod.stock <= 0 && !isSelected ? "opacity-40 cursor-not-allowed" : ""
-                                      }`}
+                                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-left ${prod.stock <= 0 && !isSelected ? "opacity-40 cursor-not-allowed" : ""
+                                        }`}
                                       style={{
                                         background: isSelected ? "rgba(244,63,94,0.1)" : "var(--bg-card)",
                                         border: `1px solid ${isSelected ? "rgba(244,63,94,0.35)" : "var(--border-subtle)"}`,
@@ -2236,16 +2249,11 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                               readOnly
                             />
                           </div>
-                          {bookingMode === "service" && selectedServices.length > 0 && (
-                            <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                              Services list price sum: ₹{selectedServices.reduce((sum, s) => sum + Number(s.price), 0).toLocaleString("en-IN")}
+                          {bookingMode === "product" && selectedProducts.length > 0 && (
+                            <p className="text-sm font-bold text-emerald-500 mt-1">
+                              Total buying cost: ₹{totalCostPrice.toLocaleString("en-IN")}
                             </p>
                           )}
-                          {bookingMode === "product" && selectedProducts.length > 0 && (
-                                    <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                                      Products list price sum: ₹{selectedProducts.reduce((sum, p) => sum + Number(p.price) * p.quantity, 0).toLocaleString("en-IN")}
-                                    </p>
-                                  )}
                         </div>
 
                         <div className="space-y-1.5">
@@ -2368,6 +2376,12 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                         </div>
                       </div>
                     </div>
+                    {bookingMode === "product" && finalPrice < totalCostPrice && (
+                      <div className="rounded-xl p-3 text-xs font-semibold flex items-center gap-2" style={{ background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.2)", color: "#ef4444" }}>
+                        <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                        <span>Warning: Final price is less than the total buying cost (₹{totalCostPrice.toLocaleString("en-IN")})! Please reduce the discount.</span>
+                      </div>
+                    )}
 
                     {/* Booking summary card */}
                     {((bookingMode === "service" ? selectedServices.length > 0 : selectedProducts.length > 0) || selectedStaff) && (
@@ -2510,8 +2524,9 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                   ) : (
                     <button
                       onClick={handleSubmit}
-                      disabled={submitting}
-                      className="btn-primary py-2 px-4 text-xs font-semibold flex items-center gap-1.5"
+                      disabled={submitting || (bookingMode === "product" && finalPrice < totalCostPrice)}
+                      className={`btn-primary py-2 px-4 text-xs font-semibold flex items-center gap-1.5 ${(bookingMode === "product" && finalPrice < totalCostPrice) ? "opacity-50 cursor-not-allowed" : ""
+                        }`}
                     >
                       {submitting
                         ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {editingGroup ? "Saving…" : "Creating…"}</>

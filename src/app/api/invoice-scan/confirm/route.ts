@@ -74,7 +74,8 @@ export async function POST(req: NextRequest) {
           const existingStock = existing.stock > 0 ? existing.stock : 0;
           const existingCost = existing.costPrice ? Number(existing.costPrice) : 0;
           const scannedQty = item.quantity;
-          const scannedCost = item.unitPrice > 0 ? item.unitPrice : (item.costPrice || 0);
+          const unitCostAfterDiscountAndTax = item.unitPrice * (1 - (item.discount || 0) / 100) * (1 + (item.taxRate || 0) / 100);
+          const scannedCost = item.unitPrice > 0 ? unitCostAfterDiscountAndTax : (item.costPrice || 0);
 
           let avgCostPrice = existingCost;
           if (existingStock + scannedQty > 0) {
@@ -130,7 +131,7 @@ export async function POST(req: NextRequest) {
               category: item.categories.length > 0 ? item.categories : [],
               sku,
               price: item.salePrice !== undefined ? item.salePrice : item.unitPrice,
-              costPrice: item.costPrice !== undefined ? item.costPrice : item.unitPrice,
+              costPrice: item.costPrice !== undefined ? item.costPrice : Math.round((item.unitPrice * (1 - (item.discount || 0) / 100) * (1 + (item.taxRate || 0) / 100)) * 100) / 100,
               stock: item.quantity,
               lowStockAt: 2,
               status,

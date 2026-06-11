@@ -834,9 +834,9 @@ function ExpensesPageContent() {
           </>
         }
       >
-        <div className="flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200">
-          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-red-400" />
-          <p className="text-xs leading-relaxed">
+        <div className="flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-800 dark:text-red-200">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+          <p className="text-xs leading-relaxed font-semibold">
             Warning: Deleting this expense record is permanent. This cannot be undone and will immediately affect the aggregate financials on your dashboard.
           </p>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Package, Plus, Search, Edit2, Trash2, AlertTriangle, TrendingDown, ChevronLeft, ChevronRight, X, Loader2, ScanLine } from "lucide-react";
+import { Package, Plus, Search, Edit2, Trash2, AlertTriangle, TrendingDown, ChevronLeft, ChevronRight, X, Loader2, ScanLine, ArrowUpRight, ArrowDownLeft, Calendar, Tag, Info } from "lucide-react";
 import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { usePaginatedApi } from "@/hooks/useApi";
@@ -12,7 +12,7 @@ import Modal from "@/components/ui/Modal";
 interface Product {
   id: string; name: string; category: string[]; brand: string;
   sku: string; price: string; costPrice?: string; stock: number; lowStockAt: number;
-  status: string; isActive: boolean; createdAt: string;
+  status: string; isActive: boolean; createdAt: string; imageUrl?: string;
 }
 
 const STATUS_STYLES: Record<string, { color: string; bg: string; label: string }> = {
@@ -55,6 +55,16 @@ function ProductsPageContent() {
   const [servicesToDelete, setServicesToDelete] = useState<string[]>([]);
   const [productsToDelete, setProductsToDelete] = useState<string[]>([]);
   const [deletingCategory, setDeletingCategory] = useState(false);
+
+  // Delete Product states
+  const [isDeleteProductModalOpen, setIsDeleteProductModalOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deletingProduct, setDeletingProduct] = useState(false);
+
+  // View Details states
+  const [selectedProductDetails, setSelectedProductDetails] = useState<Product | null>(null);
+  const [productHistory, setProductHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const params = new URLSearchParams({ page: String(page), limit: "12" });
   if (category !== "All") params.set("category", category);
@@ -268,21 +278,46 @@ function ProductsPageContent() {
     return { total, inStock, lowStock, outOfStock };
   }, [allProducts]);
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to delete "${name}"?`)) return;
+  const handleDelete = (id: string, name: string) => {
+    setProductToDelete({ id, name });
+    setIsDeleteProductModalOpen(true);
+  };
+
+  const handleConfirmDeleteProduct = async () => {
+    if (!productToDelete) return;
+    setDeletingProduct(true);
     try {
-      const res = await fetch(`/api/products/${id}`, {
+      const res = await fetch(`/api/products/${productToDelete.id}`, {
         method: "DELETE",
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error ?? "Failed to delete product");
       }
-      success("Product deleted successfully");
+      success(`Product "${productToDelete.name}" deleted successfully.`);
+      setIsDeleteProductModalOpen(false);
+      setProductToDelete(null);
       refetch();
     } catch (err: any) {
       toastError(err.message ?? "An error occurred while deleting the product.");
+    } finally {
+      setDeletingProduct(false);
     }
+  };
+
+  const handleViewDetails = (p: Product) => {
+    setSelectedProductDetails(p);
+    setProductHistory([]);
+    setLoadingHistory(true);
+    fetch(`/api/products/${p.id}/history`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) {
+          setProductHistory(d.data);
+        }
+      })
+      .catch((err) => console.error("Error loading product history:", err))
+      .finally(() => setLoadingHistory(false));
   };
 
   return (
@@ -431,10 +466,14 @@ function ProductsPageContent() {
                 : products.map(p => {
                     const st = STATUS_STYLES[p.status] ?? STATUS_STYLES.IN_STOCK;
                     return (
-                      <tr key={p.id} className="group">
+                      <tr 
+                        key={p.id} 
+                        className="group cursor-pointer hover:bg-white/[0.02] transition-colors"
+                        onClick={() => handleViewDetails(p)}
+                      >
                         <td>
                           <div>
-                            <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{p.name}</p>
+                            <p className="font-semibold text-sm group-hover:text-rose-400 transition-colors" style={{ color: "var(--text-primary)" }}>{p.name}</p>
                             <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{p.brand}</p>
                           </div>
                         </td>
@@ -468,7 +507,7 @@ function ProductsPageContent() {
                           <span className="text-xs font-medium px-2.5 py-1 rounded-full"
                             style={{ background: st.bg, color: st.color }}>{st.label}</span>
                         </td>
-                        <td>
+                        <td onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1">
                             <button 
                               onClick={() => { setEditingProduct(p); setIsModalOpen(true); }}
@@ -526,6 +565,222 @@ function ProductsPageContent() {
         onClose={() => setIsInvoiceScannerOpen(false)}
         onProductsUpdated={refetch}
       />
+
+      {/* Product Details & Inventory History Modal */}
+      <Modal
+        open={!!selectedProductDetails}
+        onClose={() => setSelectedProductDetails(null)}
+        title="Product Details & Inventory History"
+        subtitle="View current product parameters and detailed stock ledger timeline."
+        size="lg"
+        footer={
+          <button
+            type="button"
+            className="btn-primary py-2 px-5 text-sm font-semibold"
+            onClick={() => setSelectedProductDetails(null)}
+          >
+            Close
+          </button>
+        }
+      >
+        {selectedProductDetails && (
+          <div className="space-y-6">
+            {/* Header info block */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 p-4 rounded-2xl bg-zinc-50 dark:bg-white/[0.02] border border-default">
+              {/* Product Visual */}
+              <div className="flex items-center justify-center p-3 rounded-xl bg-black/10 dark:bg-white/5 border border-default">
+                {selectedProductDetails.imageUrl ? (
+                  <img
+                    src={selectedProductDetails.imageUrl}
+                    alt={selectedProductDetails.name}
+                    className="max-h-[140px] max-w-full object-contain rounded-lg shadow-md"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-2 py-6 text-[var(--text-muted)]">
+                    <Package className="w-12 h-12 stroke-[1.25]" />
+                    <span className="text-[10px] uppercase font-bold tracking-wider">No Product Image</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Core Details */}
+              <div className="space-y-2 md:col-span-2 text-sm flex flex-col justify-center">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                    SKU: {selectedProductDetails.sku}
+                  </span>
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    Brand: {selectedProductDetails.brand || "Generic"}
+                  </span>
+                  {selectedProductDetails.category.map((cat: string) => (
+                    <span key={cat} className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                      {cat}
+                    </span>
+                  ))}
+                </div>
+                
+                <h4 className="text-xl font-bold mt-1 text-[var(--text-primary)]">
+                  {selectedProductDetails.name}
+                </h4>
+
+                <div className="grid grid-cols-3 gap-4 pt-2 border-t border-[var(--border-subtle)] text-xs font-semibold">
+                  <div>
+                    <span className="text-[10px] text-[var(--text-muted)] block">Sale Price</span>
+                    <span className="text-sm text-[var(--text-primary)]">₹{Number(selectedProductDetails.price).toLocaleString("en-IN")}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[var(--text-muted)] block">Avg Cost Price</span>
+                    <span className="text-sm text-[var(--text-primary)]">
+                      {selectedProductDetails.costPrice ? `₹${Number(selectedProductDetails.costPrice).toLocaleString("en-IN")}` : "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[var(--text-muted)] block">Current Stock</span>
+                    <span className={`text-sm ${selectedProductDetails.stock <= selectedProductDetails.lowStockAt ? "text-amber-500" : "text-emerald-500"}`}>
+                      {selectedProductDetails.stock} units
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Timeline ledger block */}
+            <div className="space-y-3">
+              <h5 className="text-xs uppercase tracking-widest font-bold text-[var(--text-secondary)] flex items-center gap-1.5">
+                <Info className="w-4 h-4 text-rose-400" />
+                Stock Ledger & Timeline
+              </h5>
+
+              <div className="max-h-[250px] overflow-y-auto pr-3 border border-default rounded-2xl p-4 bg-zinc-50/50 dark:bg-white/[0.01]">
+                {loadingHistory ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-2 text-xs text-[var(--text-muted)]">
+                    <Loader2 className="w-6 h-6 animate-spin text-rose-500" />
+                    <span>Fetching stock records...</span>
+                  </div>
+                ) : productHistory.length === 0 ? (
+                  <div className="text-center py-12 text-xs text-[var(--text-muted)]">
+                    No ledger transactions recorded for this product yet.
+                  </div>
+                ) : (
+                  <div className="relative border-l border-zinc-200 dark:border-white/10 ml-3.5 pl-6 space-y-5">
+                    {productHistory.map((item, index) => {
+                      const isAddition = item.qtyChange > 0;
+                      const isSale = item.type === "SALE";
+                      
+                      // Theme classes
+                      let badgeBg = "bg-emerald-500/15 text-emerald-500 border border-emerald-500/20";
+                      let TimelineIcon = ArrowUpRight;
+                      let actionLabel = "Stock Increased";
+                      
+                      if (!isAddition) {
+                        if (isSale) {
+                          badgeBg = "bg-blue-500/15 text-blue-400 border border-blue-500/20";
+                          TimelineIcon = ArrowDownLeft;
+                          actionLabel = "Sold via POS";
+                        } else {
+                          badgeBg = "bg-amber-500/15 text-amber-500 border border-amber-500/20";
+                          TimelineIcon = ArrowDownLeft;
+                          actionLabel = "Used / Manual Decrement";
+                        }
+                      } else {
+                        actionLabel = "Purchased / Restocked";
+                      }
+
+                      return (
+                        <div key={index} className="relative text-xs">
+                          {/* Dot / Icon marker */}
+                          <div className={`absolute -left-[37px] top-0 w-6 h-6 rounded-full flex items-center justify-center ${badgeBg}`}>
+                            <TimelineIcon className="w-3.5 h-3.5" />
+                          </div>
+                          
+                          {/* Log content */}
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-1.5">
+                            <div>
+                              <span className="font-bold text-[var(--text-primary)]">
+                                {actionLabel} ({isAddition ? `+${item.qtyChange}` : item.qtyChange} units)
+                              </span>
+                              <p className="text-[10px] text-[var(--text-muted)] mt-0.5 leading-relaxed">
+                                {item.notes}
+                              </p>
+                            </div>
+                            
+                            <div className="flex items-center gap-1 text-[10px] text-[var(--text-muted)] md:self-center pr-2">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(item.date).toLocaleDateString("en-IN", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit"
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <InvoiceScannerModal
+        open={isInvoiceScannerOpen}
+        onClose={() => setIsInvoiceScannerOpen(false)}
+        onProductsUpdated={refetch}
+      />
+
+      {/* Delete Product Confirmation Modal */}
+      <Modal
+        open={isDeleteProductModalOpen}
+        onClose={() => {
+          if (!deletingProduct) {
+            setIsDeleteProductModalOpen(false);
+            setProductToDelete(null);
+          }
+        }}
+        title="Delete Product"
+        subtitle={`Are you sure you want to delete "${productToDelete?.name}"?`}
+        size="sm"
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn-secondary py-2 px-4 text-xs font-semibold"
+              onClick={() => {
+                setIsDeleteProductModalOpen(false);
+                setProductToDelete(null);
+              }}
+              disabled={deletingProduct}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary py-2 px-4 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white border-none"
+              onClick={handleConfirmDeleteProduct}
+              disabled={deletingProduct}
+            >
+              {deletingProduct ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </button>
+          </>
+        }
+      >
+        <div className="flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-800 dark:text-red-200">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+          <p className="text-xs leading-relaxed font-semibold">
+            Warning: Deleting this product is permanent and will make it inactive. All associated purchase and restock expenses will also be removed or adjusted automatically on your Expenses Dashboard.
+          </p>
+        </div>
+      </Modal>
 
       {/* Delete Category Confirmation Modal */}
       <Modal
