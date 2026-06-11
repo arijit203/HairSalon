@@ -625,10 +625,11 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
   // ── Derived values ─────────────────────────────────────────────────────────
 
   const groupedServices = useMemo(() => {
-    const filtered = services.filter(s =>
-      s.name.toLowerCase().includes(serviceSearch.toLowerCase()) ||
-      s.category.toLowerCase().includes(serviceSearch.toLowerCase())
-    );
+    const queryWords = serviceSearch.toLowerCase().split(/\s+/).filter(Boolean);
+    const filtered = services.filter(s => {
+      const searchStr = `${s.name} ${s.category}`.toLowerCase();
+      return queryWords.every(word => searchStr.includes(word));
+    });
     return filtered.reduce<Record<string, Service[]>>((acc, s) => {
       const cat = s.category || "General";
       acc[cat] = acc[cat] ?? [];
@@ -638,10 +639,12 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
   }, [services, serviceSearch]);
 
   const groupedProducts = useMemo(() => {
-    const filtered = productsList.filter(p =>
-      p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-      (p.category && p.category.some(cat => cat.toLowerCase().includes(productSearch.toLowerCase())))
-    );
+    const queryWords = productSearch.toLowerCase().split(/\s+/).filter(Boolean);
+    const filtered = productsList.filter(p => {
+      const catsStr = p.category ? p.category.join(" ") : "";
+      const searchStr = `${p.name} ${catsStr}`.toLowerCase();
+      return queryWords.every(word => searchStr.includes(word));
+    });
     return filtered.reduce<Record<string, Product[]>>((acc, p) => {
       const cat = p.category && p.category.length > 0 ? p.category[0] : "Uncategorized";
       acc[cat] = acc[cat] ?? [];

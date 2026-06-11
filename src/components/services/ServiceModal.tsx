@@ -230,10 +230,11 @@ export default function ServiceModal({ open, onClose, onSaved, editingService, e
 
   // Derived: filtered services based on search query
   const filteredComboServices = useMemo(() => {
-    return allServices.filter(s => 
-      s.name.toLowerCase().includes(comboServiceSearch.toLowerCase()) ||
-      s.category.toLowerCase().includes(comboServiceSearch.toLowerCase())
-    );
+    const queryWords = comboServiceSearch.toLowerCase().split(/\s+/).filter(Boolean);
+    return allServices.filter(s => {
+      const searchStr = `${s.name} ${s.category}`.toLowerCase();
+      return queryWords.every(word => searchStr.includes(word));
+    });
   }, [allServices, comboServiceSearch]);
 
   // Derived: total list price of selected combo services

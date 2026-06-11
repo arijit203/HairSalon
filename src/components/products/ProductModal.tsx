@@ -158,9 +158,11 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
   // Filter autocomplete suggestions based on the typed product name
   const suggestions = useMemo(() => {
     if (!name.trim()) return [];
-    return allProducts.filter(p => 
-      p.name.toLowerCase().includes(name.toLowerCase())
-    ).slice(0, 5);
+    const queryWords = name.toLowerCase().split(/\s+/).filter(Boolean);
+    return allProducts.filter(p => {
+      const searchStr = p.name.toLowerCase();
+      return queryWords.every(word => searchStr.includes(word));
+    }).slice(0, 5);
   }, [name, allProducts]);
 
   const handleSelectSuggestion = (prod: any) => {

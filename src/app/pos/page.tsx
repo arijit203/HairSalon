@@ -51,7 +51,8 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState("card");
 
   const filtered = catalogProducts.filter(p => {
-    const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const queryWords = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+    const matchSearch = queryWords.every(word => p.name.toLowerCase().includes(word));
     const matchFilter = activeFilter === "All" || (activeFilter === "Products" && p.type === "product") || (activeFilter === "Services" && p.type === "service");
     return matchSearch && matchFilter;
   });

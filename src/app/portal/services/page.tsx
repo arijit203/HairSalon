@@ -59,10 +59,9 @@ export default function PortalServicesPage() {
     const matchesCategory =
       activeCategory === "ALL" ||
       service.category.toUpperCase() === activeCategory.toUpperCase();
-    const matchesSearch =
-      service.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (service.description &&
-        service.description.toLowerCase().includes(searchQuery.toLowerCase()));
+    const queryWords = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+    const searchStr = `${service.name} ${service.description || ""}`.toLowerCase();
+    const matchesSearch = queryWords.every(word => searchStr.includes(word));
     return matchesCategory && matchesSearch;
   });
 

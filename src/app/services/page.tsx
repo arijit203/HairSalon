@@ -278,10 +278,11 @@ function ServicesPageContent() {
 
   // Client-side filtering
   const filtered = useMemo(() => {
+    const queryWords = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
     return mappedServices.filter((s) => {
       const matchCat = selectedCategory === "All" || s.category === selectedCategory;
-      const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          s.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const searchStr = `${s.name} ${s.description}`.toLowerCase();
+      const matchSearch = queryWords.every(word => searchStr.includes(word));
       let matchStats = true;
       if (statsFilter === "Bookings") {
         matchStats = s.todayBookings > 0;
@@ -296,10 +297,11 @@ function ServicesPageContent() {
 
   // Statistics
   const statsBase = useMemo(() => {
+    const queryWords = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
     return mappedServices.filter((s) => {
       const matchCat = selectedCategory === "All" || s.category === selectedCategory;
-      const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          s.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const searchStr = `${s.name} ${s.description}`.toLowerCase();
+      const matchSearch = queryWords.every(word => searchStr.includes(word));
       return matchCat && matchSearch;
     });
   }, [mappedServices, selectedCategory, searchQuery]);
