@@ -29,6 +29,11 @@ const getCachedDashboardData = unstable_cache(
       thisMonthProductsSold, lastMonthProductsSold,
       lowStockCount, outOfStockCount,
       todayAppointments,
+      todayRevenue,
+      thisMonthRevenueCash,
+      thisMonthRevenueOnline,
+      todayRevenueCash,
+      todayRevenueOnline,
     ] = await Promise.all([
       // Revenue this month
       prisma.transaction.aggregate({
@@ -103,6 +108,31 @@ const getCachedDashboardData = unstable_cache(
           },
         },
       }),
+      // Today's completed transaction revenue
+      prisma.transaction.aggregate({
+        where:  { createdAt: { gte: todayStart, lt: todayEnd }, status: "COMPLETED" },
+        _sum:   { total: true },
+      }),
+      // This month's completed cash transaction revenue
+      prisma.transaction.aggregate({
+        where:  { createdAt: { gte: monthStart, lte: monthEnd }, status: "COMPLETED", paymentMethod: "CASH" },
+        _sum:   { total: true },
+      }),
+      // This month's completed online transaction revenue
+      prisma.transaction.aggregate({
+        where:  { createdAt: { gte: monthStart, lte: monthEnd }, status: "COMPLETED", paymentMethod: { in: ["CARD", "UPI", "BANK_TRANSFER", "ONLINE"] } },
+        _sum:   { total: true },
+      }),
+      // Today's completed cash transaction revenue
+      prisma.transaction.aggregate({
+        where:  { createdAt: { gte: todayStart, lt: todayEnd }, status: "COMPLETED", paymentMethod: "CASH" },
+        _sum:   { total: true },
+      }),
+      // Today's completed online transaction revenue
+      prisma.transaction.aggregate({
+        where:  { createdAt: { gte: todayStart, lt: todayEnd }, status: "COMPLETED", paymentMethod: { in: ["CARD", "UPI", "BANK_TRANSFER", "ONLINE"] } },
+        _sum:   { total: true },
+      }),
     ]);
 
     return {
@@ -117,6 +147,11 @@ const getCachedDashboardData = unstable_cache(
       lowStockCount,
       outOfStockCount,
       todayAppointments,
+      todayRevenue,
+      thisMonthRevenueCash,
+      thisMonthRevenueOnline,
+      todayRevenueCash,
+      todayRevenueOnline,
     };
   },
   ["dashboard-stats-v2"],
@@ -183,6 +218,11 @@ export async function GET(_req: NextRequest) {
       lowStockCount,
       outOfStockCount,
       todayAppointments,
+      todayRevenue,
+      thisMonthRevenueCash,
+      thisMonthRevenueOnline,
+      todayRevenueCash,
+      todayRevenueOnline,
     } = await getCachedDashboardData(
       todayStart.toISOString(),
       todayEnd.toISOString(),
@@ -206,10 +246,16 @@ export async function GET(_req: NextRequest) {
 
     // Revenue change %
     const thisRev  = Number(thisMonthRevenue._sum.total ?? 0);
+    const thisRevCash = Number(thisMonthRevenueCash?._sum?.total ?? 0);
+    const thisRevOnline = Number(thisMonthRevenueOnline?._sum?.total ?? 0);
     const lastRev  = Number(lastMonthRevenue._sum.total ?? 0);
     const revChange = lastRev > 0
       ? (((thisRev - lastRev) / lastRev) * 100).toFixed(1)
       : "0.0";
+
+    const todayRev = Number(todayRevenue._sum.total ?? 0);
+    const todayRevCash = Number(todayRevenueCash?._sum?.total ?? 0);
+    const todayRevOnline = Number(todayRevenueOnline?._sum?.total ?? 0);
 
     // Products sold change
     const thisSold  = thisMonthProductsSold._sum.quantity ?? 0;
@@ -221,8 +267,13 @@ export async function GET(_req: NextRequest) {
     return successResponse({
       revenue: {
         thisMonth:  thisRev,
+        thisMonthCash: thisRevCash,
+        thisMonthOnline: thisRevOnline,
         lastMonth:  lastRev,
         changePercent: parseFloat(revChange),
+        today: todayRev,
+        todayCash: todayRevCash,
+        todayOnline: todayRevOnline,
       },
       bookings: {
         today:    todayBookings,

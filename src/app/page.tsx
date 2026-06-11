@@ -3,7 +3,7 @@
 import {
   TrendingUp, TrendingDown, Users, ShoppingBag,
   CalendarCheck, Plus, ArrowRight, Clock,
-  Scissors, AlertTriangle, Printer, Package, Sparkles,
+  Scissors, AlertTriangle, Printer, Package, Sparkles, DollarSign,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -16,7 +16,16 @@ import { useToast } from "@/context/ToastContext";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface DashboardStats {
-  revenue: { thisMonth: number; lastMonth: number; changePercent: number };
+  revenue: {
+    thisMonth: number;
+    thisMonthCash: number;
+    thisMonthOnline: number;
+    lastMonth: number;
+    changePercent: number;
+    today: number;
+    todayCash: number;
+    todayOnline: number;
+  };
   bookings: { today: number; newToday: number };
   clients: { total: number; newThisMonth: number };
   productsSold: { thisMonth: number; lastMonth: number; changePercent: number };
@@ -364,6 +373,24 @@ export default function DashboardPage() {
       color: "#f43f5e",
     },
     {
+      label: "Total Income Today",
+      value: stats ? `₹${stats.revenue.today.toLocaleString("en-IN")}` : "—",
+      sub: stats ? (
+        <div className="flex items-center gap-6 text-xs font-semibold mt-1" style={{ color: "var(--text-primary)" }}>
+          <span>Online: ₹{stats.revenue.todayOnline.toLocaleString("en-IN")}</span>
+          <span>Cash:  ₹{stats.revenue.todayCash.toLocaleString("en-IN")}</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-6 text-xs font-semibold mt-1" style={{ color: "var(--text-muted)" }}>
+          <span>Online: —</span>
+          <span>Cash:  —</span>
+        </div>
+      ),
+      icon: DollarSign,
+      color: "#10b981",
+      isCount: true,
+    },
+    {
       label: "Bookings Today",
       value: stats ? String(stats.bookings.today) : "—",
       change: stats?.bookings.newToday ?? 0,
@@ -427,9 +454,9 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
         {statsLoading
-          ? Array(4).fill(0).map((_, i) => <StatCardSkeleton key={i} />)
+          ? Array(5).fill(0).map((_, i) => <StatCardSkeleton key={i} />)
           : statCards.map((card) => {
             const Icon = card.icon;
             const isPositive = card.isCount ? (card.change as number) >= 0 : (card.change as number) >= 0;
@@ -450,8 +477,9 @@ export default function DashboardPage() {
                 <p className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>{card.value}</p>
                 <p className="text-xs font-medium mb-0.5" style={{ color: "var(--text-muted)" }}>{card.label}</p>
                 {card.sub && (
-                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{card.sub}</p>
+                  <div className="text-xs w-full" style={{ color: "var(--text-muted)" }}>{card.sub}</div>
                 )}
+
               </div>
             );
           })}
@@ -542,16 +570,25 @@ export default function DashboardPage() {
 
       {/* Today's Appointments */}
       <div className="glass-card p-5">
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-5 flex-wrap gap-4">
           <div>
             <h2 className="card-title">Today&apos;s Schedule</h2>
             <p className="card-subtitle">
               {statsLoading ? "Loading..." : `${groupAppointments(stats?.todayAppointments ?? []).length} booking${groupAppointments(stats?.todayAppointments ?? []).length !== 1 ? "s" : ""}`}
             </p>
           </div>
-          <a href="/appointments" className="btn-ghost text-sm flex items-center gap-1.5">
-            View All <ArrowRight className="w-3.5 h-3.5" />
-          </a>
+          <div className="flex items-center gap-4 flex-wrap">
+            {!statsLoading && stats && (
+              <div className="flex items-center gap-4 text-xs font-semibold text-[var(--text-primary)]">
+                <span>Online: ₹{stats.revenue.todayOnline.toLocaleString("en-IN")}</span>
+                <span>Cash:  ₹{stats.revenue.todayCash.toLocaleString("en-IN")}</span>
+                <span>Total: ₹{stats.revenue.today.toLocaleString("en-IN")}</span>
+              </div>
+            )}
+            <a href="/appointments" className="btn-ghost text-sm flex items-center gap-1.5">
+              View All <ArrowRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
         </div>
 
         {statsLoading ? (

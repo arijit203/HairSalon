@@ -330,6 +330,24 @@ export default function AppointmentsPage() {
   const prevMonth = () => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); };
   const nextMonth = () => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); };
 
+  const dayTotalIncome = appointments
+    ? appointments
+        .filter(appt => appt.status === "COMPLETED")
+        .reduce((sum, appt) => sum + Number(appt.price || 0), 0)
+    : 0;
+
+  const dayCashIncome = appointments
+    ? appointments
+        .filter(appt => appt.status === "COMPLETED" && appt.transaction?.paymentMethod === "CASH")
+        .reduce((sum, appt) => sum + Number(appt.price || 0), 0)
+    : 0;
+
+  const dayOnlineIncome = appointments
+    ? appointments
+        .filter(appt => appt.status === "COMPLETED" && appt.transaction?.paymentMethod !== "CASH")
+        .reduce((sum, appt) => sum + Number(appt.price || 0), 0)
+    : 0;
+
   return (
     <div className="max-w-[1400px] mx-auto space-y-6 animate-fade-in">
       {/* Header */}
@@ -400,13 +418,22 @@ export default function AppointmentsPage() {
 
         {/* Day schedule */}
         <div className="glass-card p-5 xl:col-span-2">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-5 flex-wrap gap-4">
             <div>
               <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>{MONTHS[month]} {day}, {year}</h2>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                {loading ? "Loading..." : `${groupAppointments(appointments).length} booking${groupAppointments(appointments).length !== 1 ? "s" : ""}`}
-              </p>
+              <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                <span className="text-xs text-[var(--text-muted)]">
+                  {loading ? "Loading..." : `${groupAppointments(appointments).length} booking${groupAppointments(appointments).length !== 1 ? "s" : ""}`}
+                </span>
+              </div>
             </div>
+            {!loading && appointments.length > 0 && (
+              <div className="flex items-center gap-4 text-xs font-semibold text-[var(--text-primary)]">
+                <span>Online: ₹{dayOnlineIncome.toLocaleString("en-IN")}</span>
+                <span>Cash:  ₹{dayCashIncome.toLocaleString("en-IN")}</span>
+                <span>Total: ₹{dayTotalIncome.toLocaleString("en-IN")}</span>
+              </div>
+            )}
           </div>
 
           {loading ? (
