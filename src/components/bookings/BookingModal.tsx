@@ -2355,7 +2355,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                         {discountNum > 0 && (
                           <div className="flex items-center justify-between text-sm">
                             <span style={{ color: "var(--text-secondary)" }}>
-                              Discount ({discountNum}{discountType === "PERCENTAGE" ? "%" : "₹"})
+                              Discount ({discountType === "PERCENTAGE" ? `${discountNum}%` : `₹${discountNum}`})
                             </span>
                             <span className="text-emerald-400">−₹{discountAmt.toLocaleString("en-IN")}</span>
                           </div>
@@ -2464,7 +2464,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                             </div>
                             {discountNum > 0 && (
                               <div className="flex items-center justify-between text-xs">
-                                <span style={{ color: "var(--text-secondary)" }}>Discount ({discountNum}{discountType === "PERCENTAGE" ? "%" : "₹"})</span>
+                                <span style={{ color: "var(--text-secondary)" }}>Discount ({discountType === "PERCENTAGE" ? `${discountNum}%` : `₹${discountNum}`})</span>
                                 <span className="text-emerald-400 font-semibold">−₹{discountAmt.toLocaleString("en-IN")}</span>
                               </div>
                             )}

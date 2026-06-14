@@ -465,22 +465,27 @@ export default function AnalyticsPage() {
               )}
               {/* Label row — date inline for card 0 only */}
               <div className="flex items-baseline gap-1.5 mb-3 flex-wrap">
-                <p className="text-xs font-medium leading-tight" style={{ color: "var(--text-muted)" }}>{k.label}</p>
-                {i === 0 && (
-                  <p className="text-[10px] leading-tight opacity-55 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
-                    ({periodRangeLabel})
-                  </p>
-                )}
+                <p className="text-xs font-medium leading-tight" style={{ color: "var(--text-muted)" }}>
+                  {k.label}
+                  {i === 0 && (
+                    <span className="text-[9px] font-medium ml-1 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
+                      ({periodRangeLabel})
+                    </span>
+                  )}
+                </p>
               </div>
-              {/* Value */}
-              <p className="text-2xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>{displayValue}</p>
-              {/* Compare row — only rendered when compare is on, no dead space when off */}
-              {showComparison ? (
-                <div className={`flex items-center gap-1 text-xs font-semibold mt-2 ${k.up ? "text-emerald-500" : "text-rose-400"}`}>
-                  {k.change.startsWith("-") ? <ArrowDown className="w-3.5 h-3.5" /> : <ArrowUp className="w-3.5 h-3.5" />}
-                  {k.change.replace(/[+-]/g, "")} vs last period
-                </div>
-              ) : null}
+              {/* Value & Compare Container */}
+              <div className="mt-auto">
+                {/* Value */}
+                <p className="text-2xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>{displayValue}</p>
+                {/* Compare row — only rendered when compare is on, no dead space when off */}
+                {showComparison ? (
+                  <div className={`flex items-center gap-1 text-xs font-semibold mt-2 ${k.up ? "text-emerald-500" : "text-rose-400"}`}>
+                    {k.change.startsWith("-") ? <ArrowDown className="w-3.5 h-3.5" /> : <ArrowUp className="w-3.5 h-3.5" />}
+                    {k.change.replace(/[+-]/g, "")} vs last period
+                  </div>
+                ) : null}
+              </div>
             </div>
           );
         })}

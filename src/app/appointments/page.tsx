@@ -464,6 +464,15 @@ export default function AppointmentsPage() {
                 const colors = ["#f43f5e","#a855f7","#06b6d4","#f59e0b","#10b981","#f97316"];
                 const clr = colors[group.client.name.charCodeAt(0) % colors.length];
                 const totalPrice = group.appointments.reduce((sum: number, a: any) => sum + Number(a.price), 0);
+                const transaction = group.appointments[0]?.transaction;
+                const originalSubtotal = group.appointments.reduce((sum: number, appt: any) => {
+                  const isProduct = appt.service?.name === "Product Sale";
+                  const price = isProduct ? Number(appt.transaction?.subtotal ?? appt.price) : Number(appt.service?.price ?? appt.price);
+                  return sum + price;
+                }, 0);
+                const groupDiscountAmt = transaction ? Number(transaction.discountAmt) : Math.max(0, originalSubtotal - totalPrice);
+                const rawPct = transaction ? Number(transaction.discountPct) : (originalSubtotal > 0 ? (groupDiscountAmt / originalSubtotal) * 100 : 0);
+                const groupDiscountPct = rawPct % 1 === 0 ? rawPct.toFixed(0) : rawPct.toFixed(2);
 
                 const hasProductSale = group.appointments.some((a: any) => a.service?.name === "Product Sale");
 
@@ -508,11 +517,12 @@ export default function AppointmentsPage() {
                         <p className="text-sm font-semibold text-[var(--text-primary)]">{group.client.name}</p>
                         <div className="mt-2 space-y-1.5">
                            {group.appointments.map((appt: any) => {
-                             const isProductSale = appt.service?.name === "Product Sale";
-                             const itemsToShow = isProductSale && appt.transaction?.items && appt.transaction.items.length > 0
-                               ? appt.transaction.items.map((item: any) => `${item.name} (x${item.quantity})`).join(", ")
-                               : appt.service?.name;
-                             return (
+                              const isProductSale = appt.service?.name === "Product Sale";
+                              const originalPrice = isProductSale ? Number(appt.transaction?.subtotal ?? appt.price) : Number(appt.service?.price ?? appt.price);
+                              const itemsToShow = isProductSale && appt.transaction?.items && appt.transaction.items.length > 0
+                                ? appt.transaction.items.map((item: any) => `${item.name} (x${item.quantity})`).join(", ")
+                                : appt.service?.name;
+                              return (
                                <div key={appt.id} className="flex items-center justify-between text-xs p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]">
                                  <div className="flex items-center gap-2 min-w-0">
                                    <div className="truncate">
@@ -520,15 +530,24 @@ export default function AppointmentsPage() {
                                      <span className="text-[var(--text-muted)]"> · {appt.staff?.name}</span>
                                    </div>
                                  </div>
-                                 <div className="flex items-center gap-2.5 shrink-0 ml-2">
-                                   <span className="font-semibold text-[var(--text-primary)]">₹{Number(appt.price).toLocaleString("en-IN")}</span>
+                                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                    <span className="font-semibold text-[var(--text-primary)]">
+                                      ₹{originalPrice.toLocaleString("en-IN")}
+                                    </span>
                                  </div>
                                 </div>
-                             );
+                              );
                            })}
                         </div>
                       </div>
-                      <p className="text-xs font-semibold mt-2.5" style={{ color: clr }}>Total: ₹{totalPrice.toLocaleString("en-IN")}</p>
+                      <div className="flex items-center justify-between mt-2.5 text-xs font-semibold">
+                        <p style={{ color: clr }}>Total: ₹{totalPrice.toLocaleString("en-IN")}</p>
+                        {groupDiscountAmt > 0 && (
+                          <p className="text-[var(--text-muted)]">
+                            Discount: ₹{groupDiscountAmt.toLocaleString("en-IN")} ({groupDiscountPct}%)
+                          </p>
+                        )}
+                      </div>
                     </div>
                     
                     {/* Side-by-side Status & Action Buttons */}
