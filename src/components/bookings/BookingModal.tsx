@@ -1750,6 +1750,14 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                         />
                       </div>
 
+                      {/* Selected Services Display */}
+                      {selectedServices.length > 0 && (
+                        <div className="text-[11px] font-bold px-1" style={{ color: "var(--text-primary)" }}>
+                          <span className="font-semibold" style={{ color: "var(--text-muted)" }}>Selected: </span>
+                          {selectedServices.map(s => s.name).join(", ")}
+                        </div>
+                      )}
+
                       {/* Service list grouped by category */}
                       {servicesLoading ? (
                         <div className="flex items-center justify-center py-10">
@@ -1938,6 +1946,14 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                           onChange={e => setProductSearch(e.target.value)}
                         />
                       </div>
+
+                      {/* Selected Products Display */}
+                      {selectedProducts.length > 0 && (
+                        <div className="text-[11px] font-bold px-1" style={{ color: "var(--text-primary)" }}>
+                          <span className="font-semibold" style={{ color: "var(--text-muted)" }}>Selected: </span>
+                          {selectedProducts.map(p => `${p.name} (x${p.quantity})`).join(", ")}
+                        </div>
+                      )}
 
                       {/* Product list grouped by category */}
                       {productsLoading ? (

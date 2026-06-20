@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { successResponse, notFoundResponse, handleApiError } from "@/lib/api";
 import { UpdateAppointmentSchema } from "@/lib/validations";
 import { revalidateDashboardAndAnalytics } from "@/lib/revalidate";
+import { updateClientStats } from "@/lib/client-stats";
 
 type Params = { params: { id: string } };
 
@@ -52,40 +53,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const targetClientId = appointment.clientId || oldAppointment?.clientId;
     if (targetClientId) {
-      const apptsAggregate = await prisma.appointment.aggregate({
-        where: { clientId: targetClientId, status: "COMPLETED" },
-        _count: { _all: true },
-        _sum: { price: true },
-      });
-
-      const txAggregate = await prisma.transaction.aggregate({
-        where: { clientId: targetClientId, status: "COMPLETED" },
-        _sum: { total: true },
-      });
-
-      const standaloneApptSum = await prisma.appointment.aggregate({
-        where: { clientId: targetClientId, status: "COMPLETED", transactionId: null },
-        _sum: { price: true },
-      });
-
-      const visits = apptsAggregate._count._all || 0;
-      const totalSpent = Number(txAggregate._sum.total || 0) + Number(standaloneApptSum._sum.price || 0);
-      const loyaltyPoints = Math.floor(totalSpent / 100);
-
-      let tier: "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" = "BRONZE";
-      if (totalSpent >= 50000) tier = "PLATINUM";
-      else if (totalSpent >= 25000) tier = "GOLD";
-      else if (totalSpent >= 10000) tier = "SILVER";
-
-      await prisma.client.update({
-        where: { id: targetClientId },
-        data: {
-          totalSpent,
-          totalVisits: visits,
-          loyaltyPoints,
-          tier,
-        },
-      });
+      await updateClientStats(targetClientId);
+    }
+    if (oldAppointment?.clientId && oldAppointment.clientId !== appointment.clientId) {
+      await updateClientStats(oldAppointment.clientId);
     }
 
     return successResponse(appointment);
@@ -94,70 +65,46 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 }
 
+
 // DELETE /api/appointments/:id
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    const targetClientId = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const appointment = await tx.appointment.findUnique({
         where: { id: params.id },
         select: { transactionId: true, clientId: true },
       });
 
+      if (!appointment) return null;
+
       await tx.appointment.delete({
         where: { id: params.id },
       });
 
-      if (appointment?.transactionId) {
-        const count = await tx.appointment.count({
-          where: { transactionId: appointment.transactionId },
-        });
-
-        if (count === 0) {
-          await tx.transaction.delete({
-            where: { id: appointment.transactionId },
-          });
-        }
-      }
-      return appointment?.clientId;
+      return {
+        clientId: appointment.clientId,
+        transactionId: appointment.transactionId,
+      };
     });
+
+    if (!result) return notFoundResponse("Appointment");
+
+    // Clean up orphaned transactions outside the transaction lock to handle concurrent requests cleanly
+    if (result.transactionId) {
+      await prisma.transaction.deleteMany({
+        where: {
+          id: result.transactionId,
+          appointments: {
+            none: {},
+          },
+        },
+      });
+    }
 
     revalidateDashboardAndAnalytics();
 
-    if (targetClientId) {
-      const apptsAggregate = await prisma.appointment.aggregate({
-        where: { clientId: targetClientId, status: "COMPLETED" },
-        _count: { _all: true },
-        _sum: { price: true },
-      });
-
-      const txAggregate = await prisma.transaction.aggregate({
-        where: { clientId: targetClientId, status: "COMPLETED" },
-        _sum: { total: true },
-      });
-
-      const standaloneApptSum = await prisma.appointment.aggregate({
-        where: { clientId: targetClientId, status: "COMPLETED", transactionId: null },
-        _sum: { price: true },
-      });
-
-      const visits = apptsAggregate._count._all || 0;
-      const totalSpent = Number(txAggregate._sum.total || 0) + Number(standaloneApptSum._sum.price || 0);
-      const loyaltyPoints = Math.floor(totalSpent / 100);
-
-      let tier: "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" = "BRONZE";
-      if (totalSpent >= 50000) tier = "PLATINUM";
-      else if (totalSpent >= 25000) tier = "GOLD";
-      else if (totalSpent >= 10000) tier = "SILVER";
-
-      await prisma.client.update({
-        where: { id: targetClientId },
-        data: {
-          totalSpent,
-          totalVisits: visits,
-          loyaltyPoints,
-          tier,
-        },
-      });
+    if (result.clientId) {
+      await updateClientStats(result.clientId);
     }
 
     return successResponse({ message: "Appointment deleted" });
@@ -165,3 +112,4 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     return handleApiError(error);
   }
 }
+

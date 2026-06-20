@@ -41,6 +41,15 @@ interface InvoiceScannerModalProps {
 
 type Step = "upload" | "processing" | "review" | "success";
 
+const generateItemCode = () => {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let result = "IC-";
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
+
 export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }: InvoiceScannerModalProps) {
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<Step>("upload");
@@ -263,7 +272,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
         }
         return {
           ...item,
-          itemCode: item.itemCode || "",
+          itemCode: (item.itemCode || "").trim() || generateItemCode(),
           taxRate: typeof item.taxRate === "number" ? item.taxRate : 0,
         };
       });
@@ -349,6 +358,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
           existingSku: bestMatch.sku,
           existingCostPrice: existingCost,
           existingPrice: Number(bestMatch.price || 0),
+          itemCode: (item.itemCode || "").trim() || generateItemCode(),
         });
       } else {
         updateItem(idx, {
@@ -361,6 +371,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
           existingSku: bestMatch.sku,
           existingCostPrice: existingCost,
           existingPrice: Number(bestMatch.price || 0),
+          itemCode: bestMatch.sku || item.itemCode || "",
         });
       }
     } else {
@@ -374,6 +385,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
         existingSku: undefined,
         existingCostPrice: undefined,
         existingPrice: undefined,
+        itemCode: (item.itemCode || "").trim() || generateItemCode(),
       });
     }
 
@@ -977,7 +989,10 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                             <button
                                               type="button"
                                               onClick={() => {
-                                                updateItem(idx, { action: "create" });
+                                                updateItem(idx, {
+                                                  action: "create",
+                                                  itemCode: (item.itemCode || "").trim() || generateItemCode(),
+                                                });
                                               }}
                                               className="px-2.5 py-1 rounded-lg font-bold transition-all border border-amber-600/40 text-amber-800 hover:bg-amber-500/10 dark:border-amber-400/30 dark:text-amber-300 dark:hover:bg-amber-400/10 text-[10px]"
                                             >

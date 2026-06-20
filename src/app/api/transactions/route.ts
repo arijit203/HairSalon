@@ -7,6 +7,8 @@ import {
 } from "@/lib/api";
 import { CreateTransactionSchema } from "@/lib/validations";
 import { Decimal } from "@prisma/client/runtime/library";
+import { updateClientStats } from "@/lib/client-stats";
+
 
 export const dynamic = "force-dynamic";
 
@@ -134,28 +136,9 @@ export async function POST(req: NextRequest) {
 
       // ── 2c. Update client stats & tier
       if (data.clientId) {
-        const client = await tx.client.findUnique({
-          where: { id: data.clientId },
-          select: { totalSpent: true, totalVisits: true },
-        });
-
-        if (client) {
-          const newTotalSpent   = Number(client.totalSpent) + total;
-          const newTotalVisits  = client.totalVisits + 1;
-          const newLoyaltyPts   = Math.floor(total / 100); // 1 point per ₹100
-          const newTier         = calculateClientTier(newTotalSpent);
-
-          await tx.client.update({
-            where: { id: data.clientId },
-            data: {
-              totalSpent:    newTotalSpent,
-              totalVisits:   newTotalVisits,
-              tier:          newTier,
-              loyaltyPoints: { increment: newLoyaltyPts },
-            },
-          });
-        }
+        await updateClientStats(data.clientId, tx);
       }
+
 
       // ── 2d. Mark linked appointments as COMPLETED
       if (data.appointmentIds?.length) {

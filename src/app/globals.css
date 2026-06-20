@@ -312,6 +312,12 @@ body::before {
     color: var(--text-muted);
     border-bottom: 1px solid var(--border-subtle);
   }
+  .data-table th.text-right {
+    text-align: right;
+  }
+  .data-table th.text-center {
+    text-align: center;
+  }
   .data-table td {
     @apply py-3.5 px-4 text-sm;
     color: var(--text-secondary);

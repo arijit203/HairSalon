@@ -98,6 +98,7 @@ export default function AppointmentsPage() {
       success("Booking deleted successfully!");
       setDeletingGroup(null);
       setTick(t => t + 1);
+      window.dispatchEvent(new CustomEvent("booking-created"));
     } catch (e: any) {
       error(e.message ?? "Something went wrong.");
     } finally {

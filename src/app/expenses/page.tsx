@@ -480,7 +480,7 @@ function ExpensesPageContent() {
                   <th style={{ width: "120px" }}>Date</th>
                   <th>Title / Notes</th>
                   <th style={{ width: "160px" }}>Expense Type</th>
-                  <th style={{ width: "150px" }} className="text-right">Amount</th>
+                  <th style={{ width: "150px" }}>Amount</th>
                   <th style={{ width: "60px" }}>Actions</th>
                 </tr>
               </thead>
@@ -550,7 +550,7 @@ function ExpensesPageContent() {
                             {getCategoryLabel(expense.category)}
                           </span>
                         </td>
-                        <td className="text-right font-bold font-mono text-sm" style={{ color: "var(--text-primary)" }}>
+                        <td className="font-bold font-mono text-sm" style={{ color: "var(--text-primary)" }}>
                           ₹{Number(expense.amount).toLocaleString("en-IN", {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
