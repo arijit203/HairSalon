@@ -497,10 +497,16 @@ function ProductsPageContent() {
                         </td>
                         <td>
                           <div className="flex items-center gap-2">
-                            <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-card)" }}>
-                              <div className="h-full rounded-full" style={{ width: `${Math.min(100, (p.stock / (p.lowStockAt * 5)) * 100)}%`, background: st.color }} />
-                            </div>
                             <span className="text-sm font-medium tabular-nums" style={{ color: "var(--text-secondary)" }}>{p.stock}</span>
+                            <div className="w-16 progress-bar">
+                              <div 
+                                className="h-full progress-fill" 
+                                style={{ 
+                                  width: `${Math.min(100, (p.stock / (p.lowStockAt * 5)) * 100)}%`, 
+                                  background: st.color 
+                                }} 
+                              />
+                            </div>
                           </div>
                         </td>
                         <td>
