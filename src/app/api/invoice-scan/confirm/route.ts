@@ -16,7 +16,7 @@ interface ConfirmItem {
   name: string;
   brand: string;
   quantity: number;
-  unitPrice: number;
+  unitPrice: number; // Base unit price (MRP)
   discount: number;
   categories: string[];
   salePrice?: number;

@@ -14,7 +14,7 @@ interface ParsedItem {
   name: string;
   brand: string;
   quantity: number;
-  unitPrice: number;
+  unitPrice: number; // Base unit price (MRP) before discount
   discount: number;
   suggestedCategories: string[];
   itemCode: string;
@@ -434,6 +434,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
     }
   };
 
+  // Update an item
   // Update an item
   const updateItem = (index: number, updates: Partial<ParsedItem>) => {
     setItems((prev) =>
@@ -905,6 +906,9 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                               <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                                 Price
                               </th>
+                              <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)", minWidth: "100px" }}>
+                                Wholesale
+                              </th>
                               <th className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                                 Status
                               </th>
@@ -1159,6 +1163,11 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                     </div>
                                   )}
                                 </td>
+                                <td className="px-3 py-3 text-right">
+                                  <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
+                                    ₹{(item.unitPrice * (1 - (item.discount || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                </td>
                                 <td className="px-3 py-3 text-center">
                                    {item.action === "conflict" ? (
                                      <span
@@ -1193,7 +1202,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                  </td>
                                  <td className="px-3 py-3 text-right">
                                    <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
-                                     ₹{((item.unitPrice * item.quantity) * (1 - (item.discount || 0) / 100) * (1 + (item.taxRate || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                     ₹{((item.unitPrice * (1 - (item.discount || 0) / 100) * item.quantity) * (1 + (item.taxRate || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                    </span>
                                  </td>
                                  <td className="px-3 py-3 text-center">
@@ -1256,7 +1265,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                     {/* Grand Total Summary Bar */}
                     {items.length > 0 && (() => {
                       const calculated = items.reduce((sum, item) => {
-                        return sum + (item.unitPrice * item.quantity) * (1 - (item.discount || 0) / 100) * (1 + (item.taxRate || 0) / 100);
+                        return sum + (item.unitPrice * (1 - (item.discount || 0) / 100) * item.quantity) * (1 + (item.taxRate || 0) / 100);
                       }, 0);
                       const grandTotal = scannedGrandTotal > 0 ? scannedGrandTotal : calculated;
                       const isFromReceipt = scannedGrandTotal > 0;

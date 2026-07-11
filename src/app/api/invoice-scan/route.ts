@@ -10,7 +10,7 @@ interface ParsedItem {
   name: string;
   brand: string;
   quantity: number;
-  unitPrice: number;
+  unitPrice: number; // Base unit price (MRP) before discount
   discount: number;
   suggestedCategories: string[];
   itemCode: string;
@@ -134,7 +134,7 @@ You MUST return a JSON object with the following fields:
    - "name": The product name (clean it up, proper casing)
    - "brand": Brand name or brand code if listed under Brand/ID column (empty string "" if not found)
    - "quantity": Number of units purchased (default 1 if unclear)
-   - "unitPrice": Rate or price per unit in INR (number, no currency symbol)
+   - "unitPrice": Maximum Retail Price (MRP) or original unit price before discount in INR (number, no currency symbol). This is the original price before any item discount. If only the discounted Rate / Wholesaler Price is listed alongside a discount percentage, calculate and set this as the original MRP/price: rate / (1 - discount/100).
    - "discount": Discount percentage on this item (0 if none)
    - "suggestedCategories": Array of 1-3 categories from the EXISTING CATEGORIES list that best match this product. If no existing category fits well, return an empty array [].
    - "itemCode": Item code, SKU, barcode, Brand/ID, HSN code, or article number if listed on the receipt (empty string "" if not found)
@@ -159,8 +159,8 @@ IMPORTANT RULES:
 Example output format:
 {
   "items": [
-    {"name":"L'Oreal Professionnel Shampoo 300ml","brand":"L'Oreal","quantity":2,"unitPrice":450,"discount":0,"suggestedCategories":["Hair Care"],"itemCode":"","taxRate":18},
-    {"name":"Wella Professionals Hair Mask 150ml","brand":"Wella Professionals","quantity":1,"unitPrice":650,"discount":5,"suggestedCategories":["Hair Care"],"itemCode":"8005610524863","taxRate":12}
+    {"name":"L'Oreal Professionnel Shampoo 300ml","brand":"L'Oreal","quantity":2,"unitPrice":550,"discount":18.18,"suggestedCategories":["Hair Care"],"itemCode":"","taxRate":18},
+    {"name":"Wella Professionals Hair Mask 150ml","brand":"Wella Professionals","quantity":1,"unitPrice":650,"discount":0,"suggestedCategories":["Hair Care"],"itemCode":"8005610524863","taxRate":12}
   ],
   "invoiceSubtotal": 1550,
   "invoiceDiscountAmount": 32.5,
@@ -285,10 +285,13 @@ Example output format:
 
     // Apply calculated discount/tax to items if they don't have individual ones
     const itemsWithCalculatedRates = parsedItems.map(item => {
+      const discount = item.discount > 0 ? item.discount : calculatedDiscount;
+      const taxRate = item.taxRate > 0 ? item.taxRate : calculatedTax;
+      
       return {
         ...item,
-        discount: item.discount > 0 ? item.discount : calculatedDiscount,
-        taxRate: item.taxRate > 0 ? item.taxRate : calculatedTax,
+        discount,
+        taxRate,
       };
     });
 

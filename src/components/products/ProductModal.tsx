@@ -38,7 +38,7 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
   
   const [costPrice, setCostPrice] = useState("");
   const [purchasePriceTaxType, setPurchasePriceTaxType] = useState("WITH_TAX");
-  const [taxRate, setTaxRate] = useState(5);
+  const [taxRate, setTaxRate] = useState(0);
   
   const [wholesalePrice, setWholesalePrice] = useState("");
   const [wholesalePriceTaxType, setWholesalePriceTaxType] = useState("WITH_TAX");
@@ -123,7 +123,7 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
       setWholesalePrice(editingProduct.wholesalePrice ? String(editingProduct.wholesalePrice) : "");
       setWholesalePriceTaxType(editingProduct.wholesalePriceTaxType || "WITH_TAX");
       setShowWholesalePrice(!!editingProduct.wholesalePrice);
-      setTaxRate(editingProduct.taxRate !== undefined ? Number(editingProduct.taxRate) : 5);
+      setTaxRate(editingProduct.taxRate !== undefined ? Number(editingProduct.taxRate) : 0);
     } else if (open) {
       setName("");
       setDescription("");
@@ -144,16 +144,40 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
       setWholesalePrice("");
       setWholesalePriceTaxType("WITH_TAX");
       setShowWholesalePrice(false);
-      setTaxRate(5);
+      setTaxRate(0);
     }
     setShowSuggestions(false);
   }, [open, editingProduct]);
 
+  const [isWholesaleManuallyEdited, setIsWholesaleManuallyEdited] = useState(false);
+
   useEffect(() => {
-    if (showWholesalePrice) {
-      setSalePriceDiscount("");
+    if (open && editingProduct) {
+      setIsWholesaleManuallyEdited(!!editingProduct.wholesalePrice);
+    } else if (open) {
+      setIsWholesaleManuallyEdited(false);
     }
-  }, [showWholesalePrice]);
+  }, [open, editingProduct]);
+
+  useEffect(() => {
+    if (!isWholesaleManuallyEdited) {
+      const salePriceVal = parseFloat(price);
+      if (isNaN(salePriceVal) || salePriceVal <= 0) {
+        setWholesalePrice("");
+        return;
+      }
+      const discountVal = parseFloat(salePriceDiscount);
+      const dVal = isNaN(discountVal) ? 0 : discountVal;
+      let calculated = salePriceVal;
+      if (salePriceDiscountType === "PERCENTAGE") {
+        calculated = salePriceVal * (1 - dVal / 100);
+      } else {
+        calculated = Math.max(0, salePriceVal - dVal);
+      }
+      const rounded = Math.round(calculated * 100) / 100;
+      setWholesalePrice(String(rounded));
+    }
+  }, [price, salePriceDiscount, salePriceDiscountType, isWholesaleManuallyEdited]);
 
   // Filter autocomplete suggestions based on the typed product name
   const suggestions = useMemo(() => {
@@ -305,6 +329,9 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
       parsedWholesalePrice = parseFloat(wholesalePrice);
       if (isNaN(parsedWholesalePrice) || parsedWholesalePrice < 0) {
         return toastError("Wholesale Price cannot be negative");
+      }
+      if (parsedWholesalePrice >= parsedPrice) {
+        return toastError("Wholesale Price must be lower than the Individual Unit Price (Sale Price)");
       }
     }
 
@@ -683,33 +710,31 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
                     </div>
 
                     {/* Sale Price discount on top */}
-                    {!showWholesalePrice && (
-                      <div className="flex gap-2 animate-fade-in">
-                        <div className="relative flex-1">
-                          <input
-                            type="number"
-                            min="0"
-                            step="any"
-                            placeholder="Discount"
-                            className="input-field w-full"
-                            value={salePriceDiscount}
-                            onChange={(e) => setSalePriceDiscount(e.target.value)}
-                            disabled={submitting}
-                          />
-                        </div>
-                        <div className="relative w-[135px] flex-shrink-0">
-                          <select
-                            className="input-field appearance-none pr-8 cursor-pointer w-full"
-                            value={salePriceDiscountType}
-                            onChange={(e) => setSalePriceDiscountType(e.target.value)}
-                          >
-                            <option value="PERCENTAGE" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>Percentage</option>
-                            <option value="AMOUNT" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>Value</option>
-                          </select>
-                          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-zinc-400" />
-                        </div>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="Discount"
+                          className="input-field w-full"
+                          value={salePriceDiscount}
+                          onChange={(e) => setSalePriceDiscount(e.target.value)}
+                          disabled={submitting}
+                        />
                       </div>
-                    )}
+                      <div className="relative w-[135px] flex-shrink-0">
+                        <select
+                          className="input-field appearance-none pr-8 cursor-pointer w-full"
+                          value={salePriceDiscountType}
+                          onChange={(e) => setSalePriceDiscountType(e.target.value)}
+                        >
+                          <option value="PERCENTAGE" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>Percentage</option>
+                          <option value="AMOUNT" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>Value</option>
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-zinc-400" />
+                      </div>
+                    </div>
 
                     {/* Wholesale Price toggle */}
                     {!showWholesalePrice ? (
@@ -726,7 +751,11 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
                           <label className="text-[11px] font-semibold" style={{ color: "var(--text-secondary)" }}>Wholesale Price (₹)</label>
                           <button
                             type="button"
-                            onClick={() => { setShowWholesalePrice(false); setWholesalePrice(""); }}
+                            onClick={() => { 
+                              setShowWholesalePrice(false); 
+                              setWholesalePrice(""); 
+                              setIsWholesaleManuallyEdited(false);
+                            }}
                             className="text-[10px] text-red-400 hover:underline"
                           >
                             Remove
@@ -742,7 +771,10 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
                               placeholder="Wholesale Price"
                               className="input-field pl-9 w-full"
                               value={wholesalePrice}
-                              onChange={(e) => setWholesalePrice(e.target.value)}
+                              onChange={(e) => {
+                                setWholesalePrice(e.target.value);
+                                setIsWholesaleManuallyEdited(true);
+                              }}
                               disabled={submitting}
                             />
                           </div>
@@ -758,8 +790,55 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-zinc-400" />
                           </div>
                         </div>
+                        {showWholesalePrice && wholesalePrice && price && parseFloat(wholesalePrice) >= parseFloat(price) && (
+                          <p className="text-[10px] text-red-500 font-semibold mt-1">
+                            ⚠️ Wholesale Price should be lower than the Sale Price
+                          </p>
+                        )}
                       </div>
                     )}
+                  </div>
+
+                  {/* Initial Stock & Low Stock Alert (Moved up) */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                        {editingProduct ? "Stock Quantity *" : "Quantity Purchased *"}
+                      </label>
+                      <div className="relative">
+                        <Archive className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="1"
+                          className="input-field pl-9"
+                          value={stock}
+                          onChange={(e) => setStock(e.target.value)}
+                          disabled={submitting}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                        Low Stock Threshold *
+                      </label>
+                      <div className="relative">
+                        <AlertTriangle className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="10"
+                          className="input-field pl-9"
+                          value={lowStockAt}
+                          onChange={(e) => setLowStockAt(e.target.value)}
+                          disabled={submitting}
+                          required
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Tax Rate Selection */}
@@ -843,48 +922,6 @@ export default function ProductModal({ open, onClose, onSaved, editingProduct }:
                           : `Per-unit total based on ${basis} (qty not set)`;
                       })()}
                     </p>
-                  </div>
-
-                  {/* Initial Stock & Low Stock Alert */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                        {editingProduct ? "Stock Quantity *" : "Quantity Purchased *"}
-                      </label>
-                      <div className="relative">
-                        <Archive className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          placeholder="1"
-                          className="input-field pl-9"
-                          value={stock}
-                          onChange={(e) => setStock(e.target.value)}
-                          disabled={submitting}
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                        Low Stock Threshold *
-                      </label>
-                      <div className="relative">
-                        <AlertTriangle className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          placeholder="10"
-                          className="input-field pl-9"
-                          value={lowStockAt}
-                          onChange={(e) => setLowStockAt(e.target.value)}
-                          disabled={submitting}
-                          required
-                        />
-                      </div>
-                    </div>
                   </div>
 
                   {/* Image URL */}
