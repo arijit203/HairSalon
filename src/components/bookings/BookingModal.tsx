@@ -2269,7 +2269,7 @@ export default function BookingModal({ open, onClose, defaultDate, onCreated, ed
                             />
                           </div>
                           {bookingMode === "product" && selectedProducts.length > 0 && (
-                            <p className="text-sm font-bold text-emerald-500 mt-1">
+                            <p className="text-[10px] font-semibold mt-1" style={{ color: "var(--text-muted)" }}>
                               Total buying cost: ₹{totalCostPrice.toLocaleString("en-IN")}
                             </p>
                           )}
