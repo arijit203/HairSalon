@@ -59,6 +59,8 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [items, setItems] = useState<ParsedItem[]>([]);
   const [scannedGrandTotal, setScannedGrandTotal] = useState<number>(0);
+  const [invoiceDiscountRate, setInvoiceDiscountRate] = useState<number>(0);
+  const [invoiceTaxRate, setInvoiceTaxRate] = useState<number>(0);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [processingError, setProcessingError] = useState<string>("");
   const [confirmLoading, setConfirmLoading] = useState(false);
@@ -68,6 +70,46 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
   const [editingBackup, setEditingBackup] = useState<ParsedItem | null>(null);
   const [allCategoriesList, setAllCategoriesList] = useState<string[]>([]);
   const [existingProducts, setExistingProducts] = useState<any[]>([]);
+
+  const [tableWidth, setTableWidth] = useState<number>(0);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+
+  // Synchronize scroll positions
+  const handleTopScroll = () => {
+    if (topScrollRef.current && tableContainerRef.current) {
+      if (tableContainerRef.current.scrollLeft !== topScrollRef.current.scrollLeft) {
+        tableContainerRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+      }
+    }
+  };
+
+  const handleTableScroll = () => {
+    if (topScrollRef.current && tableContainerRef.current) {
+      if (topScrollRef.current.scrollLeft !== tableContainerRef.current.scrollLeft) {
+        topScrollRef.current.scrollLeft = tableContainerRef.current.scrollLeft;
+      }
+    }
+  };
+
+  // Keep track of the table width to size the top scroll spacer correctly
+  useEffect(() => {
+    if (step !== "review" || !tableRef.current) return;
+    
+    // Set initial width
+    setTableWidth(tableRef.current.scrollWidth);
+
+    // Watch for size changes (window resize, item edit, content changes)
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        setTableWidth(entry.target.scrollWidth);
+      }
+    });
+    
+    observer.observe(tableRef.current);
+    return () => observer.disconnect();
+  }, [step, items]);
 
   // Load custom categories from localStorage
   useEffect(() => {
@@ -101,6 +143,8 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
       setStep("upload");
       setItems([]);
       setScannedGrandTotal(0);
+      setInvoiceDiscountRate(0);
+      setInvoiceTaxRate(0);
       setImagePreview(null);
       setProcessingError("");
       setSuccessResults(null);
@@ -278,6 +322,8 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
       });
       setItems(processed);
       setScannedGrandTotal(data.data.invoiceGrandTotal || 0);
+      setInvoiceDiscountRate(data.data.invoiceDiscountRate || 0);
+      setInvoiceTaxRate(data.data.invoiceTaxRate || 0);
       setStep("review");
     } catch (err: any) {
       setProcessingError(err.message || "Failed to process the invoice. Please try again.");
@@ -340,7 +386,8 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
 
     if (bestMatch) {
       const existingCost = Number(bestMatch.costPrice || bestMatch.price || 0);
-      const newCost = Math.round((item.unitPrice * (1 - (item.discount || 0) / 100) * (1 + (item.taxRate || 0) / 100)) * 100) / 100;
+      const combinedDiscountFactor = (1 - (item.discount || 0) / 100) * (1 - invoiceDiscountRate / 100);
+      const newCost = Math.round((item.unitPrice * combinedDiscountFactor * (1 + (item.taxRate || 0) / 100)) * 100) / 100;
       
       // If price differs by more than 1 unit, or it's a partial match, flag as conflict
       const priceDiffers = Math.abs(existingCost - newCost) > 1.0;
@@ -397,20 +444,23 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
   const handleConfirm = async () => {
     setConfirmLoading(true);
     try {
-      const confirmItems = items.map((item) => ({
-        action: item.action === "conflict" ? "create" as const : item.action, // Fallback safety
-        productId: item.productId,
-        name: item.name,
-        brand: item.brand,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        discount: item.discount,
-        categories: item.suggestedCategories,
-        salePrice: item.salePrice,
-        costPrice: item.costPrice,
-        itemCode: item.itemCode,
-        taxRate: item.taxRate,
-      }));
+      const confirmItems = items.map((item) => {
+        const combinedDiscount = (1 - (1 - (item.discount || 0) / 100) * (1 - invoiceDiscountRate / 100)) * 100;
+        return {
+          action: item.action === "conflict" ? "create" as const : item.action, // Fallback safety
+          productId: item.productId,
+          name: item.name,
+          brand: item.brand,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: Math.round(combinedDiscount * 100) / 100,
+          categories: item.suggestedCategories,
+          salePrice: item.salePrice,
+          costPrice: item.costPrice,
+          itemCode: item.itemCode,
+          taxRate: item.taxRate,
+        };
+      });
 
       const res = await fetch("/api/invoice-scan/confirm", {
         method: "POST",
@@ -882,8 +932,26 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                         background: "var(--bg-card)",
                       }}
                     >
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                      {/* Top horizontal scrollbar synchronized with the table scroll */}
+                      <div 
+                        ref={topScrollRef} 
+                        className="overflow-x-auto" 
+                        style={{ 
+                          width: "100%", 
+                          background: "rgba(255,255,255,0.01)",
+                          borderBottom: "1px solid var(--border-subtle)",
+                        }}
+                        onScroll={handleTopScroll}
+                      >
+                        <div style={{ width: tableWidth, height: "1px" }} />
+                      </div>
+
+                      <div 
+                        ref={tableContainerRef}
+                        className="overflow-x-auto"
+                        onScroll={handleTableScroll}
+                      >
+                        <table ref={tableRef} className="w-full text-sm">
                           <thead>
                             <tr
                               style={{
@@ -915,7 +983,17 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                               <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                                 Total
                               </th>
-                              <th className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                              <th 
+                                className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" 
+                                style={{ 
+                                  color: "var(--text-muted)",
+                                  position: "sticky",
+                                  right: 0,
+                                  background: "var(--bg-secondary)",
+                                  boxShadow: "-4px 0 8px -4px rgba(0,0,0,0.3)",
+                                  zIndex: 20
+                                }}
+                              >
                                 Action
                               </th>
                             </tr>
@@ -934,7 +1012,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                 }}
                               >
                                 <td className="px-4 py-3">
-                                  {editingIndex === idx && item.action !== "update" ? (
+                                  {editingIndex === idx ? (
                                     <div className="space-y-1.5">
                                       <input
                                         className="input-field text-xs py-1.5 px-2 w-full"
@@ -1009,7 +1087,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                   )}
                                 </td>
                                 <td className="px-3 py-3">
-                                  {editingIndex === idx && item.action !== "update" ? (
+                                  {editingIndex === idx ? (
                                     <input
                                       className="input-field text-xs py-1.5 px-2 w-full font-mono"
                                       value={item.itemCode || ""}
@@ -1023,7 +1101,7 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                   )}
                                 </td>
                                 <td className="px-3 py-3">
-                                   {editingIndex === idx && item.action !== "update" ? (
+                                   {editingIndex === idx ? (
                                      <div className="space-y-1.5 min-w-[120px]">
                                        {/* Pills for current categories */}
                                        <div className="flex flex-wrap gap-1 max-h-[50px] overflow-y-auto">
@@ -1163,49 +1241,59 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                     </div>
                                   )}
                                 </td>
-                                <td className="px-3 py-3 text-right">
-                                  <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
-                                    ₹{(item.unitPrice * (1 - (item.discount || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-3 text-center">
-                                   {item.action === "conflict" ? (
-                                     <span
-                                       className="text-[10px] font-semibold px-2 py-1 rounded-full border"
-                                       style={{
-                                         background: "rgba(245, 158, 11, 0.1)",
-                                         borderColor: "rgba(245, 158, 11, 0.2)",
-                                         color: "#f59e0b",
-                                       }}
-                                     >
-                                       Action Required
-                                     </span>
-                                   ) : (
-                                     <span
-                                       className="text-[10px] font-semibold px-2 py-1 rounded-full"
-                                       style={{
-                                         background:
-                                           item.action === "update"
-                                             ? "rgba(16,185,129,0.1)"
-                                             : "rgba(168,85,247,0.1)",
-                                         color: item.action === "update" ? "#10b981" : "#a855f7",
-                                       }}
-                                     >
-                                       {item.action === "update" ? "Update Stock" : "New Product"}
-                                     </span>
-                                   )}
-                                   {item.action === "update" && item.existingStock !== undefined && (
-                                     <p className="text-[9px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-                                       {item.existingStock} → {item.existingStock + item.quantity}
-                                     </p>
-                                   )}
-                                 </td>
                                  <td className="px-3 py-3 text-right">
                                    <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
-                                     ₹{((item.unitPrice * (1 - (item.discount || 0) / 100) * item.quantity) * (1 + (item.taxRate || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                     ₹{(item.unitPrice * (1 - (item.discount || 0) / 100) * (1 - invoiceDiscountRate / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                    </span>
                                  </td>
                                  <td className="px-3 py-3 text-center">
+                                    {item.action === "conflict" ? (
+                                      <span
+                                        className="text-[10px] font-semibold px-2 py-1 rounded-full border"
+                                        style={{
+                                          background: "rgba(245, 158, 11, 0.1)",
+                                          borderColor: "rgba(245, 158, 11, 0.2)",
+                                          color: "#f59e0b",
+                                        }}
+                                      >
+                                        Action Required
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="text-[10px] font-semibold px-2 py-1 rounded-full"
+                                        style={{
+                                          background:
+                                            item.action === "update"
+                                              ? "rgba(16,185,129,0.1)"
+                                              : "rgba(168,85,247,0.1)",
+                                          color: item.action === "update" ? "#10b981" : "#a855f7",
+                                        }}
+                                      >
+                                        {item.action === "update" ? "Update Stock" : "New Product"}
+                                      </span>
+                                    )}
+                                    {item.action === "update" && item.existingStock !== undefined && (
+                                      <p className="text-[9px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+                                        {item.existingStock} → {item.existingStock + item.quantity}
+                                      </p>
+                                    )}
+                                 </td>
+                                 <td className="px-3 py-3 text-right">
+                                   <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
+                                     ₹{((item.unitPrice * (1 - (item.discount || 0) / 100) * (1 - invoiceDiscountRate / 100) * item.quantity) * (1 + (item.taxRate || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                   </span>
+                                 </td>
+                                 <td 
+                                   className="px-3 py-3 text-center"
+                                   style={{
+                                     position: "sticky",
+                                     right: 0,
+                                     background: editingIndex === idx ? "var(--bg-secondary)" : "var(--bg-card)",
+                                     boxShadow: "-4px 0 8px -4px rgba(0,0,0,0.3)",
+                                     borderLeft: "1px solid var(--border-subtle)",
+                                     zIndex: 10
+                                   }}
+                                 >
                                    <div className="flex items-center gap-1 justify-center">
                                      {editingIndex === idx ? (
                                        <>
@@ -1264,33 +1352,72 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
 
                     {/* Grand Total Summary Bar */}
                     {items.length > 0 && (() => {
-                      const calculated = items.reduce((sum, item) => {
-                        return sum + (item.unitPrice * (1 - (item.discount || 0) / 100) * item.quantity) * (1 + (item.taxRate || 0) / 100);
+                      const subtotalBeforeFinalDiscount = items.reduce((sum, item) => {
+                        return sum + (item.unitPrice * (1 - (item.discount || 0) / 100) * item.quantity);
                       }, 0);
+                      const finalDiscountAmount = subtotalBeforeFinalDiscount * (invoiceDiscountRate / 100);
+                      const subtotalAfterFinalDiscount = subtotalBeforeFinalDiscount - finalDiscountAmount;
+                      const calculated = subtotalAfterFinalDiscount * (1 + (invoiceTaxRate || 0) / 100);
                       const grandTotal = scannedGrandTotal > 0 ? scannedGrandTotal : calculated;
                       const isFromReceipt = scannedGrandTotal > 0;
                       const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
-                      const hasDiscount = items.some(i => (i.discount || 0) > 0);
-                      const hasTax = items.some(i => (i.taxRate || 0) > 0);
                       return (
                         <div
-                          className="mt-3 px-5 py-3 rounded-xl flex items-center justify-between"
+                          className="mt-3 px-5 py-4 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
                           style={{
                             background: "rgba(244,63,94,0.06)",
                             border: "1px solid rgba(244,63,94,0.18)",
                           }}
                         >
-                          <div className="flex items-center gap-4 text-xs" style={{ color: "var(--text-secondary)" }}>
+                          <div className="flex items-center gap-4 flex-wrap text-xs" style={{ color: "var(--text-secondary)" }}>
                             <span><span className="font-bold" style={{ color: "var(--text-primary)" }}>{items.length}</span> item type{items.length !== 1 ? "s" : ""}</span>
                             <span><span className="font-bold" style={{ color: "var(--text-primary)" }}>{totalQty}</span> units total</span>
-                            {hasDiscount && <span className="text-emerald-400 font-medium">Discounts applied</span>}
-                            {hasTax && <span className="text-cyan-400 font-medium">Tax included</span>}
+                            
+                            {/* Final Discount Input */}
+                            <div className="flex items-center gap-1.5 ml-2 border-l border-zinc-200/10 pl-4">
+                              <span style={{ color: "var(--text-muted)" }}>Final Disc (%):</span>
+                              <input
+                                type="number"
+                                className="input-field text-xs py-1 px-1.5 w-16 text-right font-semibold"
+                                style={{ background: "rgba(0,0,0,0.2)", color: "var(--text-primary)" }}
+                                value={invoiceDiscountRate}
+                                onChange={(e) => {
+                                  setInvoiceDiscountRate(parseFloat(e.target.value) || 0);
+                                  setScannedGrandTotal(0); // Force recalculation
+                                }}
+                                min={0}
+                                max={100}
+                                step="any"
+                              />
+                            </div>
+
+                            {/* Invoice Tax Input */}
+                            <div className="flex items-center gap-1.5 ml-2 border-l border-zinc-200/10 pl-4">
+                              <span style={{ color: "var(--text-muted)" }}>Invoice Tax (%):</span>
+                              <input
+                                type="number"
+                                className="input-field text-xs py-1 px-1.5 w-16 text-right font-semibold"
+                                style={{ background: "rgba(0,0,0,0.2)", color: "var(--text-primary)" }}
+                                value={invoiceTaxRate}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  setInvoiceTaxRate(val);
+                                  // Update each item's taxRate to match the new invoice tax rate
+                                  setItems((prev) => prev.map((item) => ({ ...item, taxRate: val })));
+                                  setScannedGrandTotal(0); // Force recalculation
+                                }}
+                                min={0}
+                                max={100}
+                                step="any"
+                              />
+                            </div>
                           </div>
-                          <div className="text-right">
+                          
+                          <div className="text-left sm:text-right border-t sm:border-t-0 border-zinc-200/10 pt-3 sm:pt-0">
                             <p className="text-[10px] font-medium mb-0.5" style={{ color: "var(--text-muted)" }}>
                               {isFromReceipt ? "Grand Total (from receipt)" : "Grand Total (calculated)"}
                             </p>
-                            <p className="text-xl font-bold tabular-nums" style={{ color: "var(--accent-rose-light)" }}>
+                            <p className="text-xl font-bold tabular-nums animate-fade-in" style={{ color: "var(--accent-rose-light)" }}>
                               ₹{grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </p>
                           </div>

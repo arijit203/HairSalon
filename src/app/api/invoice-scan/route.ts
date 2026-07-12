@@ -231,6 +231,10 @@ Example output format:
     let calculatedDiscount = 0;
     let calculatedTax = 0;
     let invoiceGrandTotal = 0;
+    let invoiceDiscountAmount = 0;
+    let invoiceDiscountRate = 0;
+    let invoiceTaxAmount = 0;
+    let invoiceTaxRate = 0;
 
     try {
       // Try to extract JSON from the response (handle cases where AI wraps in code blocks)
@@ -244,27 +248,36 @@ Example output format:
       if (parsedData && typeof parsedData === "object" && !Array.isArray(parsedData)) {
         parsedItems = parsedData.items || [];
         
-        const subtotal = parsedData.invoiceSubtotal || parsedItems.reduce((acc, item) => acc + (item.unitPrice * item.quantity), 0) || 0;
-        
-        // Calculate global discount rate
-        calculatedDiscount = parsedData.invoiceDiscountRate || 0;
-        if (calculatedDiscount === 0 && parsedData.invoiceDiscountAmount && parsedData.invoiceDiscountAmount > 0 && subtotal > 0) {
-          calculatedDiscount = (parsedData.invoiceDiscountAmount / subtotal) * 100;
+        invoiceDiscountAmount = parsedData.invoiceDiscountAmount || 0;
+        invoiceDiscountRate = parsedData.invoiceDiscountRate || 0;
+        invoiceTaxAmount = parsedData.invoiceTaxAmount || 0;
+        invoiceTaxRate = parsedData.invoiceTaxRate || 0;
+        invoiceGrandTotal = parsedData.invoiceGrandTotal || 0;
+
+        // Calculate subtotal of items after their individual discounts
+        const subtotalAfterIndividualDiscounts = parsedItems.reduce((acc, item) => {
+          const qty = item.quantity || 1;
+          const price = item.unitPrice || 0;
+          const disc = item.discount || 0;
+          return acc + (price * qty * (1 - disc / 100));
+        }, 0);
+
+        // Calculate global final discount rate if amount is present but rate is 0
+        calculatedDiscount = invoiceDiscountRate;
+        if (calculatedDiscount === 0 && invoiceDiscountAmount > 0 && subtotalAfterIndividualDiscounts > 0) {
+          calculatedDiscount = (invoiceDiscountAmount / subtotalAfterIndividualDiscounts) * 100;
         }
         calculatedDiscount = Math.round(calculatedDiscount * 100) / 100;
 
-        // Calculate global tax rate
-        calculatedTax = parsedData.invoiceTaxRate || 0;
-        if (calculatedTax === 0 && parsedData.invoiceTaxAmount && parsedData.invoiceTaxAmount > 0) {
-          const subtotalAfterDiscount = subtotal - (parsedData.invoiceDiscountAmount || 0);
-          if (subtotalAfterDiscount > 0) {
-            calculatedTax = (parsedData.invoiceTaxAmount / subtotalAfterDiscount) * 100;
+        // Calculate global tax rate if amount is present but rate is 0
+        calculatedTax = invoiceTaxRate;
+        if (calculatedTax === 0 && invoiceTaxAmount > 0) {
+          const subtotalAfterFinalDiscount = subtotalAfterIndividualDiscounts - invoiceDiscountAmount;
+          if (subtotalAfterFinalDiscount > 0) {
+            calculatedTax = (invoiceTaxAmount / subtotalAfterFinalDiscount) * 100;
           }
         }
         calculatedTax = Math.round(calculatedTax * 100) / 100;
-
-        // Capture invoice grand total if listed on the receipt
-        invoiceGrandTotal = parsedData.invoiceGrandTotal || 0;
       } else if (Array.isArray(parsedData)) {
         parsedItems = parsedData;
       }
@@ -283,14 +296,12 @@ Example output format:
       });
     }
 
-    // Apply calculated discount/tax to items if they don't have individual ones
+    // Apply fallback tax rate to items if they don't have individual ones
     const itemsWithCalculatedRates = parsedItems.map(item => {
-      const discount = item.discount > 0 ? item.discount : calculatedDiscount;
       const taxRate = item.taxRate > 0 ? item.taxRate : calculatedTax;
       
       return {
         ...item,
-        discount,
         taxRate,
       };
     });
@@ -349,7 +360,8 @@ Example output format:
 
       if (bestMatch) {
         const existingCost = Number(bestMatch.costPrice || bestMatch.price || 0);
-        const newCost = Math.round((item.unitPrice * (1 - (item.discount || 0) / 100) * (1 + (item.taxRate || 0) / 100)) * 100) / 100;
+        const combinedDiscountFactor = (1 - (item.discount || 0) / 100) * (1 - calculatedDiscount / 100);
+        const newCost = Math.round((item.unitPrice * combinedDiscountFactor * (1 + (item.taxRate || 0) / 100)) * 100) / 100;
         
         // If price differs by more than 1 unit, or it's a partial match, flag as a conflict
         const priceDiffers = Math.abs(existingCost - newCost) > 1.0;
@@ -394,6 +406,10 @@ Example output format:
     return successResponse({
       items: matchedItems,
       invoiceGrandTotal,
+      invoiceDiscountRate: calculatedDiscount || invoiceDiscountRate,
+      invoiceDiscountAmount,
+      invoiceTaxRate: calculatedTax || invoiceTaxRate,
+      invoiceTaxAmount,
       summary: {
         total: matchedItems.length,
         updates: matchedItems.filter((i) => i.action === "update").length,
