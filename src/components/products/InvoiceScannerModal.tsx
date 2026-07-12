@@ -1225,12 +1225,19 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                     </div>
                                   ) : (
                                     <div>
-                                      <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
-                                        ₹{item.unitPrice.toLocaleString("en-IN")}
-                                      </span>
-                                      {item.discount > 0 && (
-                                        <span className="text-[10px] ml-1 text-emerald-500 font-medium">
-                                          -{item.discount}%
+                                      <div className="flex items-center justify-end gap-1">
+                                        <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
+                                          ₹{item.unitPrice.toLocaleString("en-IN")}
+                                        </span>
+                                        {item.discount > 0 && (
+                                          <span className="text-[10px] text-emerald-500 font-medium bg-emerald-500/10 px-1 rounded">
+                                            -{item.discount}%
+                                          </span>
+                                        )}
+                                      </div>
+                                      {invoiceDiscountRate > 0 && (
+                                        <span className="text-[10px] block text-emerald-500 font-medium mt-0.5">
+                                          -{invoiceDiscountRate}% Final Disc
                                         </span>
                                       )}
                                       {item.taxRate > 0 && (
