@@ -318,19 +318,27 @@ Example output format:
         const pSku = (p.sku || "").toLowerCase().trim();
         
         if (itemSku && pSku && itemSku === pSku) {
-          bestMatch = p;
-          highestSimilarity = 1.0;
-          isPartialOverlap = false;
-          break;
+          const nameSim = getStringSimilarity(p.name, item.name);
+          const hasOverlap = hasWordOverlap(p.name, item.name);
+          if (nameSim >= 0.40 || hasOverlap) {
+            bestMatch = p;
+            highestSimilarity = 1.0;
+            isPartialOverlap = false;
+            break;
+          }
         }
 
         // 2. Check SKU / itemCode similarity >= 0.50
         const codeSim = itemSku && pSku ? getStringSimilarity(pSku, itemSku) : 0;
         if (codeSim >= 0.50) {
-          bestMatch = p;
-          highestSimilarity = codeSim;
-          isPartialOverlap = false;
-          break;
+          const nameSim = getStringSimilarity(p.name, item.name);
+          const hasOverlap = hasWordOverlap(p.name, item.name);
+          if (nameSim >= 0.40 || hasOverlap) {
+            bestMatch = p;
+            highestSimilarity = codeSim;
+            isPartialOverlap = false;
+            break;
+          }
         }
 
         // 3. Brand matches if one or both are empty, one contains the other, or similarity is >= 50%

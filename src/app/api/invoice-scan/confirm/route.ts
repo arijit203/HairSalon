@@ -51,6 +51,8 @@ export async function POST(req: NextRequest) {
       total: number;
     }[] = [];
 
+    const usedSkus = new Set<string>();
+
     for (const item of items) {
       try {
         if (item.action === "update" && item.productId) {
@@ -118,9 +120,21 @@ export async function POST(req: NextRequest) {
           });
         } else {
           // Create new product
-          const sku = item.itemCode && item.itemCode.trim() !== ""
+          const baseSku = item.itemCode && item.itemCode.trim() !== ""
             ? item.itemCode.trim()
             : `INV-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+          let sku = baseSku;
+          let skuAttempts = 0;
+          while (usedSkus.has(sku) || (await prisma.product.findUnique({ where: { sku } }))) {
+            skuAttempts++;
+            sku = `${baseSku}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+            if (skuAttempts > 10) {
+              sku = `INV-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+              break;
+            }
+          }
+          usedSkus.add(sku);
 
           const status = calculateStockStatus(item.quantity, 2) as any;
 

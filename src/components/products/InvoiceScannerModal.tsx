@@ -1339,13 +1339,6 @@ export default function InvoiceScannerModal({ open, onClose, onProductsUpdated }
                                          >
                                            <Pencil className="w-3 h-3" />
                                          </button>
-                                         <button
-                                           onClick={() => removeItem(idx)}
-                                           className="btn-icon w-6 h-6"
-                                           title="Remove item"
-                                         >
-                                           <Trash2 className="w-3 h-3" style={{ color: "#f87171" }} />
-                                         </button>
                                        </>
                                      )}
                                    </div>
