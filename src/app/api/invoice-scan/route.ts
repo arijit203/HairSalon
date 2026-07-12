@@ -77,10 +77,25 @@ function getStringSimilarity(s1: string, s2: string): number {
 }
 
 function hasWordOverlap(s1: string, s2: string): boolean {
-  const stopWords = new Set(["for", "the", "and", "with", "pack", "single", "size", "ml", "gm", "pcs", "free", "off", "new", "kit"]);
+  const stopWords = new Set([
+    "for", "the", "and", "with", "pack", "single", "size", "ml", "gm", "pcs", "free", "off", "new", "kit",
+    "facial", "cream", "gel", "scrub", "skin", "oil", "shampoo", "wash", "mask", "cleanser", "toner", 
+    "lotion", "moisturizer", "treatment", "therapy", "hair", "body", "face", "beauty", "salon", "pro",
+    "professional", "active", "natural", "organic", "pure"
+  ]);
   
-  const words1 = s1.toLowerCase().split(/[^a-z0-9+]/).map(w => w.trim()).filter(w => w.length >= 3 && !stopWords.has(w));
-  const words2 = s2.toLowerCase().split(/[^a-z0-9+]/).map(w => w.trim()).filter(w => w.length >= 3 && !stopWords.has(w));
+  const getWords = (str: string) => {
+    return str.toLowerCase()
+      .split(/[^a-z0-9+]/)
+      .map(w => w.trim())
+      .filter(w => {
+        // Must be at least 3 characters, not a stop word, and NOT a numeric string
+        return w.length >= 3 && !stopWords.has(w) && isNaN(Number(w));
+      });
+  };
+
+  const words1 = getWords(s1);
+  const words2 = getWords(s2);
   
   const set2 = new Set(words2);
   return words1.some(word => set2.has(word));
@@ -319,8 +334,7 @@ Example output format:
         
         if (itemSku && pSku && itemSku === pSku) {
           const nameSim = getStringSimilarity(p.name, item.name);
-          const hasOverlap = hasWordOverlap(p.name, item.name);
-          if (nameSim >= 0.40 || hasOverlap) {
+          if (nameSim >= 0.40) {
             bestMatch = p;
             highestSimilarity = 1.0;
             isPartialOverlap = false;
@@ -332,8 +346,7 @@ Example output format:
         const codeSim = itemSku && pSku ? getStringSimilarity(pSku, itemSku) : 0;
         if (codeSim >= 0.50) {
           const nameSim = getStringSimilarity(p.name, item.name);
-          const hasOverlap = hasWordOverlap(p.name, item.name);
-          if (nameSim >= 0.40 || hasOverlap) {
+          if (nameSim >= 0.40) {
             bestMatch = p;
             highestSimilarity = codeSim;
             isPartialOverlap = false;
@@ -360,9 +373,6 @@ Example output format:
           highestSimilarity = similarity;
           bestMatch = p;
           isPartialOverlap = false;
-        } else if (hasWordOverlap(p.name, item.name) && !bestMatch) {
-          bestMatch = p;
-          isPartialOverlap = true;
         }
       }
 
