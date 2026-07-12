@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
               brand: item.brand || "",
               category: item.categories.length > 0 ? item.categories : [],
               sku,
-              price: item.salePrice !== undefined ? item.salePrice : item.unitPrice,
+              price: item.salePrice !== undefined ? item.salePrice : Math.round((item.unitPrice * (1 + (item.taxRate || 0) / 100)) * 100) / 100,
               costPrice: item.costPrice !== undefined ? item.costPrice : Math.round((item.unitPrice * (1 - (item.discount || 0) / 100) * (1 + (item.taxRate || 0) / 100)) * 100) / 100,
               stock: item.quantity,
               lowStockAt: 2,
