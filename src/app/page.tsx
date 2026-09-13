@@ -4,6 +4,7 @@ import {
   TrendingUp, TrendingDown, Users, ShoppingBag,
   CalendarCheck, Plus, ArrowRight, Clock,
   Scissors, AlertTriangle, Printer, Package, Sparkles, DollarSign,
+  Eye, EyeOff,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -76,6 +77,8 @@ export default function DashboardPage() {
   const { openBooking } = useBooking();
   const { error } = useToast();
   const [period, setPeriod] = useState("1D");
+  // Privacy toggle — always starts hidden on every page load (not persisted)
+  const [showRevenue, setShowRevenue] = useState(false);
 
   const getPeriodDates = (p: string) => {
     const to = new Date();
@@ -367,6 +370,7 @@ export default function DashboardPage() {
     {
       label: "Total Revenue",
       value: stats ? fmt(stats.revenue.thisMonth) : "—",
+      isSensitive: true,
       change: stats?.revenue.changePercent ?? 0,
       sub: `This month (${currentMonthName})`,
       icon: ShoppingBag,
@@ -375,11 +379,19 @@ export default function DashboardPage() {
     {
       label: "Total Income Today",
       value: stats ? `₹${stats.revenue.today.toLocaleString("en-IN")}` : "—",
+      isSensitive: true,
       sub: stats ? (
-        <div className="flex items-center gap-6 text-xs font-semibold mt-1" style={{ color: "var(--text-primary)" }}>
-          <span>Online: ₹{stats.revenue.todayOnline.toLocaleString("en-IN")}</span>
-          <span>Cash:  ₹{stats.revenue.todayCash.toLocaleString("en-IN")}</span>
-        </div>
+        showRevenue ? (
+          <div className="flex items-center gap-6 text-xs font-semibold mt-1" style={{ color: "var(--text-primary)" }}>
+            <span>Online: ₹{stats.revenue.todayOnline.toLocaleString("en-IN")}</span>
+            <span>Cash:  ₹{stats.revenue.todayCash.toLocaleString("en-IN")}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-6 text-xs font-semibold mt-1" style={{ color: "var(--text-muted)" }}>
+            <span>Online: ••••</span>
+            <span>Cash: ••••</span>
+          </div>
+        )
       ) : (
         <div className="flex items-center gap-6 text-xs font-semibold mt-1" style={{ color: "var(--text-muted)" }}>
           <span>Online: —</span>
@@ -460,6 +472,10 @@ export default function DashboardPage() {
           : statCards.map((card) => {
             const Icon = card.icon;
             const isPositive = card.isCount ? (card.change as number) >= 0 : (card.change as number) >= 0;
+            const isSensitive = !!(card as any).isSensitive;
+            const displayValue = isSensitive && !showRevenue
+              ? <span style={{ letterSpacing: "0.15em" }}>₹••••••</span>
+              : card.value;
             return (
               <div key={card.label} className="glass-card p-5 hover:scale-[1.01] transition-all duration-200">
                 <div className="flex items-start justify-between mb-4">
@@ -474,7 +490,22 @@ export default function DashboardPage() {
                     </span>
                   )}
                 </div>
-                <p className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>{card.value}</p>
+                {/* Value row — eye toggle sits inline next to the amount */}
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
+                    {displayValue}
+                  </p>
+                  {isSensitive && (
+                    <button
+                      onClick={() => setShowRevenue(v => !v)}
+                      title={showRevenue ? "Hide revenue" : "Show revenue"}
+                      className="flex-shrink-0 p-1 rounded-md transition-all duration-150 hover:scale-110"
+                      style={{ color: showRevenue ? "var(--text-secondary)" : "var(--text-muted)", opacity: 0.7 }}
+                    >
+                      {showRevenue ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
+                </div>
                 <p className="text-xs font-medium mb-0.5" style={{ color: "var(--text-muted)" }}>{card.label}</p>
                 {card.sub && (
                   <div className="text-xs w-full" style={{ color: "var(--text-muted)" }}>{card.sub}</div>

@@ -2,7 +2,7 @@
 
 import {
   BarChart3, TrendingUp, TrendingDown, Calendar,
-  Download, ArrowUp, ArrowDown, Loader2, X
+  Download, ArrowUp, ArrowDown, Loader2, X, Eye, EyeOff
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -46,6 +46,8 @@ function ChartTooltip({ active, payload, label }: any) {
 export default function AnalyticsPage() {
   const [period, setPeriod] = useState("3M");
   const [showComparison, setShowComparison] = useState(false);
+  // Privacy toggle — always starts hidden on every page load (not persisted)
+  const [showRevenue, setShowRevenue] = useState(false);
   
   // Custom Date States
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -445,7 +447,8 @@ export default function AnalyticsPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {kpis.map((k: any, i: number) => {
-          const displayValue = (() => {
+          const isSensitive = i < 3;
+          const rawDisplayValue = (() => {
             if (showComparison && k.difference !== undefined) {
               const diffVal = k.difference;
               const absVal = Math.abs(diffVal);
@@ -458,6 +461,9 @@ export default function AnalyticsPage() {
             }
             return k.value;
           })();
+          const displayValue = isSensitive && !showRevenue
+            ? <span style={{ letterSpacing: "0.15em" }}>₹••••••</span>
+            : rawDisplayValue;
           return (
             <div key={i} className="glass-card px-5 pt-4 pb-4 relative overflow-hidden flex flex-col">
               {loading && (
@@ -476,8 +482,22 @@ export default function AnalyticsPage() {
               </div>
               {/* Value & Compare Container */}
               <div className="mt-auto">
-                {/* Value */}
-                <p className="text-2xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>{displayValue}</p>
+                {/* Value row with inline eye toggle for sensitive cards */}
+                <div className="flex items-center gap-2">
+                  <p className="text-2xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
+                    {displayValue}
+                  </p>
+                  {isSensitive && (
+                    <button
+                      onClick={() => setShowRevenue(v => !v)}
+                      title={showRevenue ? "Hide values" : "Show values"}
+                      className="flex-shrink-0 p-1 rounded-md transition-all duration-150 hover:scale-110"
+                      style={{ color: showRevenue ? "var(--text-secondary)" : "var(--text-muted)", opacity: 0.7 }}
+                    >
+                      {showRevenue ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
+                </div>
                 {/* Compare row — only rendered when compare is on, no dead space when off */}
                 {showComparison ? (
                   <div className={`flex items-center gap-1 text-xs font-semibold mt-2 ${k.up ? "text-emerald-500" : "text-rose-400"}`}>
